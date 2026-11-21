@@ -97,7 +97,7 @@ bool capture_widget(Runtime& runtime,const controls::Binding& binding,const prop
     return queue(runtime,std::move(captured),error);
 }
 uint32_t continent_call(uintptr_t image,uintptr_t root,uintptr_t point,float& height){
-    __try{height=reinterpret_cast<float(__fastcall*)(void*,const void*)>(image+0x5083f0)(reinterpret_cast<void*>(root),reinterpret_cast<void*>(point));return 0;}
+    __try{height=reinterpret_cast<float(__fastcall*)(void*,const void*)>(image+0x50e540)(reinterpret_cast<void*>(root),reinterpret_cast<void*>(point));return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 bool continent(Runtime& runtime,uintptr_t object,uint32_t& bits,std::string& error){
@@ -114,7 +114,7 @@ uint32_t invoke(uintptr_t image,uintptr_t object,const property::Value& value,ui
         if(field->type==property::Type::Flag)*reinterpret_cast<uint8_t*>(object+field->offset)=uint8_t(value.bits[0]);
         else std::memcpy(reinterpret_cast<void*>(object+field->offset),value.bits.data(),field->type==property::Type::Color?16:4);
         steps|=2;
-        reinterpret_cast<Notice>(image+0x41d100)(reinterpret_cast<void*>(object),&name);steps|=4;
+        reinterpret_cast<Notice>(image+0x421e50)(reinterpret_cast<void*>(object),&name);steps|=4;
         end_original(reinterpret_cast<void*>(object),&name);steps|=8;return 0;
     }__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }

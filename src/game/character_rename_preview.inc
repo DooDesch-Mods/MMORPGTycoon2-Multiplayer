@@ -16,11 +16,11 @@ MT2FW_MT2_Result MT2FW_CALL select_int(void*,const MT2FW_MT2_CharacterPreviewInt
 void attach_entry(void*);
 struct Pin {uintptr_t rva;size_t bytes;const char* sha;};
 constexpr Pin pins[]{
-    {0x9fc370,96,"7041b7ec325591b8d191a54b3ac8d9bd909ee099283d9d210014af498d160c61"},
-    {0x9fc090,192,"7a7ab329d2eb747de62d61f791723eef44f3e850a468747f41708e6d08b981e5"},
-    {0x6577d0,1056,"2bee69e1eaea954f0f772cc46dce5d42eea03606285d951b0062c39aa3a15126"},
-    {0x905d0,176,"48bd32cca95d9fe85040cc170607b4b7606b240e890ce5afb2522b416b4d64b4"},
-    {0x321610,2016,"72e0577cde541f669a8cb7d6c8aaf2f5b355293ccd06cead180ef60d79b4afcc"}};
+    {0xa068a0,128,"a645122dbd7b9160fab9fccaa2461f116379b2119afe6846e37ebffb552e7b18"},
+    {0xa06510,240,"bc363d294fbe60db8a6d564e9adeea6187051b306efa10c8b88064155fe8da1c"},
+    {0x65e720,1088,"7fd5b5631656c2608a0676e86c834fcd1798d456cdb657e550fe71d463261259"},
+    {0x912c0,176,"36c010efe7c99526b713bb6e65145006233c78a4357d8dd0d322477fd87c8c65"},
+    {0x3253b0,2016,"ae11e9c15bbd5f56538b2dbd5c72c4eb6c54bb75e941bdd4aabef7ff29115212"}};
 bool route(Memory& memory,uintptr_t rva,uintptr_t detour,uintptr_t trampoline,uint64_t generation,
            const unsigned char* prefix,size_t copied,std::string& error){
     MT2FW_MT2_RouteReceipt receipt{sizeof receipt};
@@ -40,11 +40,11 @@ bool code(Memory& memory,std::string& error){
            !hooks::framework::verify_original_hash(state.image+pin.rva,bytes.data(),bytes.size(),pin.sha,error))
             return fail(error,"Character preview original body differs RVA="+std::to_string(pin.rva)+" original="+error);}
     constexpr unsigned char attach_prefix[]{0x41,0x57,0x41,0x56,0x41,0x55};
-    if(enabled&&(!selector_token||!route(memory,0x6577d0,uintptr_t(&attach_entry),uintptr_t(original_attach),attach_generation,attach_prefix,6,error)))return false;
+    if(enabled&&(!selector_token||!route(memory,0x65e720,uintptr_t(&attach_entry),uintptr_t(original_attach),attach_generation,attach_prefix,6,error)))return false;
     return true;
 }
 uint32_t seed_private(void* object,uint64_t seed)noexcept{
-    __try{reinterpret_cast<void(*)(void*,uint64_t)>(state.image+0x9fc090)(object,seed);return 0;}
+    __try{reinterpret_cast<void(*)(void*,uint64_t)>(state.image+0xa06510)(object,seed);return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 uint32_t call_attach(Attach original,void* pane)noexcept{
@@ -57,7 +57,7 @@ bool current(Frame& frame,Memory& memory,std::string& error){
     a::Context context;a::Binding binding;uintptr_t source=0;
     if(GetCurrentThreadId()!=state.thread||!a::selected_session().current(context,error)||
        !typed_action_runtime::read_binding(frame.context.snapshot_uuid,binding,error)||
-       !field(memory,state.image,0x164b250,source,error))return false;
+       !field(memory,state.image,0x1650830,source,error))return false;
     return (context==frame.context&&binding==frame.binding&&source==frame.shared&&
         net::current_snapshot_id()==context.snapshot_uuid&&Config::instance().is_host==(context.role==a::Role::Host))||
         fail(error,"Character preview current Session/Binding/RNG owner changed");
@@ -67,7 +67,7 @@ bool prepare(Frame& frame,Memory& memory,uintptr_t owner,std::string& error){
        !a::selected_session().current(frame.context,error)||frame.context.snapshot_uuid!=net::current_snapshot_id()||
        Config::instance().is_host!=(frame.context.role==a::Role::Host)||
        !typed_action_runtime::read_binding(frame.context.snapshot_uuid,frame.binding,error)||
-       !field(memory,state.image,0x164b250,frame.shared,error)||!frame.shared)
+       !field(memory,state.image,0x1650830,frame.shared,error)||!frame.shared)
         return fail(error,error.empty()?"Character preview requires its actual current Mainthread/Session/RNG owner":error);
     const auto seh=seed_private(frame.random.data(),++serial^uint64_t(owner));
     if(seh)return fail(error,"Character preview private native RNG initialization SEH="+std::to_string(seh));
@@ -91,8 +91,8 @@ MT2FW_MT2_Result MT2FW_CALL select_int(void* user,const MT2FW_MT2_CharacterPrevi
             return selector_failure(out,"Character preview selector ABI/owner differs");
         *out={};out->size=sizeof(*out);auto* frame=active;
         if(!frame||call->thread!=state.thread||GetCurrentThreadId()!=state.thread)return MT2FW_MT2_UNAVAILABLE;
-        const bool category=frame->info_depth&&call->return_rva==0x9061c;
-        const bool variant=frame->actor_depth&&call->return_rva==0x321ac0;
+        const bool category=frame->info_depth&&call->return_rva==0x9130c;
+        const bool variant=frame->actor_depth&&call->return_rva==0x325860;
         if(!category&&!variant)return MT2FW_MT2_UNAVAILABLE;
         if(ingress_fault||!selector_token)return selector_failure(out,"Character preview selector has a retained ingress failure or no registration");
         Memory memory;std::string error;
@@ -106,7 +106,7 @@ MT2FW_MT2_Result MT2FW_CALL select_int(void* user,const MT2FW_MT2_CharacterPrevi
 bool actor(void* pane,std::string& error){
     if(ingress_fault)return fail(error,"Character preview ingress has a retained failure; original refused");
     Memory memory;uintptr_t ap=0;
-    if(!field(memory,uintptr_t(pane),0,ap,error)||ap!=state.image+0x1712310)
+    if(!field(memory,uintptr_t(pane),0,ap,error)||ap!=state.image+0x17186b0)
         return fail(error,error.empty()?"Character preview weapon owner is not the actual ActorOrbitPane":error);
     Frame own;auto& frame=active?*active:own;
     if(active?!current(frame,memory,error):!prepare(frame,memory,uintptr_t(pane),error))return false;
@@ -123,9 +123,9 @@ bool enable(std::string& error){
     Memory memory;if(enabled)return code(memory,error);
     if(!code(memory,error))return false;
     if(!selector_token)return fail(error,"Character preview requires the Framework-owned GetInt selector registration");
-    const auto status=MH_CreateHook(reinterpret_cast<void*>(state.image+0x6577d0),reinterpret_cast<void*>(&attach_entry),reinterpret_cast<void**>(&original_attach));
+    const auto status=MH_CreateHook(reinterpret_cast<void*>(state.image+0x65e720),reinterpret_cast<void*>(&attach_entry),reinterpret_cast<void**>(&original_attach));
     if(status!=MH_OK||!original_attach)return fail(error,"Character preview AttachWeapon hook prepare status="+std::to_string(status));
-    const uintptr_t targets[]{state.image+0x6577d0};
+    const uintptr_t targets[]{state.image+0x65e720};
     if(!mt2mp::hooks::enable_prepared_targets(targets,"Character preview owners",error))return false;
     MT2FW_MT2_RouteReceipt receipt{sizeof receipt};
     if(!quest_list::read_route(targets[0],receipt,error))return false;attach_generation=receipt.generation;

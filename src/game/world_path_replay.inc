@@ -64,17 +64,17 @@ uint32_t replay_pass(uintptr_t image,const action::WorldPathIntent& intent,
         std::bit_cast<float>(intent.end[1]),std::bit_cast<float>(intent.end[2])};
     const NativeString name{intent.name.c_str(),intent.name.size(),{}};
     __try {
-        auto* receiver=reinterpret_cast<unsigned char*>(reinterpret_cast<void*(*)(size_t)>(image+0xa02670)(0x1f0));
+        auto* receiver=reinterpret_cast<unsigned char*>(reinterpret_cast<void*(*)(size_t)>(image+0xa0d230)(0x1f0));
         if(!receiver)return ERROR_OUTOFMEMORY;
-        reinterpret_cast<void(*)(void*)>(image+0x5c8900)(receiver);
-        auto* ghost=reinterpret_cast<unsigned char*>(reinterpret_cast<void*(*)(size_t)>(image+0xa02670)(0x480));
+        reinterpret_cast<void(*)(void*)>(image+0x5cf050)(receiver);
+        auto* ghost=reinterpret_cast<unsigned char*>(reinterpret_cast<void*(*)(size_t)>(image+0xa0d230)(0x480));
         if(!ghost)return ERROR_OUTOFMEMORY;
-        reinterpret_cast<void(*)(void*)>(image+0x43f840)(ghost);
+        reinterpret_cast<void(*)(void*)>(image+0x444620)(ghost);
         ghost[0x46e]=1;
-        reinterpret_cast<void(*)(void*,int32_t,const void*,void*)>(image+0x438c70)(ghost,intent.type,&name,reinterpret_cast<void*>(start_region));
+        reinterpret_cast<void(*)(void*,int32_t,const void*,void*)>(image+0x43da50)(ghost,intent.type,&name,reinterpret_cast<void*>(start_region));
         ghost[0x81]=1;
-        reinterpret_cast<void(*)(void*,int32_t)>(image+0x97a9d0)(ghost+0x30,0);
-        reinterpret_cast<void(*)(void*,const action::PathPoint*,int32_t,bool)>(image+0x444140)(ghost,waypoints.data(),2,true);
+        reinterpret_cast<void(*)(void*,int32_t)>(image+0x983d20)(ghost+0x30,0);
+        reinterpret_cast<void(*)(void*,const action::PathPoint*,int32_t,bool)>(image+0x448f20)(ghost,waypoints.data(),2,true);
         *reinterpret_cast<uintptr_t*>(receiver+0x188)=uintptr_t(ghost);
         *reinterpret_cast<uintptr_t*>(receiver+0x190)=start;
         *reinterpret_cast<uintptr_t*>(receiver+0x198)=end;
@@ -83,9 +83,9 @@ uint32_t replay_pass(uintptr_t image,const action::WorldPathIntent& intent,
         std::memcpy(receiver+0x1d0,first.data(),sizeof first);
         std::memcpy(receiver+0x1dc,last.data(),sizeof last);
         receiver[0x1ea]=1;
-        reinterpret_cast<void(*)(void*)>(image+0x5c9280)(receiver);
-        reinterpret_cast<void(*)(void*)>(image+0x5c8740)(receiver);
-        reinterpret_cast<void(*)(void*,size_t)>(image+0x1264b60)(receiver,0x1f0);
+        reinterpret_cast<void(*)(void*)>(image+0x5cf9d0)(receiver);
+        reinterpret_cast<void(*)(void*)>(image+0x5cee90)(receiver);
+        reinterpret_cast<void(*)(void*,size_t)>(image+0x1270520)(receiver,0x1f0);
         return 0;
     }__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
@@ -183,7 +183,7 @@ action::Outcome perform(const action::Binding& binding,const action::Request& re
        !terrain_settlement::run(*r,request.action_uuid,true,operation.terrain_settlement,error)){
         operation.cause=error;return action::Outcome::Unknown;}
     uintptr_t map=0;
-    if(!region::at(*r,r->image,0x13df8c0,map,error)){
+    if(!region::at(*r,r->image,0x13eb8c0,map,error)){
         operation.cause=error;return action::Outcome::Unknown;}
     mixed_path_native::Census after_census;
     if(!mixed_path_native::read_world(r->memory,r->image,map,view.world.root,after_census,error)){

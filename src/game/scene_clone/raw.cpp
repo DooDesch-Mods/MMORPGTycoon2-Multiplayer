@@ -7,7 +7,7 @@
 namespace mt2mp::game::scene_clone {
 namespace {
 namespace native_host=mt2mp::build_actions::private_native::host;
-constexpr const char* executable="bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6";
+constexpr const char* executable="7efd8ee7b97f78362e7a2f8116b327fa6b756bdce23114b68143c4c9d2dd50eb";
 bool fail(std::string& e,const std::string& cause){e=cause;return false;}
 uint32_t call_find(native_host::FindUid method,uint64_t uid,uintptr_t& out)noexcept{__try{out=uintptr_t(method(uid));return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
 bool lookup(native_host::ProcessMemory& memory,uintptr_t& image,native_host::LookupApi& api,std::string& e){uint32_t thread{};std::string sha;
@@ -47,16 +47,16 @@ bool read_selected(Raw& next,const std::vector<dungeon_scene_roster::Scene>& sce
         uintptr_t building_ap=0,building_region=0,building_shard=0;
         if(!at(scene.owner.region,0x950,pool.building_manager,e)||!at(pool.building_manager,0,building_ap,e)||
            !at(pool.building_manager,0x450,building_shard,e)||!at(pool.building_manager,0x458,building_region,e))return false;
-        if(building_ap!=image+0x17183c0||building_shard!=scene.owner.shard||building_region!=scene.owner.region||
+        if(building_ap!=image+0x171e760||building_shard!=scene.owner.shard||building_region!=scene.owner.region||
            !managers.insert(pool.building_manager).second)return fail(e,"Scene clone Building manager reciprocal ownership differs");
-        if(!at(pool.building_manager,0x408,building_ap,e)||building_ap!=image+0x172d7c0)return fail(e,e.empty()?"Scene clone Building array class differs":e);
+        if(!at(pool.building_manager,0x408,building_ap,e)||building_ap!=image+0x1733b60)return fail(e,e.empty()?"Scene clone Building array class differs":e);
         dungeon_scene_roster::Array buildings;if(!dungeon_scene_roster::array(at,pool.building_manager+0x408,buildings,e))return false;
         if(buildings.members.size()>4096)return fail(e,"Scene clone raw Building budget exceeded");
         for(size_t n=0;n<buildings.members.size();++n){Member value;value.family=Family::Building;value.child=uint32_t(n);value.object=buildings.members[n];
             uintptr_t found=0,owner_region=0,owner_shard=0;
             if(!at(value.object,0,building_ap,e)||!at(value.object,0x18,value.uid,e)||!at(value.object,0x170,owner_shard,e)||
                !at(value.object,0x178,owner_region,e)||!value.uid||!find(value.uid,found,e))return false;
-            if(building_ap!=image+0x16d93c0||owner_shard!=scene.owner.shard||owner_region!=scene.owner.region||found!=value.object||
+            if(building_ap!=image+0x16df760||owner_shard!=scene.owner.shard||owner_region!=scene.owner.region||found!=value.object||
                !objects.insert(value.object).second||!uids.insert(value.uid).second)return fail(e,"Scene clone Building class/full UID/owner differs or duplicates");
             pool.members.push_back(std::move(value));
         }
@@ -67,7 +67,7 @@ bool read_selected(Raw& next,const std::vector<dungeon_scene_roster::Scene>& sce
         if(pool.scenery.members.size()>4096)return fail(e,"Scene clone raw Scenery budget exceeded");
         for(size_t n=0;n<pool.scenery.members.size();++n){const auto& row=pool.scenery.members[n];uintptr_t addresspoint=0;
             if(!at(row.object,0,addresspoint,e))return false;
-            if(addresspoint!=image+0x16c1390||!row.uid||!objects.insert(row.object).second||!uids.insert(row.uid).second)
+            if(addresspoint!=image+0x16c7730||!row.uid||!objects.insert(row.object).second||!uids.insert(row.uid).second)
                 return fail(e,"Scene clone Scenery class/full UID duplicated or differs");
             pool.members.push_back({Family::Scenery,uint32_t(n),row.object,row.uid,{}});
         }

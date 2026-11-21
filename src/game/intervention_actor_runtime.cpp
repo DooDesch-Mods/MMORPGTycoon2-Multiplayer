@@ -12,13 +12,13 @@ bool fail(std::string& error,const std::string& cause){error=cause;return false;
 struct Read {template<class T>bool operator()(uintptr_t object,size_t offset,T& out,std::string& error){return root_saved_building::bytes(reinterpret_cast<void*>(object),offset,&out,sizeof out,error);}};
 bool code(uintptr_t image,std::string& error){
     live_host_state::apply_timing::PageReadScope code_pages(!live_host_state::apply_timing::PageReadScope::reader_active());
-    constexpr uintptr_t leaves[]={0x9ff370,0xc67c80,0x39e750,0x3b1b50,0x39d670,0x287d0,0x28970,0x21df0,0x28730,0x28750,0x28760,0x23890,0x237e0,0x23860,0x39f6e0,0x3bbc00,0x39a920,0x23770,0x23840,0x237a0,0x238b0,0x9ca3a0};
+    constexpr uintptr_t leaves[]={0xa09f30,0xc733c0,0x3a3250,0x3b6660,0x3a2170,0x28970,0x28b10,0x21f80,0x288d0,0x288f0,0x28900,0x23a30,0x23980,0x23a00,0x3a41e0,0x3c0710,0x39f420,0x23910,0x239e0,0x23940,0x23a50,0x9d3f60};
     for(const auto rva:leaves){const auto pin=std::find_if(std::begin(monster_live_codes::values),std::end(monster_live_codes::values),[&](const auto& value){return value.rva==rva;});
         if(pin==std::end(monster_live_codes::values)||pin->tail)return fail(error,"Actor Frame native leaf has no original complete function pin RVA="+std::to_string(rva));
         std::vector<unsigned char> bytes(pin->size);if(!root_saved_building::bytes(reinterpret_cast<void*>(image+rva),0,bytes.data(),bytes.size(),error))return false;
         if(mt2mp::sha256(bytes)!=pin->sha)return fail(error,"Actor Frame native original leaf body differs RVA="+std::to_string(rva));}
     struct Pin{uintptr_t rva;size_t size;const char* sha;};
-    constexpr Pin npc_leaves[]={{0x3c2a00,64,"f5920de3004cfb920a54ca852cdffde6904e2122c7db69ba64893d6a35500bda"},{0x3c27b0,592,"062090540eac606dc417a74cf12782ff421d2a041eb62a060daa419d3dd98b6e"}};
+    constexpr Pin npc_leaves[]={{0x3c7510,64,"bcbd48d6ce3e4d3f4aba31095d26ed395060cdecc8a50fd41fec3e1a1beb4773"},{0x3c72c0,592,"7141306f245dfa771566f5f159487fad78335380d9a40fd81ac3d7ebdde14f4b"}};
     for(const auto& pin:npc_leaves){std::vector<unsigned char> bytes(pin.size);if(!root_saved_building::bytes(reinterpret_cast<void*>(image+pin.rva),0,bytes.data(),bytes.size(),error))return false;if(mt2mp::sha256(bytes)!=pin.sha)return fail(error,"Actor Frame native NPC presentation/map leaf body differs RVA="+std::to_string(pin.rva));}
     return true;
 }

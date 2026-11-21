@@ -13,9 +13,9 @@ struct PolicyRuntime {
 PolicyRuntime policy;
 bool policy_values(Runtime& r,gp::State& values,uintptr_t& queue,std::string& error){
     auto read=[&](uintptr_t object,size_t offset,auto& value,std::string& cause){return at(r,object,offset,value,cause);};
-    if(!at(r,r.image,0x13df360,queue,error)||!gp::read(read,r.image,queue,values,error))return false;
+    if(!at(r,r.image,0x13eb360,queue,error)||!gp::read(read,r.image,queue,values,error))return false;
     uintptr_t final_queue=0;gp::State checked;
-    return at(r,r.image,0x13df360,final_queue,error)&&gp::read(read,r.image,final_queue,checked,error)&&
+    return at(r,r.image,0x13eb360,final_queue,error)&&gp::read(read,r.image,final_queue,checked,error)&&
         ((final_queue==queue&&checked==values)||fail(error,"GM policy current owner/scalars changed during double read"));
 }
 bool policy_route_code(Runtime& r,std::string& error){
@@ -36,7 +36,7 @@ bool policy_cascade(Runtime& r,const a::Context& context,const a::Binding& bindi
     if(!gp::managers(read,local.lounge,local.gm_rows,out.managers,out.value.managers,error)||!gp::spatial_models(read,local.gm_rows,out.models,error))return false;
     for(const auto& model:out.models)out.value.models.push_back(model.object!=0);
     building_mixed_identity::opened_file::CurrentWorld world;if(!gm_world(r,context,binding,world,error))return false;
-    uintptr_t map=0,tree=0;int32_t kind=-1;if(!at(r,r.image,0x13df8c0,map,error)||map!=uintptr_t(world.map)||!at(r,map+0x1c0,0x48,kind,error)||kind||!at(r,map,0x290,tree,error))return fail(error,error.empty()?"GM policy current world-map spatial owner differs":error);
+    uintptr_t map=0,tree=0;int32_t kind=-1;if(!at(r,r.image,0x13eb8c0,map,error)||map!=uintptr_t(world.map)||!at(r,map+0x1c0,0x48,kind,error)||kind||!at(r,map,0x290,tree,error))return fail(error,error.empty()?"GM policy current world-map spatial owner differs":error);
     if(!gp::spatial_read(read,tree,origin?origin->models:out.models,out.spatial,error)||!gp::valid(out.value,error))return false;
     return true;
 }
@@ -50,10 +50,10 @@ bool policy_proof(Runtime& r,const a::Context& context,const a::Binding& binding
         const auto portable=gp::encode(first.value).dump();proof.cascade_sha256=mt2mp::sha256(std::vector<unsigned char>(portable.begin(),portable.end()));
         tutorial_replication::State tutorial;if(!tutorial_replication::capture(context,binding,tutorial,error))return false;const auto tutorial_bytes=tutorial_replication::encode(tutorial).dump();proof.tutorial_sha256=mt2mp::sha256(std::vector<unsigned char>(tutorial_bytes.begin(),tutorial_bytes.end()));
         uintptr_t rng=0,checked_rng=0;std::array<uint64_t,4> random{},checked_random{};int32_t extra=0,checked_extra=0;
-        if(!at(r,r.image,0x164b250,rng,error)||!at(r,rng,0,random,error)||!at(r,rng,0x20,extra,error))return false;
+        if(!at(r,r.image,0x1650830,rng,error)||!at(r,rng,0,random,error)||!at(r,rng,0x20,extra,error))return false;
         current.gm.reset();current.policies.reset();const auto protected_bytes=nlohmann::json{{"management",management_simulation::encode(current)},{"random",random},{"random_extra",extra}}.dump();proof.protected_sha256=mt2mp::sha256(std::vector<unsigned char>(protected_bytes.begin(),protected_bytes.end()));
         gm_ticket::Publication final_gm;PolicyCascadeLocal final;
-        if(!gm_capture(r,context,binding,local,final_gm,error)||final_gm!=value||!policy_cascade(r,context,binding,local,final_gm,final,origin,error)||final.value!=first.value||final.managers!=first.managers||final.models!=first.models||final.spatial!=first.spatial||!at(r,r.image,0x164b250,checked_rng,error)||!at(r,checked_rng,0,checked_random,error)||!at(r,checked_rng,0x20,checked_extra,error)||rng!=checked_rng||random!=checked_random||extra!=checked_extra)return fail(error,error.empty()?"GM policy complete cascade/RNG changed during capture":error);
+        if(!gm_capture(r,context,binding,local,final_gm,error)||final_gm!=value||!policy_cascade(r,context,binding,local,final_gm,final,origin,error)||final.value!=first.value||final.managers!=first.managers||final.models!=first.models||final.spatial!=first.spatial||!at(r,r.image,0x1650830,checked_rng,error)||!at(r,checked_rng,0,checked_random,error)||!at(r,checked_rng,0x20,checked_extra,error)||rng!=checked_rng||random!=checked_random||extra!=checked_extra)return fail(error,error.empty()?"GM policy complete cascade/RNG changed during capture":error);
         if(cascade)*cascade=std::move(final);
     }
     gp::State checked;uintptr_t final_queue=0;if(!policy_values(r,checked,final_queue,error)||checked!=proof.state||final_queue!=queue)return fail(error,error.empty()?"GM policy owner/scalars changed during complete GM capture":error);
@@ -71,9 +71,9 @@ bool policy_scope(const a::Context& context,const a::Binding& binding,const a::R
 bool policy_capture(Runtime& r,uintptr_t receiver,bool boolean,gp::Intent& intent,std::string& error,bool& ours){
     ours=false;uintptr_t value=0,owner=0,queue=0;
     if(!at(r,receiver,boolean?0x3c8:0x420,value,error))return false;if(!value)return true;
-    if(!at(r,value,8,owner,error)||!at(r,r.image,0x13df360,queue,error))return false;
+    if(!at(r,value,8,owner,error)||!at(r,r.image,0x13eb360,queue,error))return false;
     if(!queue||(owner!=queue+0x48&&owner!=queue+0x70))return true;ours=true;
-    if(!ap(r,receiver,boolean?0x16d98c0:0x16e7070,error)||!ap(r,value,boolean?0x1749610:0x17496b0,error))return false;
+    if(!ap(r,receiver,boolean?0x16dfc60:0x16ed410,error)||!ap(r,value,boolean?0x174f9b0:0x174fa50,error))return false;
     std::string name;uintptr_t scalar=0;if(!text(r,value+0x18,name,32,error)||!at(r,value,0x38,scalar,error))return false;
     size_t field=0;while(field<gp::names.size()&&name!=gp::names[field])++field;
     if(field>=7||gp::integer(gp::Field(field))==boolean||scalar!=owner+gp::offsets[field])return fail(error,"GM policy native bound property name/type/address differs");

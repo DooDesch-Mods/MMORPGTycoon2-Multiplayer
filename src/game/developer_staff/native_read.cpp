@@ -15,7 +15,7 @@ struct ProcessPort final:Port {
     placement_ui_probe::ProcessMemory memory;
     bool resolver(uintptr_t& image,uint32_t& thread,std::string& e)override{
         std::string sha;if(!native::read_resolver_receipt(image,thread,sha,e))return false;
-        if(thread!=GetCurrentThreadId()||sha!="bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6"){e="Developer native read requires exact EXE and actual bound Mainthread";return false;}return true;
+        if(thread!=GetCurrentThreadId()||sha!="7efd8ee7b97f78362e7a2f8116b327fa6b756bdce23114b68143c4c9d2dd50eb"){e="Developer native read requires exact EXE and actual bound Mainthread";return false;}return true;
     }
     bool pin(Pin& p,std::string& e)override{
         p={};if(!native_open_runtime::read_current_world(p.origin,e))return false;

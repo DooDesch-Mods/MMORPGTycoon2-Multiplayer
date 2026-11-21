@@ -55,7 +55,7 @@ bool move_actor(Memory& m,uintptr_t object,mr::Actor& out,std::string& e){
     return mr::actor(state.image,object,at,out,e);
 }
 uint32_t move_set_on_map(uintptr_t object)noexcept{
-    __try{reinterpret_cast<void(*)(void*,bool)>(state.image+0x39a920)(reinterpret_cast<void*>(object),true);return 0;}
+    __try{reinterpret_cast<void(*)(void*,bool)>(state.image+0x39f420)(reinterpret_cast<void*>(object),true);return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 bool move_inverse(Memory& m,uintptr_t graph,uint64_t uid,const a::MonsterActor& before,std::string& e){
@@ -68,7 +68,7 @@ bool move_inverse(Memory& m,uintptr_t graph,uint64_t uid,const a::MonsterActor& 
     if(!field(m,graph,0x20,data,e)||!field(m,data,0,operation,e)||!field(m,operation,0,ap,e)||
        !field(m,operation,0xb8,actual,e)||!field(m,operation,0xc0,rotation,e)||
        !field(m,operation,0xd0,position,e)||!field(m,operation,0xdc,scale,e))return false;
-    return (ap==state.image+0x1786ff0&&actual==uid&&rotation==before.rotation&&position==before.position&&scale==before.scale)||
+    return (ap==state.image+0x178d390&&actual==uid&&rotation==before.rotation&&position==before.position&&scale==before.scale)||
         fail(e,"Monster Move inverse full UID or prior pose differs");
 }
 bool move_selected(Memory& m,const Pin& p,uintptr_t object,std::string& e){
@@ -110,7 +110,7 @@ bool move_capture_binding(const std::string& snapshot,uint64_t epoch,uint64_t ge
     a::Binding binding;if(!capture_binding(snapshot,binding,e))return false;
     if(binding.native_epoch!=epoch||binding.native_generation!=generation)return fail(e,"Monster Move capture epoch/generation differs");
     Memory m;uintptr_t ap=0,region=0;uint64_t actual=0;int32_t saved=-1;
-    if(!field(m,object,0,ap,e)||ap!=state.image+0x16c0770||!field(m,object,0x18,actual,e)||actual!=uid||
+    if(!field(m,object,0,ap,e)||ap!=state.image+0x16c6b10||!field(m,object,0x18,actual,e)||actual!=uid||
        !field(m,object,0x178,region,e)||!field(m,region,0x834,saved,e))return fail(e,e.empty()?"Monster Move capture class/full UID/Region differs":e);
     Pin p;d::Sample sample;if(!move_receiver(m,binding,snapshot,object,uid,key,e))return false;
     monster_zone_read::Monster row;

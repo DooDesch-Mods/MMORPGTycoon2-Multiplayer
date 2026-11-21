@@ -128,10 +128,10 @@ bool theme_colors(Memory& memory,const dungeon_palette::Sample& sample,const a::
     packed={};if(stroke.mode==a::DungeonCellMode::Close)return true;
     if(sample.value.palette.size()<4)return fail(error,"Dungeon cell original palette has fewer than four colors");
     std::copy_n(sample.value.palette.begin(),4,packed.begin());uintptr_t manager=0,theme=0,ap=0,data=0;int32_t count=0,capacity=0;
-    if(!field(memory,state.image,0x13df700,manager,error)||!manager)return fail(error,error.empty()?"Dungeon cell ThemeManager singleton is absent":error);
+    if(!field(memory,state.image,0x13eb700,manager,error)||!manager)return fail(error,error.empty()?"Dungeon cell ThemeManager singleton is absent":error);
     const calls::Text key{stroke.theme.data(),uint64_t(stroke.theme.size())};const auto seh=calls::theme_lookup(state.image,manager,key,theme);
     if(seh||!theme)return fail(error,"Dungeon cell original Theme lookup failed SEH="+std::to_string(seh));
-    if(!field(memory,theme,0,ap,error)||ap!=state.image+0x16ff4d0||!field(memory,theme,0x80,data,error)||
+    if(!field(memory,theme,0,ap,error)||ap!=state.image+0x1705870||!field(memory,theme,0x80,data,error)||
        !field(memory,theme,0x88,count,error)||!field(memory,theme,0x8c,capacity,error)||count<0||capacity<count||capacity>100000||(count&&!data))return fail(error,error.empty()?"Dungeon cell original Theme color array differs":error);
     if(!sample.value.defaults||!count)return true;
     if(count<4)return fail(error,"Dungeon cell selected Theme has fewer than four original default colors");

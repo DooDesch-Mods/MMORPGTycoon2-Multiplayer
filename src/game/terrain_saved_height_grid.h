@@ -25,7 +25,7 @@ template<class Read>bool read_saved_bits(uintptr_t image,uintptr_t region,SavedG
        !at(region,0xc8,value.cell_size,error)||!at(region,0x138,value.origin,error)||
        !at(region,0xe8,ap,error)||!at(region,0xf0,data,error)||
        !at(region,0xf8,count,error)||!at(region,0xfc,capacity,error))return reject(error);
-    if(ap!=image+0x1749340||value.width<1||value.height<1||
+    if(ap!=image+0x174f6e0||value.width<1||value.height<1||
        int64_t(value.width)*value.height>1000000||count!=int64_t(value.width)*value.height||
        capacity<count||!data||!std::isfinite(value.cell_size)||value.cell_size<=0)
         return reject("terrain saved height native array/dimensions/cell size differ");

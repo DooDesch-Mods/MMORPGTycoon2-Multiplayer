@@ -19,15 +19,15 @@ bool token_valid(const std::string& token) {
 }
 
 uint32_t original_press(uintptr_t image,uintptr_t button) noexcept {
-    __try {reinterpret_cast<void(__fastcall*)(void*)>(image+0x580870)(reinterpret_cast<void*>(button));return 0;}
+    __try {reinterpret_cast<void(__fastcall*)(void*)>(image+0x587030)(reinterpret_cast<void*>(button));return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 uint32_t original_select(uintptr_t image,uintptr_t window,uintptr_t character) noexcept {
-    __try {reinterpret_cast<void(__fastcall*)(void*,void*)>(image+0x67fb60)(reinterpret_cast<void*>(window),reinterpret_cast<void*>(character));return 0;}
+    __try {reinterpret_cast<void(__fastcall*)(void*,void*)>(image+0x686d70)(reinterpret_cast<void*>(window),reinterpret_cast<void*>(character));return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 uint32_t original_get_selection(uintptr_t image,uintptr_t window,uintptr_t& selected) noexcept {
-    __try {selected=uintptr_t(reinterpret_cast<void*(__fastcall*)(void*)>(image+0x67fb40)(reinterpret_cast<void*>(window)));return 0;}
+    __try {selected=uintptr_t(reinterpret_cast<void*(__fastcall*)(void*)>(image+0x686d50)(reinterpret_cast<void*>(window)));return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 
@@ -37,11 +37,11 @@ bool options(Memory& memory,uintptr_t image,uintptr_t behaviour,
     window=0;available.clear();selected=nullptr;
     uintptr_t ap=0,list=0,data=0,current=0;
     int32_t count=0;
-    if(!field(memory,behaviour,0,ap,error)||ap!=image+0x172b450||
+    if(!field(memory,behaviour,0,ap,error)||ap!=image+0x17317f0||
        !field(memory,behaviour,0x168,window,error)||!window||
-       !field(memory,window,0,ap,error)||ap!=image+0x17321a0||
+       !field(memory,window,0,ap,error)||ap!=image+0x1738540||
        !field(memory,window,0x4e8,list,error)||!list||
-       !field(memory,list,0,ap,error)||ap!=image+0x172b1d0||
+       !field(memory,list,0,ap,error)||ap!=image+0x1731570||
        !field(memory,list,0x348,data,error)||
        !field(memory,list,0x350,count,error))
         return fail(error,error.empty()?"NPC original ThemeWindow/List class or fields differ":error);
@@ -52,11 +52,11 @@ bool options(Memory& memory,uintptr_t image,uintptr_t behaviour,
         uintptr_t entry=0,character=0;
         Option option;
         if(!field(memory,data,size_t(i)*8,entry,error)||!entry||
-           !field(memory,entry,0,ap,error)||ap!=image+0x1738b10||
+           !field(memory,entry,0,ap,error)||ap!=image+0x173eeb0||
            !field(memory,entry,0x338,character,error))
             return fail(error,error.empty()?"NPC original ThemeSelector class differs":error);
         if(!character)continue;
-        if(!field(memory,character,0,ap,error)||ap!=image+0x1705990||
+        if(!field(memory,character,0,ap,error)||ap!=image+0x170bd30||
            !field(memory,character,0x2c,option.id,error))
             return fail(error,error.empty()?"NPC original ThemeSelector or CharacterType class differs":error);
         if(option.id[0]<0||option.id[1]<0||!ids.insert(option.id).second)
@@ -143,8 +143,8 @@ bool tool_ui(const std::string& token,int32_t region_id,const std::string& tool,
             return fail(error,error.empty()?"NPC original actionbar button differs":error);
         cursor=binding.cursor;
     }else {
-        if(!field(memory,image,0x13df9d0,cursor,error)||!cursor||
-           !field(memory,cursor,0,active,error)||active!=image+0x1786dd0||
+        if(!field(memory,image,0x13eb9d0,cursor,error)||!cursor||
+           !field(memory,cursor,0,active,error)||active!=image+0x178d170||
            !field(memory,cursor,0x190,active,error)||active!=item.behaviour||
            !options(memory,image,item.behaviour,window,available,selected_before,error))
             return fail(error,error.empty()?"NPC selected tool is not current original cursor":error);

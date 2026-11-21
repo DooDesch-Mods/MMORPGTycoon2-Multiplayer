@@ -37,13 +37,13 @@ bool read_one(NativeMemory& memory,uintptr_t image,uintptr_t root_shard,uintptr_
               const mixed_path_native::Census& census,const std::map<uint64_t,std::string>& keys,
               duplicate_records::Witness& out,std::string& error,nlohmann::json* diagnostic=nullptr){
     if(!root_shard)return reject(error,"bound root shard is absent");
-    const uintptr_t prepare=path?0x10f51c0:0xf40e50,save=path?0x10f5220:0xf40eb0;
+    const uintptr_t prepare=path?0x1100b60:0xf4c950,save=path?0x1100bc0:0xf4c9b0;
     Capture<NativeMemory> value(memory);records::CaptureReceipt cleanup;
     const records::CaptureApi api{
-        reinterpret_cast<records::Construct>(image+0x9667c0),
-        reinterpret_cast<records::Construct>(image+0x9676a0),
-        reinterpret_cast<records::Construct>(image+0x89e580),
-        reinterpret_cast<records::Construct>(image+0x89e5f0),
+        reinterpret_cast<records::Construct>(image+0x96f9e0),
+        reinterpret_cast<records::Construct>(image+0x9708c0),
+        reinterpret_cast<records::Construct>(image+0x8a76a0),
+        reinterpret_cast<records::Construct>(image+0x8a7710),
         reinterpret_cast<records::PrepareSave>(image+prepare),
         reinterpret_cast<records::SaveRecord>(image+save)};
     if(!records::capture_original(api,reinterpret_cast<const void*>(object),Capture<NativeMemory>::inspect,&value,cleanup,error))return false;

@@ -5,12 +5,12 @@ enum class Op {Day,Reason,Allocate,Free,DayDestroy,Assign};
 struct Call {Op op;uintptr_t image=0,object=0,source=0,result=0;size_t bytes=0;};
 uint32_t invoke(Call& c)noexcept{
     __try{switch(c.op){
-    case Op::Day:c.result=uintptr_t(reinterpret_cast<void*(*)(const void*)>(c.image+0xd91650)(nullptr));break;
-    case Op::Reason:c.result=uintptr_t(reinterpret_cast<void*(*)(const void*)>(c.image+0xd8ab00)(nullptr));break;
-    case Op::Allocate:c.result=uintptr_t(reinterpret_cast<void*(*)(size_t)>(c.image+0xa026c0)(c.bytes));break;
-    case Op::Free:reinterpret_cast<void(*)(void*)>(c.image+0xa01280)(reinterpret_cast<void*>(c.object));break;
-    case Op::DayDestroy:reinterpret_cast<void(*)(void*)>(c.image+0xc12720)(reinterpret_cast<void*>(c.object));break;
-    case Op::Assign:reinterpret_cast<void*(*)(void*,const void*)>(c.image+0x3fd1e0)(reinterpret_cast<void*>(c.object),reinterpret_cast<const void*>(c.source));break;
+    case Op::Day:c.result=uintptr_t(reinterpret_cast<void*(*)(const void*)>(c.image+0xd9ce30)(nullptr));break;
+    case Op::Reason:c.result=uintptr_t(reinterpret_cast<void*(*)(const void*)>(c.image+0xd962a0)(nullptr));break;
+    case Op::Allocate:c.result=uintptr_t(reinterpret_cast<void*(*)(size_t)>(c.image+0xa0d280)(c.bytes));break;
+    case Op::Free:reinterpret_cast<void(*)(void*)>(c.image+0xa0be40)(reinterpret_cast<void*>(c.object));break;
+    case Op::DayDestroy:reinterpret_cast<void(*)(void*)>(c.image+0xc1ee60)(reinterpret_cast<void*>(c.object));break;
+    case Op::Assign:reinterpret_cast<void*(*)(void*,const void*)>(c.image+0x401da0)(reinterpret_cast<void*>(c.object),reinterpret_cast<const void*>(c.source));break;
     }return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 uint32_t write(uintptr_t address,const void* expected,const void* desired,size_t bytes)noexcept{
@@ -34,10 +34,10 @@ bool sample(Runtime& r,const a::Context& c,const a::Binding& b,values::Owners& o
 }
 bool code(Runtime& r,std::string& e){
     const struct {uintptr_t rva;size_t bytes;const char* sha;} pins[]{
-        {0xd91650,176,"376d1dfb05134b47e1cc709a2e90f0243ce0732316e31b9095d8591564c97bce"},
-        {0xd8ab00,160,"700776c896ee261670d89cc5b3393ba678b458022dd366608a60265dedd95ee6"},
-        {0x3fd1e0,1072,"502740c05f8a0b14e8de9853c3836ff320a9e7f04d4b97ee4e1061609af30583"},
-        {0xc12720,192,"af116b469493243e6393bbff9097278afd603aaea9d5aa3cb3fcd881f85eb3e2"}
+        {0xd9ce30,176,"80680fbe4f37cd94ba1221347a18dc49e03b8ab7f2a832d3e1daab4034b8c81d"},
+        {0xd962a0,160,"5f92b5c19db65284de83a306812f4eef5e8141dc384d61fadf702f345d2da3f4"},
+        {0x401da0,1072,"27a31664cec590034a0e542b8d45e81b6450c1f588493f0046490b7729b6c3f9"},
+        {0xc1ee60,192,"329b0035ecadd7db7e519759568e192c3ff0be51c6e66ce487499ed3b039b9d9"}
     };
     for(const auto& pin:pins){std::vector<unsigned char> body(pin.bytes);if(!r.memory.copy(r.image+pin.rva,body.data(),body.size(),e)||mt2mp::sha256(body)!=pin.sha)return fail(e,e.empty()?"Analytics exact native body differs RVA="+std::to_string(pin.rva):e);}
     return true;

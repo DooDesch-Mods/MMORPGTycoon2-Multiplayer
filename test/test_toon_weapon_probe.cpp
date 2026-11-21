@@ -47,7 +47,7 @@ int main(){try{
     {ProbeFixture f;f.m.put(f.region,0x780,uintptr_t(0));Observation o;std::string e;require(!f.observe(o,e)&&e.find("scene absent")!=std::string::npos,"missing scene accepted");}
     {ProbeFixture f;f.m.put(f.shard,0x48,int32_t(2));const auto owner=f.m.alloc(0xc8);f.m.put(f.shard,0x20,owner);f.m.put(owner,0xc0,uintptr_t(99));Observation o;std::string e;require(f.observe(o,e),"kind2 existing scene not read");}
     {ProbeFixture f;f.m.put(f.shard,0x48,int32_t(0));const auto global=f.m.alloc(8),screen=f.m.alloc(0x38),array=f.m.alloc(8);
-        f.m.blocks[f.image+0x164b420].resize(8);f.m.put(f.image+0x164b420,0,global);f.m.put(global,0,screen);f.m.put(screen,0x10,array);f.m.put(screen,0x30,int32_t(1));f.m.put(array,0,uintptr_t(99));
+        f.m.blocks[f.image+0x1650a00].resize(8);f.m.put(f.image+0x1650a00,0,global);f.m.put(global,0,screen);f.m.put(screen,0x10,array);f.m.put(screen,0x30,int32_t(1));f.m.put(array,0,uintptr_t(99));
         Observation o;std::string e;require(f.observe(o,e),"kind0 existing Screen scene not read");f.m.put(screen,0x30,int32_t(0));require(!f.observe(o,e)&&e.find("scene count")!=std::string::npos,"empty Screen array accepted");}
     {RandomCalls f;Receipt r;std::string e;require(reconcile(f,1,r,e)&&r.confirmed&&r.random.observed&&r.random.unchanged&&f.random_calls==2,"RNG same before/after not retained");}
     {RandomCalls f;f.change=true;Receipt r;std::string e;require(reconcile(f,1,r,e)&&r.confirmed&&!r.unknown&&e.empty()&&r.random.observed&&!r.random.unchanged&&r.random.cause.find("changed")!=std::string::npos,"diagnostic RNG difference changed visual result");}
@@ -55,9 +55,9 @@ int main(){try{
     {RandomCalls f;f.throws=true;Receipt r;std::string e;require(reconcile(f,1,r,e)&&r.confirmed&&!r.random.observed&&r.random.cause.find("fixture RNG read exception")!=std::string::npos,"RNG reader exception changed visual result");}
     {RandomCalls f;f.f.fail_remove=true;Receipt r;std::string e;require(!reconcile(f,1,r,e)&&r.unknown&&e=="original remove SEH"&&r.random.observed&&f.random_calls==2,"partial visual failure lost original cause or RNG after");}
     {RandomCalls f;f.f.owned=false;Receipt r;std::string e;require(reconcile(f,1,r,e)&&!f.random_calls&&!r.random.observed,"unowned pass-through surveyed RNG");}
-    {Memory m;RandomMemory reader(m);const uintptr_t image=0x140000000,random=m.alloc(32);m.blocks[image+0x164b250].resize(8);m.put(image+0x164b250,0,random);
+    {Memory m;RandomMemory reader(m);const uintptr_t image=0x140000000,random=m.alloc(32);m.blocks[image+0x1650830].resize(8);m.put(image+0x1650830,0,random);
         const std::array<uint64_t,4> expected={1,UINT64_MAX,3,4};m.put(random,0,expected);const auto before=m.blocks;std::array<uint64_t,4> actual{};std::string e;
         require(mt2mp::npc_census::read_global_random(reader,image,actual,e)&&actual==expected&&m.blocks==before,"original global RNG helper differs");
-        m.put(image+0x164b250,0,uintptr_t(0));require(!mt2mp::npc_census::read_global_random(reader,image,actual,e)&&!e.empty(),"missing RNG pointer success");}
+        m.put(image+0x1650830,0,uintptr_t(0));require(!mt2mp::npc_census::read_global_random(reader,image,actual,e)&&!e.empty(),"missing RNG pointer success");}
     std::cout<<checks<<" actual probe/RNG checks passed\n";return 0;
 }catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}}

@@ -2,8 +2,8 @@ bool captured_build_scene(Runtime& runtime,const placement_kiss::Request& reques
     scene.clear();host::opened::CurrentWorld world;void* root=nullptr;
     if(!read_world(world,root,error))return false;
     host::ProcessMemory memory;uintptr_t manager=0,ap=0,active=0;
-    if(!memory.copy(runtime.image+0x13df440,&manager,sizeof manager,error)||!manager||
-       !memory.copy(manager,&ap,sizeof ap,error)||ap!=runtime.image+0x1702b00||
+    if(!memory.copy(runtime.image+0x13eb440,&manager,sizeof manager,error)||!manager||
+       !memory.copy(manager,&ap,sizeof ap,error)||ap!=runtime.image+0x1708ea0||
        !memory.copy(manager+0x60,&active,sizeof active,error)||!active){
         if(error.empty())error="Building capture lacks current original view Shard";return false;
     }

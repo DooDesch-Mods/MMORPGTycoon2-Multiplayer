@@ -23,11 +23,11 @@ bool array(Memory& m, uintptr_t p, uintptr_t& data, int32_t& count, std::string&
         static_cast<size_t>(count) <= (UINTPTR_MAX-data)/8) || fail(e,"reference native array extent invalid");
 }
 bool roots(Memory& m,const ReferenceWorld& w,uintptr_t& shard,std::string& e) {
-    if (!w.image || w.image > UINTPTR_MAX-0x1787930 || !w.state || !w.map || w.map > UINTPTR_MAX-0x1c0)
+    if (!w.image || w.image > UINTPTR_MAX-0x178dcd0 || !w.state || !w.map || w.map > UINTPTR_MAX-0x1c0)
         return fail(e,"reference world address invalid");
-    if (!ap(m,w,w.state,0x16de920,e) || !ap(m,w,w.map,0x1742860,e)) return false;
+    if (!ap(m,w,w.state,0x16e4cc0,e) || !ap(m,w,w.map,0x1748c00,e)) return false;
     shard=w.map+0x1c0; int32_t type=-1;
-    if (!ap(m,w,shard,0x174ad20,e) || !at(m,shard,0x48,type,e)) return false;
+    if (!ap(m,w,shard,0x17510c0,e) || !at(m,shard,0x48,type,e)) return false;
     return type==0 || fail(e,"reference map root Shard type differs");
 }
 bool regions(Memory& m,const ReferenceWorld& w,uintptr_t shard,
@@ -37,7 +37,7 @@ bool regions(Memory& m,const ReferenceWorld& w,uintptr_t shard,
     std::set<uintptr_t> pointers;std::set<int32_t> ids;found=0;
     for(int32_t i=0;i<count;++i){
         uintptr_t p=0,owner=0;int32_t id=-1;
-        if(!at(m,data,size_t(i)*8,p,e)||!ap(m,w,p,0x1787930,e)||!at(m,p,0x70,owner,e)||!at(m,p,0x834,id,e))return false;
+        if(!at(m,data,size_t(i)*8,p,e)||!ap(m,w,p,0x178dcd0,e)||!at(m,p,0x70,owner,e)||!at(m,p,0x834,id,e))return false;
         if(owner!=shard || id<0 || !pointers.insert(p).second || !ids.insert(id).second)
             return fail(e,"reference root Region ownership/unique ID differs");
         if((wanted&&p==wanted)||(!wanted&&id==wanted_id)){found=p;found_id=id;}
@@ -48,11 +48,11 @@ bool abilities(Memory& m,const ReferenceWorld& w,int32_t kind,int32_t id,
                uintptr_t wanted,int32_t wanted_index,uintptr_t& found,int32_t& found_index,std::string& e){
     if(kind<0||kind>=5||id<0)return fail(e,"reference CharacterType key invalid");
     uintptr_t manager=0,singleton=0,data=0,type=0;int32_t count=0;
-    if(!at(m,w.state,0x168,manager,e)||!at(m,w.image,0x13df7a0,singleton,e)||manager!=singleton)
+    if(!at(m,w.state,0x168,manager,e)||!at(m,w.image,0x13eb7a0,singleton,e)||manager!=singleton)
         return fail(e,e.empty()?"reference CharacterTypeManager world/singleton differs":e.c_str());
-    if(!ap(m,w,manager,0x1732430,e)||!array(m,manager+0x80+size_t(kind)*0x50,data,count,e))return false;
+    if(!ap(m,w,manager,0x17387d0,e)||!array(m,manager+0x80+size_t(kind)*0x50,data,count,e))return false;
     if(id>=count)return fail(e,"reference CharacterType ID outside native array");
-    if(!at(m,data,size_t(id)*8,type,e)||!ap(m,w,type,0x1705990,e))return false;
+    if(!at(m,data,size_t(id)*8,type,e)||!ap(m,w,type,0x170bd30,e))return false;
     int32_t actual_kind=-1,actual_id=-1;uint8_t destroyed=0;
     if(!at(m,type,0x2c,actual_kind,e)||!at(m,type,0x30,actual_id,e)||!at(m,type,0x490,destroyed,e))return false;
     if(actual_kind!=kind||actual_id!=id||destroyed)return fail(e,"reference CharacterType identity/destroyed guard differs");
@@ -60,7 +60,7 @@ bool abilities(Memory& m,const ReferenceWorld& w,int32_t kind,int32_t id,
     std::set<uintptr_t> pointers;found=0;
     for(int32_t i=0;i<count;++i){
         uintptr_t p=0;
-        if(!at(m,data,size_t(i)*8,p,e)||!ap(m,w,p,0x171c930,e))return false;
+        if(!at(m,data,size_t(i)*8,p,e)||!ap(m,w,p,0x1722cd0,e))return false;
         if(!pointers.insert(p).second)return fail(e,"reference Ability owner array contains duplicate objects");
         if((wanted&&p==wanted)||(!wanted&&i==wanted_index)){found=p;found_index=i;}
     }
@@ -74,34 +74,34 @@ bool subscriber_toon(Memory& m,const ReferenceWorld& w,uintptr_t wanted,int32_t 
     uintptr_t manager=0,singleton=0,data=0,owner=0;int32_t count=0,next=-1,capacity=-1;
     if(wanted){
         uint64_t uid=0;
-        if(!ap(m,w,wanted,0x1744e90,e)||!at(m,wanted,0x18,uid,e)||!at(m,wanted,0x940,owner,e))return reject("Toon fields unreadable");
+        if(!ap(m,w,wanted,0x174b230,e)||!at(m,wanted,0x18,uid,e)||!at(m,wanted,0x940,owner,e))return reject("Toon fields unreadable");
         detail+=" toon_uid="+std::to_string(uid)+" subscriber_owner_present="+std::to_string(owner!=0);
         if(!uid||!owner)return reject("nonzero UID and Subscriber owner required");
-        if(!ap(m,w,owner,0x16e75f0,e)||!at(m,owner,0x20,wanted_id,e))return reject("Subscriber owner identity unreadable");
+        if(!ap(m,w,owner,0x16ed990,e)||!at(m,owner,0x20,wanted_id,e))return reject("Subscriber owner identity unreadable");
         detail+=" actual_subscriber_id="+std::to_string(wanted_id);
     }
-    if(!at(m,w.state,0x1b8,manager,e)||!at(m,w.image,0x13df690,singleton,e))return reject("Manager owner unreadable");
-    if(manager!=singleton||!ap(m,w,manager,0x1725f40,e))return reject("Manager world/singleton differs");
+    if(!at(m,w.state,0x1b8,manager,e)||!at(m,w.image,0x13eb690,singleton,e))return reject("Manager owner unreadable");
+    if(manager!=singleton||!ap(m,w,manager,0x172c2e0,e))return reject("Manager world/singleton differs");
     if(!array(m,manager+0x38,data,count,e)||!at(m,manager,0x4c,capacity,e)||!at(m,manager,0x68,next,e))return reject("Manager census unreadable");
     detail+=" manager_count="+std::to_string(count)+" next_id="+std::to_string(next);
     if(count>1000000||wanted_id<0||wanted_id>=next)return reject("Subscriber ID/census outside bounds");
     uintptr_t selected=0;int32_t selected_index=-1;std::set<uintptr_t> objects;std::set<int32_t> ids;
     for(int32_t i=0;i<count;++i){
         uintptr_t subscriber=0;int32_t actual_id=-1;
-        if(!at(m,data,size_t(i)*8,subscriber,e)||!ap(m,w,subscriber,0x16e75f0,e)||!at(m,subscriber,0x20,actual_id,e))return reject("Manager member unreadable");
+        if(!at(m,data,size_t(i)*8,subscriber,e)||!ap(m,w,subscriber,0x16ed990,e)||!at(m,subscriber,0x20,actual_id,e))return reject("Manager member unreadable");
         if(actual_id<0||actual_id>=next||!objects.insert(subscriber).second||!ids.insert(actual_id).second)return reject("Manager member identity not unique");
         if(actual_id==wanted_id){selected=subscriber;selected_index=i;}
     }
     if(!selected||(wanted&&selected!=owner))return reject("Subscriber absent from unique current Manager membership");
     uintptr_t toon=0,brain=0,reverse=0,brain_owner=0;uint64_t uid=0;uint8_t online=0;
-    if(!at(m,selected,0x80,toon,e)||!at(m,selected,0x88,brain,e)||!ap(m,w,toon,0x1744e90,e)||
+    if(!at(m,selected,0x80,toon,e)||!at(m,selected,0x88,brain,e)||!ap(m,w,toon,0x174b230,e)||
        !at(m,toon,0x18,uid,e)||!at(m,toon,0x940,reverse,e)||!at(m,toon,0x825,online,e)||
-       (brain&&(!ap(m,w,brain,0x16fdd60,e)||!at(m,brain,0x28,brain_owner,e))))return reject("owned Toon/Brain fields unreadable");
+       (brain&&(!ap(m,w,brain,0x1704100,e)||!at(m,brain,0x28,brain_owner,e))))return reject("owned Toon/Brain fields unreadable");
     detail+=" selected_toon_uid="+std::to_string(uid)+" reciprocal_toon="+std::to_string(reverse==selected)+" reciprocal_brain="+std::to_string(brain_owner==selected);
     if(!uid||reverse!=selected||(brain&&brain_owner!=selected)||online>1||(wanted&&wanted!=toon))return reject("Subscriber Toon/Brain reciprocal ownership differs");
     uintptr_t after_member=0,after_manager=0,after_singleton=0,after_data=0,after_toon=0,after_brain=0,after_reverse=0,after_brain_owner=0;
     int32_t after_count=0,after_capacity=-1,after_next=-1,after_id=-1;uint64_t after_uid=0;uint8_t after_online=0;
-    if(!at(m,w.state,0x1b8,after_manager,e)||!at(m,w.image,0x13df690,after_singleton,e)||
+    if(!at(m,w.state,0x1b8,after_manager,e)||!at(m,w.image,0x13eb690,after_singleton,e)||
        !array(m,manager+0x38,after_data,after_count,e)||!at(m,manager,0x4c,after_capacity,e)||!at(m,manager,0x68,after_next,e)||
        !at(m,data,size_t(selected_index)*8,after_member,e)||!at(m,selected,0x20,after_id,e)||!at(m,selected,0x80,after_toon,e)||!at(m,selected,0x88,after_brain,e)||
        !at(m,toon,0x18,after_uid,e)||!at(m,toon,0x940,after_reverse,e)||!at(m,toon,0x825,after_online,e)||(brain&&!at(m,brain,0x28,after_brain_owner,e)))return reject("owner final readback unreadable");
@@ -140,37 +140,37 @@ bool identify_reference(Memory& m,const ReferenceWorld& w,uintptr_t object,int32
     out={};uintptr_t shard=0,vptr=0,found=0;int32_t index=-1;
     if(!roots(m,w,shard,e)||!at(m,object,0,vptr,e))return false;
     if(object==shard){out.kind=ReferenceKind::RootShard;return true;}
-    if(vptr==w.image+0x1787930){
+    if(vptr==w.image+0x178dcd0){
         if(!regions(m,w,shard,object,-1,found,index,e))return false;
         out.kind=ReferenceKind::RootRegion;out.region_id=index;return true;
     }
-    if(vptr==w.image+0x171c930){
+    if(vptr==w.image+0x1722cd0){
         if(!abilities(m,w,kind,id,object,-1,found,index,e))return false;
         out.kind=ReferenceKind::CharacterAbility;out.character_kind=kind;out.character_id=id;out.ability_index=index;return true;
     }
-    if(vptr==w.image+0x16d93c0){
+    if(vptr==w.image+0x16df760){
         if(!w.buildings)return fail(e,"Building reference has no pinned shared bindings");
         if(!w.buildings->identify(object,out.building_key,e))return false;
         if(!valid_building_key(out.building_key))return fail(e,"Building reference shared key invalid");
         out.kind=ReferenceKind::SharedBuilding;return true;
     }
-    if(vptr==w.image+0x1742980){
+    if(vptr==w.image+0x1748d20){
         if(!w.npcs)return fail(e,"NPC reference has no pinned shared bindings");
         if(!w.npcs->identify(object,out.npc_key,e))return false;
         if(!valid_npc_key(out.npc_key))return fail(e,"NPC reference shared key invalid");
         out.kind=ReferenceKind::SharedNPC;return true;
     }
-    if(vptr==w.image+0x174ac10){
+    if(vptr==w.image+0x1750fb0){
         if(!w.npcs)return fail(e,"Quest reference has no pinned shared bindings");
         if(!w.npcs->identify_quest(object,out.npc_key,out.sequence_id,e))return false;
         if(!valid_npc_key(out.npc_key)||out.sequence_id<0)return fail(e,"Quest reference shared key invalid");
         out.kind=ReferenceKind::SharedQuest;return true;
     }
-    if(vptr==w.image+0x1744e90){
+    if(vptr==w.image+0x174b230){
         if(!subscriber_toon(m,w,object,-1,found,index,e))return false;
         out.kind=ReferenceKind::SubscriberToon;out.subscriber_id=index;return true;
     }
-    if(vptr==w.image+0x174a370){
+    if(vptr==w.image+0x1750710){
         if(!w.parties)return fail(e,"Party reference has no current native bindings");
         if(!w.parties->identify(object,out.party_key,e))return false;
         if(!valid_party_key(out.party_key))return fail(e,"Party reference canonical key invalid");
@@ -191,7 +191,7 @@ bool resolve_reference(Memory& m,const ReferenceWorld& w,const ReferenceKey& key
         if(key.region_id!=-1||key.character_kind!=-1||key.character_id!=-1||key.ability_index!=-1||!valid_party_key(key.party_key))return fail(e,"Party reference key has invalid/foreign fields");
         if(!w.parties)return fail(e,"Party reference has no current native bindings");
         if(!w.parties->resolve(key.party_key,out,e))return false;
-        return ap(m,w,out,0x174a370,e);
+        return ap(m,w,out,0x1750710,e);
     case ReferenceKind::RootShard:
         if(key.region_id!=-1||key.character_kind!=-1||key.character_id!=-1||key.ability_index!=-1)return fail(e,"RootShard key has foreign fields");
         out=shard;return true;
@@ -206,17 +206,17 @@ bool resolve_reference(Memory& m,const ReferenceWorld& w,const ReferenceKey& key
            !valid_npc_key(key.npc_key)||key.sequence_id<0)return fail(e,"Quest reference key has invalid/foreign fields");
         if(!w.npcs)return fail(e,"Quest reference has no pinned shared bindings");
         if(!w.npcs->resolve_quest(key.npc_key,key.sequence_id,out,e))return false;
-        return ap(m,w,out,0x174ac10,e);
+        return ap(m,w,out,0x1750fb0,e);
     case ReferenceKind::SharedNPC:
         if(key.region_id!=-1||key.character_kind!=-1||key.character_id!=-1||key.ability_index!=-1||!valid_npc_key(key.npc_key))return fail(e,"NPC reference key has invalid/foreign fields");
         if(!w.npcs)return fail(e,"NPC reference has no pinned shared bindings");
         if(!w.npcs->resolve(key.npc_key,out,e))return false;
-        return ap(m,w,out,0x1742980,e);
+        return ap(m,w,out,0x1748d20,e);
     case ReferenceKind::SharedBuilding:
         if(key.region_id!=-1||key.character_kind!=-1||key.character_id!=-1||key.ability_index!=-1||!valid_building_key(key.building_key))return fail(e,"Building reference key has invalid/foreign fields");
         if(!w.buildings)return fail(e,"Building reference has no pinned shared bindings");
         if(!w.buildings->resolve(key.building_key,out,e))return false;
-        return ap(m,w,out,0x16d93c0,e);
+        return ap(m,w,out,0x16df760,e);
     case ReferenceKind::CharacterAbility:
         if(key.region_id!=-1||key.ability_index<0)return fail(e,"CharacterAbility key has foreign fields");
         return abilities(m,w,key.character_kind,key.character_id,0,key.ability_index,out,index,e);

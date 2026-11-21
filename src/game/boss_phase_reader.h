@@ -25,7 +25,7 @@ template<class Read>bool array(Read& read,uintptr_t object,size_t offset,uintptr
 template<class Read,class Text>bool type(Read& read,Text& text,uintptr_t image,uintptr_t object,int32_t id,
     action_session::BossTypePhases& out,LocalType& local,std::string& e){
     out={};local={};out.id=id;local.object=object;uintptr_t ap=0;int32_t kind=-1,actual=-1;uint8_t deleted=2,edited=2,released=2;
-    if(!object||!read(object,0,ap,e)||ap!=image+0x1705990||!read(object,0x18,local.uid,e)||!local.uid||
+    if(!object||!read(object,0,ap,e)||ap!=image+0x170bd30||!read(object,0x18,local.uid,e)||!local.uid||
        !read(object,0x2c,kind,e)||kind!=3||!read(object,0x30,actual,e)||actual!=id||
        !read(object,0x4a0,local.parent,e)||!read(object,0x490,deleted,e)||deleted>1||
        !read(object,0x491,edited,e)||edited>1||!read(object,0x492,released,e)||released>1||
@@ -38,12 +38,12 @@ template<class Read,class Text>bool type(Read& read,Text& text,uintptr_t image,u
     std::set<uintptr_t> unique_abilities,unique_phases,unique_elements;
     for(int32_t i=0;i<ability_count;++i){uintptr_t ability=0;
         if(!read(local.ability_data,size_t(i)*8,ability,e)||!ability||!unique_abilities.insert(ability).second||
-           !read(ability,0,ap,e)||ap!=image+0x171c930){if(e.empty())e="Boss phase Character ability membership differs";return false;}
+           !read(ability,0,ap,e)||ap!=image+0x1722cd0){if(e.empty())e="Boss phase Character ability membership differs";return false;}
         std::string name;if(!text(ability+0x48,name,e))return false;out.ability_names.push_back(std::move(name));local.abilities.push_back(ability);
     }
     for(int32_t i=0;i<phase_count;++i){LocalPhase phase;action_session::BossPhaseRow row;int32_t ordinal=-1,count=0;
         if(!read(local.phase_data,size_t(i)*8,phase.pointer,e)||!phase.pointer||!unique_phases.insert(phase.pointer).second||
-           !read(phase.pointer,0,ap,e)||ap!=image+0x16ddb00||!read(phase.pointer,0x5c,ordinal,e)||ordinal!=i||
+           !read(phase.pointer,0,ap,e)||ap!=image+0x16e3ea0||!read(phase.pointer,0x5c,ordinal,e)||ordinal!=i||
            !read(phase.pointer,0x58,row.health,e)||!read(phase.pointer,0x80,row.color,e)||
            !text(phase.pointer+0x38,row.name,e)||!text(phase.pointer+0x60,row.vfx,e)||
            !array(read,phase.pointer,0x90,phase.data,count,phase.capacity,e)){
@@ -51,7 +51,7 @@ template<class Read,class Text>bool type(Read& read,Text& text,uintptr_t image,u
         for(float value:row.color)if(!std::isfinite(value)){e="Boss phase color is nonfinite";return false;}
         for(int32_t j=0;j<count;++j){uintptr_t element=0,ability=0;
             if(!read(phase.data,size_t(j)*8,element,e)||!element||!unique_elements.insert(element).second||
-               !read(element,0,ap,e)||ap!=image+0x173a3a0||!read(element,0x18,ability,e)){
+               !read(element,0,ap,e)||ap!=image+0x1740740||!read(element,0x18,ability,e)){
                 if(e.empty())e="Boss phase element class/ownership differs";return false;}
             const auto found=std::find(local.abilities.begin(),local.abilities.end(),ability);
             if(found==local.abilities.end()){e="Boss phase Ability prototype is outside owning CharacterType";return false;}

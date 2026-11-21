@@ -19,15 +19,15 @@ std::map<std::string,HistoryOperation> operations;
 bool code(Memory& memory,std::string& error){
     struct Pin {uintptr_t rva;size_t size;const char* sha;};
     const Pin pins[]{
-        {0x556ff0,3280,"726ed5c71359de4e3b010d368813c41a57e02dbdd00f65daebd45052e05fe54e"},
-        {0x3c2310,256,"0be2b237b8c8b26d6f14b45e1135d0c09902e96198a3bfa9b5b804b8dcbab707"},
-        {0x53e1c0,320,"c3adcbffa31dfb98e2e5dfac02ec8ccea4d646320eea9425348d27b8ccf62a4f"},
-        {0x563f50,480,"ba39c0cc1f2e40cbb908fd363b3162b1c87660f0517608dffa9ef3c428f709e6"},
-        {0x55ed80,704,"555aef77c8b022b696a31e5c65a0c6c8a8f860449323943d4980e48187214aee"},
-        {0x53ccf0,2080,"56268bdf8aacde4fa4241d462a614c8a58fd9cd3e1e6ea10244189254e8047fa"}};
+        {0x55d640,3344,"ad6a11a7ae232715b7d01fae9d17e4ebe40b6211fdebeaa2d3199f59980b199d"},
+        {0x3c6e20,256,"e97c4b5d75e035f925fff2f9f8410359d6f23b085c1cf77486849c8e35135a69"},
+        {0x544780,320,"cb9c4eb2527be65fc6a64abbd29a67ba6deba482b3250d203ce844fede2e8f5d"},
+        {0x56a5e0,480,"4246d26a2974adf683ddc396a5bd13bf6e29982842ab4484753e64282f829c3c"},
+        {0x565410,704,"91f6cc21fbe00566d2c009d5895ef25f92bc09806c4c504fd43f402fc010fc9e"},
+        {0x543270,2135,"f6ef74e785981550bc1d84abe594827e769b76e202aa72da47e4a4b7de1b06ce"}};
     for(const auto& pin:pins){std::string bytes(pin.size,'\0'),sha;
         if(!memory.copy(state.image+pin.rva,bytes.data(),bytes.size(),error))return false;
-        if(pin.rva==0x55ed80){
+        if(pin.rva==0x565410){
             if(!hooks::framework::verify_original_hash(state.image+pin.rva,bytes.data(),bytes.size(),pin.sha,error))
                 return fail(error,"NPC history original full body differs RVA="+std::to_string(pin.rva)+" original="+error);
             continue;
@@ -35,7 +35,7 @@ bool code(Memory& memory,std::string& error){
         if(!quest_bridge::sha256(bytes,sha,error))return false;
         if(sha!=pin.sha)return fail(error,"NPC history original full body differs RVA="+std::to_string(pin.rva));}
     std::array<int32_t,3> costs{};
-    if(!memory.copy(state.image+0x1493b28,costs.data(),sizeof costs,error))return false;
+    if(!memory.copy(state.image+0x149cf68,costs.data(),sizeof costs,error))return false;
     if(costs!=std::array<int32_t,3>{1000,100,500})return fail(error,"NPC history original TypeCost table differs");
     return true;
 }
@@ -110,13 +110,13 @@ bool alias(Source& source,const action::Request& request,uintptr_t current,bool 
     if(!absent)source.object=current;return true;
 }
 std::vector<uint64_t> quest_owners(const Graph& value){std::vector<uint64_t> result;
-    for(const auto& node:value.nodes)if(node.ap==state.image+0x1713330)result.push_back(node.uid);return result;}
+    for(const auto& node:value.nodes)if(node.ap==state.image+0x17196d0)result.push_back(node.uid);return result;}
 bool inverse_values(Memory& memory,const Source& source,const Graph& value,const host::WorldState& world,const host::LookupApi& api,uintptr_t region,
                     const action::NpcActor& destination,const qr::Witness& original,std::string& error){
     for(const auto& node:value.nodes){
-        if(node.ap==state.image+0x1786ff0){npc_census::Row row;row.rotation=destination.rotation;row.position=destination.position;row.scale=destination.scale;
+        if(node.ap==state.image+0x178d390){npc_census::Row row;row.rotation=destination.rotation;row.position=destination.position;row.scale=destination.scale;
             if(!move_inverse(memory,state.image,value.pointer,source.uid,row,error))return false;}
-        if(node.ap==state.image+0x16de8a0){action::NpcActor stored;uintptr_t stored_region=0;std::array<int32_t,2> character{};
+        if(node.ap==state.image+0x16e4c40){action::NpcActor stored;uintptr_t stored_region=0;std::array<int32_t,2> character{};
             if(!npc_quest_records::read_string(memory,node.object,0xc0,"NPC history Make name",stored.name,error)||
                !field(memory,node.object,0xe0,stored.type,error)||!field(memory,node.object,0xf0,stored_region,error)||
                !field(memory,node.object,0xf8,stored.rotation,error)||!field(memory,node.object,0x108,stored.position,error)||
@@ -134,7 +134,7 @@ bool inverse_values(Memory& memory,const Source& source,const Graph& value,const
             uintptr_t registered=0;const auto seh=lookup(api.find,definition->uid,registered);
             if(seh||registered!=definition->object)return fail(error,"NPC history original Make Character full UID differs SEH="+std::to_string(seh));
         }
-        if(node.ap==state.image+0x1713330){const qr::Owner* owner=nullptr;
+        if(node.ap==state.image+0x17196d0){const qr::Owner* owner=nullptr;
             for(const auto& [pointer,item]:original.owners){(void)pointer;if(item.uid==node.uid){if(owner)return fail(error,"NPC history original Quest owner full UID repeats");owner=&item;}}
             qr::Owner empty;if(!owner&&node.uid==source.uid&&destination.quests.empty()){empty.uid=source.uid;empty.key=source.key;owner=&empty;}
             // A single owner can have several original removal snapshots,

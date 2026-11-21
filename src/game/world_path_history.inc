@@ -66,7 +66,7 @@ action::Outcome perform_history(const action::Binding& binding,const action::Req
     if(result!=action::Outcome::Confirmed){operation.cause=error;
         return authority?action::Outcome::Unknown:result;}
     uintptr_t map=0;
-    if(!region::at(*r,r->image,0x13df8c0,map,error)){
+    if(!region::at(*r,r->image,0x13eb8c0,map,error)){
         operation.cause=error;return action::Outcome::Unknown;}
     mixed_path_native::Census after_census;
     if(!mixed_path_native::read_world(r->memory,r->image,map,view.world.root,after_census,error)||

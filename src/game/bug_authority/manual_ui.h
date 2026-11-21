@@ -24,7 +24,7 @@ bool verify_entry(const Entry& owner,Copy&& copy,Hash&& hash,std::string& e){
        std::memcmp(bridge.data(),prefix.data(),prefix.size())||std::memcmp(bridge.data()+8,jump,6)||continuation!=owner.target+8||
        std::memcmp(bridge.data()+22,jump,6)||detour!=owner.detour)return fail("BugButton installed entry/trampoline differs");
     std::memcpy(body.data(),prefix.data(),prefix.size());
-    return hash(body)=="b74314774d32edfffddf7f73ad97d9946ba868f819376459348cfb74b631a3fb"||fail("BugButton complete original body differs");
+    return hash(body)=="e37a1fbaf0d7d863b2f3501b50434de3ffad013ad9d349655020f293d9e82251"||fail("BugButton complete original body differs");
 }
 template<class Copy>
 bool selected_bug(Copy&& copy,const developer_staff::Capture& c,uintptr_t receiver,uintptr_t& bug,std::string& e){
@@ -37,7 +37,7 @@ bool selected_bug(Copy&& copy,const developer_staff::Capture& c,uintptr_t receiv
     if(!developer_staff::read_window(copy,c,window,e)||!at(window,0x558,view)||!view||view!=receiver)
         return e.empty()?fail("BugButton receiver is not current Development detail view"):false;
     if(!at(view,0,ap)||!at(view,0x460,bug)||!at(view,0x468,proxy))return false;
-    if(ap!=c.image+0x172abf0||!bug||!proxy)return fail("BugButton selected detail class/weak receiver absent");
+    if(ap!=c.image+0x1730f90||!bug||!proxy)return fail("BugButton selected detail class/weak receiver absent");
     if(!at(proxy,0,target))return false;
     if(bug>UINTPTR_MAX-0x18||target!=bug+0x18)return fail("BugButton selected weak target expired or differs");
     if(!at(bug,0x20,owner_proxy))return false;

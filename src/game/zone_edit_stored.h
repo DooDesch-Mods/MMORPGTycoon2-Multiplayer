@@ -14,7 +14,7 @@ struct Stored {
 template<class Memory>
 bool read(Memory& memory,uintptr_t image,uintptr_t node,Stored& out,std::string& error){
     out={};
-    if(!image||image>UINTPTR_MAX-0x16e4a18||!node||node>UINTPTR_MAX-0x150){
+    if(!image||image>UINTPTR_MAX-0x16eadb8||!node||node>UINTPTR_MAX-0x150){
         error="Zone stored inverse image/node address is null or overflows";return false;
     }
     const auto at=[&](uintptr_t base,size_t offset,auto& value){
@@ -26,8 +26,8 @@ bool read(Memory& memory,uintptr_t image,uintptr_t node,Stored& out,std::string&
     const auto sample=[&](Stored& value,uintptr_t& ap,uintptr_t& method){
         if(!at(node,0,ap))return false;
         uintptr_t expected=0;
-        if(ap==image+0x16e4a00)expected=image+0x55bd50;
-        else if(ap==image+0x16e4980)expected=image+0x55c710;
+        if(ap==image+0x16eada0)expected=image+0x5623e0;
+        else if(ap==image+0x16ead20)expected=image+0x562da0;
         else{error="Zone stored inverse is not an original MakeZone/EditZone addresspoint";return false;}
         if(!at(ap,0x10,method))return false;
         if(method!=expected){error="Zone stored inverse original Do method differs";return false;}

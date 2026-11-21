@@ -40,20 +40,20 @@ struct Runtime::Impl final:notice_hook::Observer {
         if(!bound||suspended||GetCurrentThreadId()!=thread||!failure.empty())return fail(e,failure.empty()?"inactive/wrong-thread world":failure);
         uintptr_t base=0;uint32_t owner_thread=0;std::string sha;action_session::Context current;World now;
         if(!native::read_resolver_receipt(base,owner_thread,sha,e)||!action_session::selected_session().current(current,e)||!native_open_runtime::read_current_world(now,e))return false;
-        return (base==image&&owner_thread==thread&&sha=="bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6"&&current==context&&same_world(world,now)&&now.world_epoch==binding.native_epoch&&now.generation==binding.native_generation&&net::current_world_epoch()==bound_origin.epoch)||fail(e,"resolver/session/local lifetime differs");
+        return (base==image&&owner_thread==thread&&sha=="7efd8ee7b97f78362e7a2f8116b327fa6b756bdce23114b68143c4c9d2dd50eb"&&current==context&&same_world(world,now)&&now.world_epoch==binding.native_epoch&&now.generation==binding.native_generation&&net::current_world_epoch()==bound_origin.epoch)||fail(e,"resolver/session/local lifetime differs");
     }
     bool sample(uintptr_t receiver,Sample& out,bool& owned,std::string& e){
         out={};owned=false;if(!pin(e))return false;
         uintptr_t singleton=0,ap=0,data=0;int32_t count=0,capacity=0;
-        if(!message::at(memory,uintptr_t(world.state),0x1d0,out.marketing,e)||!message::at(memory,image,0x13df2c0,singleton,e)||
+        if(!message::at(memory,uintptr_t(world.state),0x1d0,out.marketing,e)||!message::at(memory,image,0x13eb2c0,singleton,e)||
            !message::at(memory,out.marketing,0,ap,e))return false;
-        if(out.marketing!=singleton||ap!=image+0x16dfa60)return fail(e,"current Marketing owner differs");
+        if(out.marketing!=singleton||ap!=image+0x16e5e00)return fail(e,"current Marketing owner differs");
         if(!message::at(memory,out.marketing,0x70,data,e)||!message::at(memory,out.marketing,0x78,count,e)||!message::at(memory,out.marketing,0x7c,capacity,e))return false;
         if(count<0||count>4||capacity<count||(count&&!data))return fail(e,"current Campaign array bound differs");
         for(int32_t i=0;i<count;++i){uintptr_t item=0;if(!message::at(memory,data,size_t(i)*sizeof item,item,e))return false;out.members.push_back(item);}
         const auto matches=std::count(out.members.begin(),out.members.end(),receiver);
         if(!matches){e.clear();return true;}if(matches!=1)return fail(e,"Campaign is not unique current owner");owned=true;
-        if(!message::at(memory,receiver,0,ap,e)||ap!=image+0x16e3d50)return fail(e,e.empty()?"Campaign class differs":e);
+        if(!message::at(memory,receiver,0,ap,e)||ap!=image+0x16ea0f0)return fail(e,e.empty()?"Campaign class differs":e);
         for(size_t i=0;i<out.fields.size();++i)if(!message::at(memory,receiver,0x50+i*4,out.fields[i],e))return false;
         if(!message::at(memory,receiver,0x68,out.active,e))return false;
         native::ClockState clock;if(!native::read_clock(clock,e))return false;out.day=clock.flat_day;

@@ -14,16 +14,16 @@ void dependencies(f::Memory& m,uintptr_t at,uint64_t uid){
 f::Memory setup(sh::Saved& saved){
     f::Memory m;saved={};saved.uid=77;saved.root=f::root;saved.region=f::region;saved.type={3,-1234};
     const auto pose=f::pose();std::memcpy(saved.transform.data(),pose.data(),sizeof pose);
-    m.put(make_node,f::image+0x1706590);m.put(f::image+0x1706590+0x10,f::image+0x55a3c0);
+    m.put(make_node,f::image+0x170c930);m.put(f::image+0x170c930+0x10,f::image+0x560a50);
     m.put(make_node+0xb8,saved.uid);m.put(make_node+0xc0,saved.type);m.put(make_node+0xc8,saved.root);m.put(make_node+0xd0,saved.transform);
     m.put(make_node+0x13c,saved.height);m.put(make_node+0x140,saved.automatic);
     dependencies(m,make_node+8,saved.uid);dependencies(m,make_node+0x30,0);dependencies(m,make_node+0x58,0);
-    m.put(destroy_node,f::image+0x16de860);m.put(f::image+0x16de860+0x10,f::image+0x53e1c0);m.put(destroy_node+0xb8,uint64_t(88));
+    m.put(destroy_node,f::image+0x16e4c00);m.put(f::image+0x16e4c00+0x10,f::image+0x544780);m.put(destroy_node+0xb8,uint64_t(88));
     dependencies(m,destroy_node+8,0);dependencies(m,destroy_node+0x30,0);dependencies(m,destroy_node+0x58,88);
-    m.put(cash_node,f::image+0x1786fb0);m.put(f::image+0x1786fb0+0x10,f::image+0x53ccf0);m.put(cash_node+0xb8,int32_t(-10));m.put(cash_node+0xbc,std::array<uint32_t,3>{});
+    m.put(cash_node,f::image+0x178d350);m.put(f::image+0x178d350+0x10,f::image+0x543270);m.put(cash_node+0xb8,int32_t(-10));m.put(cash_node+0xbc,std::array<uint32_t,3>{});
     dependencies(m,cash_node+8,0);dependencies(m,cash_node+0x30,0);dependencies(m,cash_node+0x58,0);
-    f::array(m,owner,0x16e32d0,{0x110000,0x120000,0x130000});
-    f::array(m,owner+0x18,0x16e2dc0,{make_node,destroy_node,cash_node});f::array(m,owner+0x30,0x1748aa0,{cash_node,make_node,destroy_node});return m;
+    f::array(m,owner,0x16e9670,{0x110000,0x120000,0x130000});
+    f::array(m,owner+0x18,0x16e9160,{make_node,destroy_node,cash_node});f::array(m,owner+0x30,0x174ee40,{cash_node,make_node,destroy_node});return m;
 }
 }
 int main()try{
@@ -31,11 +31,11 @@ int main()try{
     const std::vector<mt2mp::action_session::DuplicateCash> cash{{-10,{}}};
     auto read=[&](bool original=true){return sh::graph(memory,f::image,owner,{{77,saved}},{88},cash,original,stored,graph,e);};
     f::need(read()&&stored.at(77)==saved&&graph.operations.size()==3,e);
-    const auto lazy=[&](){memory=setup(saved);f::array(memory,owner,0x16e32d0,{});f::array(memory,owner+0x30,0x1748aa0,{});e.clear();};
+    const auto lazy=[&](){memory=setup(saved);f::array(memory,owner,0x16e9670,{});f::array(memory,owner+0x30,0x174ee40,{});e.clear();};
     lazy();f::need(read()&&stored.at(77)==saved&&graph.operations.size()==3,"Fresh locked inverse lost complete original payload: "+e);
     f::need(read(false),"Undo/Redo inverse preflight rejected native lazy caches: "+e);
     // An Eraser inverse has Make plus refund reversal, with no new birth.
-    lazy();f::array(memory,owner+0x18,0x16e2dc0,{make_node,cash_node});
+    lazy();f::array(memory,owner+0x18,0x16e9160,{make_node,cash_node});
     f::need(sh::graph(memory,f::image,owner,{{77,saved}},{},cash,true,stored,graph,e)&&graph.operations.size()==2,
         "Original Eraser Make/Cash inverse rejected before first Do: "+e);
     const auto lazy_bad=[&](auto change){lazy();change(memory);f::need(!read(),"Lazy caches bypassed complete original graph proof");};
@@ -44,12 +44,12 @@ int main()try{
     lazy_bad([](auto& m){m.put(make_node+0xd0+16,uint32_t(0x3f800000));});
     lazy_bad([](auto& m){m.put(cash_node+0xb8,int32_t(-11));});
     lazy_bad([](auto& m){dependencies(m,make_node+0x30,77);});
-    lazy_bad([](auto& m){f::array(m,owner+0x18,0x16e2dc0,{make_node,cash_node});});
-    lazy_bad([](auto& m){f::array(m,owner+0x18,0x16e2dc0,{make_node,make_node,cash_node});});
-    lazy_bad([](auto& m){m.put(owner,f::image+0x16e32d1);});
-    memory=setup(saved);f::array(memory,owner+0x30,0x1748aa0,{});e.clear();
+    lazy_bad([](auto& m){f::array(m,owner+0x18,0x16e9160,{make_node,cash_node});});
+    lazy_bad([](auto& m){f::array(m,owner+0x18,0x16e9160,{make_node,make_node,cash_node});});
+    lazy_bad([](auto& m){m.put(owner,f::image+0x16e9671);});
+    memory=setup(saved);f::array(memory,owner+0x30,0x174ee40,{});e.clear();
     f::need(!read()&&e.find("nodes=3 sorted=0 operations=3")!=std::string::npos,"Partially built native cache admitted");
-    memory=setup(saved);f::array(memory,owner,0x16e32d0,{});e.clear();
+    memory=setup(saved);f::array(memory,owner,0x16e9670,{});e.clear();
     f::need(!read()&&e.find("nodes=0 sorted=3 operations=3")!=std::string::npos,"Execution cache without dependency cache admitted");
     auto bad=[&](auto change){memory=setup(saved);change(memory);f::need(!read(),"invalid complete Scenery history graph accepted");};
     bad([](auto& m){m.put(make_node+0xd0+48,uint8_t(1));});
@@ -60,9 +60,9 @@ int main()try{
     bad([](auto& m){dependencies(m,destroy_node+0x30,77);});
     bad([](auto& m){m.put(cash_node+0xb8,int32_t(-11));});
     bad([](auto& m){m.put(cash_node+0xbc,uint32_t(0x7f800000));});
-    bad([](auto& m){m.put(cash_node,f::image+0x1786fb1);});
-    bad([](auto& m){f::array(m,owner+0x30,0x1748aa0,{make_node,make_node,cash_node});});
-    bad([](auto& m){f::array(m,owner+0x18,0x16e2dc0,{make_node,destroy_node});f::array(m,owner+0x30,0x1748aa0,{make_node,destroy_node});});
+    bad([](auto& m){m.put(cash_node,f::image+0x178d351);});
+    bad([](auto& m){f::array(m,owner+0x30,0x174ee40,{make_node,make_node,cash_node});});
+    bad([](auto& m){f::array(m,owner+0x18,0x16e9160,{make_node,destroy_node});f::array(m,owner+0x30,0x174ee40,{make_node,destroy_node});});
     f::need(sh::opposite(sh::opposite(cash))==cash,"Scenery original signed cash inverse did not round trip");
     std::cout<<f::checks<<" complete Scenery history graph cases passed\n";return 0;
 }catch(const std::exception& ex){std::cerr<<ex.what()<<'\n';return 1;}

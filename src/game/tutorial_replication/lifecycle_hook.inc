@@ -51,17 +51,17 @@ void advance(void* value){
     }
     try{
         auto& scope=*creation;std::string e;World current;const auto sequence=reinterpret_cast<uintptr_t>(value);
-        if(caller!=image+0x4f61fe||scope.entered||!origin(scope.context,scope.binding,current,e)||!same_world(scope.world,current)){
+        if(caller!=image+0x4fc19e||scope.entered||!origin(scope.context,scope.binding,current,e)||!same_world(scope.world,current)){
             block(e.empty()?"tutorial constructor Advance caller/scope/origin differs":e);return;}
         if(!sequence||load.sequences.contains(sequence)||load.quarantined.contains(sequence)){block("tutorial constructor Sequence address is null or already fenced");return;}
         load.quarantined.insert(sequence);
-        if(!type(sequence,0x16dbd80,e)){block(e);return;}
+        if(!type(sequence,0x16e2120,e)){block(e);return;}
         // The original constructor supplied this typed Sequence under the exact
         // owned Start call. Retain its fence even if later asset checks fail.
         scope.sequence=sequence;load.sequences.insert(sequence);
         uintptr_t steps=0,step=0,current_step=0;int32_t count=0,next=0;uint8_t complete=0;std::string command;
         if(!array(sequence,0x20,2048,steps,count,e)||!at(sequence,0x50,next,e)||!at(sequence,0x54,complete,e)||!at(sequence,0x48,current_step,e)||
-           !at(steps,0,step,e)||!type(step,0x16fd930,e)||!str(step,0x40,command,e)){block(e);return;}
+           !at(steps,0,step,e)||!type(step,0x1703cd0,e)||!str(step,0x40,command,e)){block(e);return;}
         const bool initial=scope.id=="initial_tutorial";
         if(count!=(initial?107:17)||next||complete||current_step||command!=(initial?"MessageTo SoftwareStatus LockLevelUp":"MessageTo Hud Tutorial 1")){
             block("tutorial constructor first Command/count/index/fresh sequence differs");return;}

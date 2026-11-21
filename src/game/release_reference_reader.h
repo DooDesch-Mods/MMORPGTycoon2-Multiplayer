@@ -34,7 +34,7 @@ template<class Target,class Modular>bool prop_family(const Target& prop,Modular&
 }
 template<class Read,class Text>bool base_types(Read& read,Text& text,uintptr_t image,uintptr_t native_state,Types& out,std::string& e){
     out={};e.clear();
-    if(!read(image,0x13df7a0,out.manager,e))return false;
+    if(!read(image,0x13eb7a0,out.manager,e))return false;
     character_definition_identity::Census census;
     if(!character_definition_identity::read(read,image,native_state,out.manager,census,e))return false;
     for(size_t kind=0;kind<5;++kind){const auto& span=census.arrays[kind];out.arrays[kind]={span.data,uintptr_t(span.count),uintptr_t(span.capacity)};}

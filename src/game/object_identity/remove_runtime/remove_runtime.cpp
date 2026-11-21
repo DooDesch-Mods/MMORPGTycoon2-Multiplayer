@@ -103,7 +103,7 @@ bool Runtime::read_owned_undo_open(uintptr_t image,native::UndoOpenFn& out,std::
     if(busy_||active_||retiring_||dispatch_.inflight()){error="remove_runtime_owned_Open_scope_not_idle";return false;}
     for(size_t i=0;i<4;++i)if(!installation_.create_attempted[i]||!installation_.enable_attempted[i]||
        installation_.create_status[i]!=MH_OK||installation_.enable_status[i]!=MH_OK){error="remove_runtime_owned_Open_installation_incomplete";return false;}
-    if(installation_.targets[1]!=image+0x539990||uintptr_t(dispatch_.originals().open)!=installation_.trampolines[1]){error="remove_runtime_owned_Open_typed_original_differs";return false;}
+    if(installation_.targets[1]!=image+0x53fea0||uintptr_t(dispatch_.originals().open)!=installation_.trampolines[1]){error="remove_runtime_owned_Open_typed_original_differs";return false;}
     if(!validate_owned_undo_open_bytes(memory_,installation_.targets[1],installation_.trampolines[1],error))return fail(RuntimePhase::Unknown,error,error);
     out=reinterpret_cast<native::UndoOpenFn>(installation_.targets[1]);return true;
 }
@@ -200,7 +200,7 @@ void Runtime::observation_failed(const char* cause)noexcept{
 }
 bool Runtime::forward_clear(uintptr_t receiver,uintptr_t caller)noexcept{
     if(!callback_operation())return true;
-    if(receiver!=active_->context.selection||(caller!=0x2d4351&&caller!=0x2d4b62))return true;
+    if(receiver!=active_->context.selection||(caller!=0x2d7b94&&caller!=0x2d8265))return true;
     try{
         host::Reader reader(memory_,origin_,installation_.image,main_thread_.load(),lookup_);host::WorldState world;std::string error;
         if(!reader.current(world,false,error)){observation_failed(error.c_str());return true;}

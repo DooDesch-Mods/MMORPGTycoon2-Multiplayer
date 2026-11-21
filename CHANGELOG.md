@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.1.0-beta.32
+
+### Changed
+
+- Runs on the current game build 26719430. Older game builds no longer load it.
+- Requires MT2 Mod Framework Runtime 0.6.2. Update the Runtime before this release; older Runtimes do not load it.
+
+### Known issues
+
+- Loading a very large saved world (a save file of about 120 MB) can close the host's game shortly after the world finishes loading. Smaller saved worlds load normally.
+
+Both players need Early Beta 32 and MT2 Mod Framework Runtime 0.6.2. Close the game, update both mods in Vortex and deploy before starting through Steam.
+
+This release was checked with two local game instances on one PC: lobby, join, world creation, loading a saved world together and both players in game. Separate-account online play was not retested for this release.
+
 ## 0.1.0-beta.31
 
 ### Changed

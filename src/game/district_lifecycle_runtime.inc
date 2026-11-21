@@ -4,7 +4,7 @@ struct DistrictLookup {
     native_lookup::LookupApi api;
     bool initialize(std::string& error){
         native_lookup::ProcessMemory process;
-        return native_lookup::resolve_lookup(process,image,"bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6",api,error);
+        return native_lookup::resolve_lookup(process,image,"7efd8ee7b97f78362e7a2f8116b327fa6b756bdce23114b68143c4c9d2dd50eb",api,error);
     }
     bool operator()(uint64_t uid,uintptr_t& object,std::string& error){
         if(!uid||!api.find)return q::fail(error,"District full UID/exact native resolver unavailable");

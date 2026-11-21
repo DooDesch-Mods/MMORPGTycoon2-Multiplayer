@@ -32,7 +32,7 @@ bool current(first::ClientWorld& world,std::string& e){
     if(!native_open_runtime::read_current_world(world.origin,e))return false;
     if(uintptr_t(world.origin.world)!=p.world||world.origin.world_epoch!=p.binding.native_epoch||world.origin.generation!=p.binding.native_generation)return fail(e,"Subscriber retirement actual World/epoch/generation differs");
     uintptr_t manager=0,type=0;
-    if(!at(image,0x13df690,manager,e)||manager!=world.manager||!at(manager,0,type,e)||type!=image+0x1725f40)return fail(e,e.empty()?"Subscriber retirement actual Manager/AP differs":e);
+    if(!at(image,0x13eb690,manager,e)||manager!=world.manager||!at(manager,0,type,e)||type!=image+0x172c2e0)return fail(e,e.empty()?"Subscriber retirement actual Manager/AP differs":e);
     return true;
 }
 bool prepare(first::ClientWorld& world,uintptr_t manager,uintptr_t subscriber,local::Census& before,int32_t& id,int32_t& reason,uint64_t& uid,uint8_t& dispatch,std::string& e){
@@ -40,7 +40,7 @@ bool prepare(first::ClientWorld& world,uintptr_t manager,uintptr_t subscriber,lo
     auto found=std::find_if(before.members.begin(),before.members.end(),[&](const auto& row){return row.subscriber==subscriber;});
     if(found==before.members.end()||found->online||retired.contains(found->id))return fail(e,"Subscriber retirement receiver absent/online/already retired");
     id=found->id;uintptr_t actor=0,registered=0;uint8_t logging_out=1,queued=1;
-    if(!at(subscriber,0x120,reason,e)||reason<0||!at(image,0x13b9820,dispatch,e)||dispatch>1)return fail(e,e.empty()?"Subscriber retirement original reason/EventManager flag unreadable":e);
+    if(!at(subscriber,0x120,reason,e)||reason<0||!at(image,0x13c5820,dispatch,e)||dispatch>1)return fail(e,e.empty()?"Subscriber retirement original reason/EventManager flag unreadable":e);
     if(!found->toon){uid=0;return true;}
     if(!at(found->toon,0x18,uid,e)||!uid||!at(found->toon,0x6f0,actor,e)||actor||!at(found->toon,0x9ed,logging_out,e)||logging_out||!at(found->toon,0x9ec,queued,e)||queued)return fail(e,e.empty()?"Subscriber retirement requires actual offline Toon/actor/queues":e);
     if(!first::registry_lookup(image,uid,registered,e)||registered!=found->toon)return fail(e,e.empty()?"Subscriber retirement actual Toon registry owner differs":e);
@@ -61,21 +61,21 @@ bool confirm(const first::ClientWorld& world,const local::Census& before,uintptr
     uintptr_t actual=0;if(uid&&(!first::registry_lookup(image,uid,actual,e)||actual))return fail(e,e.empty()?"Subscriber original D0 left Toon UID registered":e);
     return true;
 }
-uint32_t unsubscribe(uintptr_t receiver,int32_t reason){__try{reinterpret_cast<void(*)(uintptr_t,int32_t)>(image+0x2ea830)(receiver,reason);return 0;}__except(GetExceptionCode()==0xe06d7363?EXCEPTION_CONTINUE_SEARCH:EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
-uint32_t remove(uintptr_t manager,uintptr_t subscriber){__try{reinterpret_cast<Remove>(image+0x2ef4c0)(reinterpret_cast<void*>(manager),reinterpret_cast<void*>(subscriber));return 0;}__except(GetExceptionCode()==0xe06d7363?EXCEPTION_CONTINUE_SEARCH:EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
+uint32_t unsubscribe(uintptr_t receiver,int32_t reason){__try{reinterpret_cast<void(*)(uintptr_t,int32_t)>(image+0x2ee030)(receiver,reason);return 0;}__except(GetExceptionCode()==0xe06d7363?EXCEPTION_CONTINUE_SEARCH:EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
+uint32_t remove(uintptr_t manager,uintptr_t subscriber){__try{reinterpret_cast<Remove>(image+0x2f2cc0)(reinterpret_cast<void*>(manager),reinterpret_cast<void*>(subscriber));return 0;}__except(GetExceptionCode()==0xe06d7363?EXCEPTION_CONTINUE_SEARCH:EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
 }
 bool initialize(uintptr_t module,std::string& e){
     struct Code{uintptr_t rva;std::array<unsigned char,16> bytes;};
     static constexpr Code codes[]={
-        {0x2ef4c0,{0x41,0x54,0x55,0x57,0x56,0x53,0x48,0x81,0xec,0x20,0x02,0x00,0x00,0x0f,0x11,0xb4}},
-        {0x2ea830,{0x57,0x56,0x53,0x48,0x81,0xec,0xd0,0x01,0x00,0x00,0xc6,0x81,0x90,0x00,0x00,0x00}},
-        {0x2ec2f0,{0x53,0x48,0x83,0xec,0x20,0x48,0x89,0xcb,0xe8,0xa3,0xfd,0xff,0xff,0xba,0x28,0x01}},
-        {0xd7000,{0x56,0x53,0x48,0x83,0xec,0x28,0x66,0x0f,0xef,0xc0,0x48,0x8d,0x41,0x18,0xc6,0x41}}};
+        {0x2f2cc0,{0x41,0x54,0x55,0x57,0x56,0x53,0x48,0x81,0xec,0x20,0x02,0x00,0x00,0x0f,0x11,0xb4}},
+        {0x2ee030,{0x57,0x56,0x53,0x48,0x81,0xec,0xd0,0x01,0x00,0x00,0xc6,0x81,0x90,0x00,0x00,0x00}},
+        {0x2efaf0,{0x53,0x48,0x83,0xec,0x20,0x48,0x89,0xcb,0xe8,0xa3,0xfd,0xff,0xff,0xba,0x28,0x01}},
+        {0xd8030,{0x56,0x53,0x48,0x83,0xec,0x28,0x66,0x0f,0xef,0xc0,0x48,0x8d,0x41,0x18,0xc6,0x41}}};
     if(image)return image==module||fail(e,"Subscriber retirement module changed");
     for(const auto& code:codes){std::array<unsigned char,16> actual{};if(!memory.read(module+code.rva,actual.data(),actual.size(),e))return false;if(actual!=code.bytes)return fail(e,"Subscriber retirement original ABI bytes differ RVA="+std::to_string(code.rva));}
     image=module;e.clear();return true;
 }
-void* entrypoint(){return image?reinterpret_cast<void*>(image+0x2ef4c0):nullptr;}
+void* entrypoint(){return image?reinterpret_cast<void*>(image+0x2f2cc0):nullptr;}
 bool bind(const live_host_state::day::economy::Owners& owner,std::string& e){
     if(!image||owner.history.pin.image!=image)return fail(e,"Subscriber retirement prepared image differs");
     const auto& a=bound.history.pin;const auto& b=owner.history.pin;

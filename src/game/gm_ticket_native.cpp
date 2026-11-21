@@ -27,14 +27,14 @@ bool fresh(void* user,const c::ExternalLink& link,std::string& error){auto& scop
 }
 uint32_t invoke(uintptr_t image,unsigned step,uintptr_t object,uintptr_t record,uintptr_t context)noexcept{
     __try{switch(step){
-    case 0:reinterpret_cast<void(*)(void*)>(image+0x89e940)(reinterpret_cast<void*>(context));break;
-    case 1:reinterpret_cast<void(*)(void*,void*,void*)>(image+0xbbcc00)(reinterpret_cast<void*>(object),reinterpret_cast<void*>(record),reinterpret_cast<void*>(context));break;
-    case 2:reinterpret_cast<void(*)(void*)>(image+0x89e480)(reinterpret_cast<void*>(context));break;
-    case 3:reinterpret_cast<void(*)(void*)>(image+0xbbd590)(reinterpret_cast<void*>(object));break;
+    case 0:reinterpret_cast<void(*)(void*)>(image+0x8a7a60)(reinterpret_cast<void*>(context));break;
+    case 1:reinterpret_cast<void(*)(void*,void*,void*)>(image+0xbc94c0)(reinterpret_cast<void*>(object),reinterpret_cast<void*>(record),reinterpret_cast<void*>(context));break;
+    case 2:reinterpret_cast<void(*)(void*)>(image+0x8a75a0)(reinterpret_cast<void*>(context));break;
+    case 3:reinterpret_cast<void(*)(void*)>(image+0xbc9e50)(reinterpret_cast<void*>(object));break;
     }return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 uint32_t create(uintptr_t image,uintptr_t& object)noexcept{
-    __try{const auto secondary=uintptr_t(reinterpret_cast<void*(*)(const void*)>(image+0xd86680)(nullptr));object=secondary>=0x18?secondary-0x18:0;return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
+    __try{const auto secondary=uintptr_t(reinterpret_cast<void*(*)(const void*)>(image+0xd91e10)(nullptr));object=secondary>=0x18?secondary-0x18:0;return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 uint32_t exchange(uintptr_t address,uint64_t expected,uint64_t desired,bool& stored)noexcept{
     __try{stored=uint64_t(InterlockedCompareExchange64(reinterpret_cast<volatile LONG64*>(address),LONG64(desired),LONG64(expected)))==expected;return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
@@ -48,8 +48,8 @@ bool apply_owned(uintptr_t image,c::Memory& memory,uintptr_t queue,const release
     if(!release_graph::valid(desired,error)||!guard(error))return false;
     if(active.load(std::memory_order_acquire))return fail(error,"GM original Ticket Context is already active");
     auto read=[&](uintptr_t object,size_t offset,auto& value,std::string& cause){if(!object||object>UINTPTR_MAX-offset)return fail(cause,"GM original owner address overflow");return memory.read(object+offset,&value,sizeof value,cause);};
-    uintptr_t singleton=0,ap=0;if(!read(image,0x13df360,singleton,error)||!read(queue,0,ap,error))return false;
-    if(queue!=singleton||ap!=image+0x16fdc60)return fail(error,"GM original Ticket apply current Queue singleton/class differs");
+    uintptr_t singleton=0,ap=0;if(!read(image,0x13eb360,singleton,error)||!read(queue,0,ap,error))return false;
+    if(queue!=singleton||ap!=image+0x1704000)return fail(error,"GM original Ticket apply current Queue singleton/class differs");
     storage::Value previous;if(!storage::read(read,image,queue+0x18,previous,error))return false;receipt.previous_storage=previous;
     std::vector<uintptr_t> old_objects;if(!pointers(memory,previous,old_objects,error))return false;
     c::first_append::DecodeApi api;if(!c::first_append::resolve_record_api(memory,image,api,error))return false;
@@ -84,8 +84,8 @@ bool apply_owned(uintptr_t image,c::Memory& memory,uintptr_t queue,const release
     release_graph::Value inspected;CaptureReceipt original;
     // Capture the detached original array before it can replace the current one.
     Borrow borrow{memory,key,inspected};const c::CaptureApi capture_api{
-        reinterpret_cast<c::Construct>(image+0x9667c0),reinterpret_cast<c::Construct>(image+0x9676a0),reinterpret_cast<c::Construct>(image+0x89e580),reinterpret_cast<c::Construct>(image+0x89e5f0),
-        reinterpret_cast<c::PrepareSave>(image+0xd7cdd0),reinterpret_cast<c::SaveRecord>(image+0xd7ce70)};
+        reinterpret_cast<c::Construct>(image+0x96f9e0),reinterpret_cast<c::Construct>(image+0x9708c0),reinterpret_cast<c::Construct>(image+0x8a76a0),reinterpret_cast<c::Construct>(image+0x8a7710),
+        reinterpret_cast<c::PrepareSave>(image+0xd88510),reinterpret_cast<c::SaveRecord>(image+0xd885b0)};
     if(!c::capture_original(capture_api,reinterpret_cast<const void*>(temporary),&inspect,&borrow,original.original,error))return false;
     if(inspected!=desired)return fail(error,"GM detached original Ticket ObjectArray differs from Host typed graph");
     std::vector<uintptr_t> fresh_objects;if(!pointers(memory,loaded,fresh_objects,error))return false;
@@ -106,10 +106,10 @@ bool lookup(void* context,int32_t id,c::Lookup original,void*& result){auto* sco
 }
 bool capture(uintptr_t image,c::Memory& memory,uintptr_t queue,const Key& key,release_graph::Value& out,CaptureReceipt& receipt,std::string& error){
     out={};receipt={};if(!key)return fail(error,"GM Ticket capture requires its canonical owner callback");
-    uintptr_t singleton=0,ap=0;if(!memory.read(image+0x13df360,&singleton,8,error)||!memory.read(queue,&ap,8,error))return false;
-    if(!queue||queue!=singleton||ap!=image+0x16fdc60)return fail(error,"GM Ticket capture current Queue singleton/class differs");
-    const c::CaptureApi api{reinterpret_cast<c::Construct>(image+0x9667c0),reinterpret_cast<c::Construct>(image+0x9676a0),reinterpret_cast<c::Construct>(image+0x89e580),reinterpret_cast<c::Construct>(image+0x89e5f0),
-        reinterpret_cast<c::PrepareSave>(image+0xd7cdd0),reinterpret_cast<c::SaveRecord>(image+0xd7ce70)};
+    uintptr_t singleton=0,ap=0;if(!memory.read(image+0x13eb360,&singleton,8,error)||!memory.read(queue,&ap,8,error))return false;
+    if(!queue||queue!=singleton||ap!=image+0x1704000)return fail(error,"GM Ticket capture current Queue singleton/class differs");
+    const c::CaptureApi api{reinterpret_cast<c::Construct>(image+0x96f9e0),reinterpret_cast<c::Construct>(image+0x9708c0),reinterpret_cast<c::Construct>(image+0x8a76a0),reinterpret_cast<c::Construct>(image+0x8a7710),
+        reinterpret_cast<c::PrepareSave>(image+0xd88510),reinterpret_cast<c::SaveRecord>(image+0xd885b0)};
     Borrow borrow{memory,key,out};if(!c::capture_original(api,reinterpret_cast<const void*>(queue+0x18),&inspect,&borrow,receipt.original,error))return false;
     receipt.confirmed=true;error.clear();return true;
 }
@@ -120,27 +120,27 @@ bool apply(uintptr_t image,c::Memory& memory,uintptr_t queue,const release_graph
 }
 uint32_t transform(uintptr_t image,uintptr_t object,const MasterValue& value)noexcept{
     alignas(4) std::array<unsigned char,0x6c> transform_bytes{};
-    __try{reinterpret_cast<void(*)(void*,const float*,const float*,const float*)>(image+0x9ff370)(transform_bytes.data(),value.orientation.data(),value.position.data(),value.scale.data());
-        reinterpret_cast<void(*)(uintptr_t,const void*)>(image+0xc67c80)(object+0x30,transform_bytes.data());return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
+    __try{reinterpret_cast<void(*)(void*,const float*,const float*,const float*)>(image+0xa09f30)(transform_bytes.data(),value.orientation.data(),value.position.data(),value.scale.data());
+        reinterpret_cast<void(*)(uintptr_t,const void*)>(image+0xc733c0)(object+0x30,transform_bytes.data());return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 uint32_t on_map(uintptr_t image,uintptr_t object,bool value)noexcept{
-    __try{reinterpret_cast<void(*)(void*,bool)>(image+0x3b1c00)(reinterpret_cast<void*>(object),value);return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
+    __try{reinterpret_cast<void(*)(void*,bool)>(image+0x3b6710)(reinterpret_cast<void*>(object),value);return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 uint32_t shard(uintptr_t image,uintptr_t object,uintptr_t root)noexcept{
-    __try{reinterpret_cast<void(*)(void*,void*)>(image+0x3b1cb0)(reinterpret_cast<void*>(object),reinterpret_cast<void*>(root));return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
+    __try{reinterpret_cast<void(*)(void*,void*)>(image+0x3b67c0)(reinterpret_cast<void*>(object),reinterpret_cast<void*>(root));return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 uint32_t spatial(uintptr_t image,uintptr_t object)noexcept{
-    __try{reinterpret_cast<void(*)(void*)>(image+0x3b1b50)(reinterpret_cast<void*>(object));return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
+    __try{reinterpret_cast<void(*)(void*)>(image+0x3b6660)(reinterpret_cast<void*>(object));return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 uint32_t presentation(uintptr_t image,uintptr_t object,float delta)noexcept{
     __try{if(!*reinterpret_cast<const uint8_t*>(object+0x4c5)||!*reinterpret_cast<const uintptr_t*>(object+0x178))return 0;
         const auto arrow=*reinterpret_cast<const uintptr_t*>(object+0x498);
-        if(!arrow||*reinterpret_cast<const uintptr_t*>(arrow)!=image+0x16fbbf0||*reinterpret_cast<const uintptr_t*>(image+0x16fbc00)!=image+0x1b6380)return ERROR_INVALID_DATA;
-        reinterpret_cast<void(*)(uintptr_t,const float*)>(image+0x1b4910)(arrow,reinterpret_cast<const float*>(object+0x110));
-        reinterpret_cast<void(*)(uintptr_t,float)>(image+0x1b6380)(arrow,delta);return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
+        if(!arrow||*reinterpret_cast<const uintptr_t*>(arrow)!=image+0x1701f90||*reinterpret_cast<const uintptr_t*>(image+0x1701fa0)!=image+0x1b83b0)return ERROR_INVALID_DATA;
+        reinterpret_cast<void(*)(uintptr_t,const float*)>(image+0x1b68f0)(arrow,reinterpret_cast<const float*>(object+0x110));
+        reinterpret_cast<void(*)(uintptr_t,float)>(image+0x1b83b0)(arrow,delta);return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 uint32_t pool(uintptr_t image,uintptr_t lounge,int32_t count)noexcept{
-    __try{reinterpret_cast<void(*)(void*,int32_t)>(image+0x2749d0)(reinterpret_cast<void*>(lounge),count);return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
+    __try{reinterpret_cast<void(*)(void*,int32_t)>(image+0x277c80)(reinterpret_cast<void*>(lounge),count);return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 uint32_t compare(uintptr_t address,unsigned bytes,uint64_t expected,uint64_t desired,bool& stored)noexcept{
     __try{if(bytes==1)stored=uint8_t(_InterlockedCompareExchange8(reinterpret_cast<volatile char*>(address),char(desired),char(expected)))==uint8_t(expected);

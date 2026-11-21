@@ -3,7 +3,7 @@ namespace b=mt2mp::game::dungeon_gizmo_name_bound;
 struct Copy {
     b::Text header{0x90000,1,{}};std::string value=",";unsigned headers=0,strings=0;int fault=0;
     bool operator()(uintptr_t address,void* out,size_t bytes,std::string& error){
-        if(address==0x140000000+0x1c4eaa0&&bytes==sizeof header){++headers;auto current=header;
+        if(address==0x140000000+0x1c55aa0&&bytes==sizeof header){++headers;auto current=header;
             if(fault==1&&headers==2)++current.data;std::memcpy(out,&current,bytes);return true;}
         if(address==header.data&&bytes==value.size()){++strings;auto current=value;
             if(fault==2&&strings==2)current[0]='.';std::memcpy(out,current.data(),bytes);return true;}

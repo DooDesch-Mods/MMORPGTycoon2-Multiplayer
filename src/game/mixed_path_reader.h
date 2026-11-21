@@ -44,8 +44,8 @@ bool saved_regions(Memory& memory,uintptr_t image,uintptr_t map,uintptr_t root,
        !field(memory,table,8,data,error)||!field(memory,table,0x10,count,error)||
        !field(memory,table,0x14,capacity,error)||!field(memory,map,0x358,owned,error)||
        !field(memory,map,0x360,owned_count,error)||!field(memory,map,0x364,owned_capacity,error))return false;
-    if(map_ap!=image+0x1742860||root_ap!=image+0x174ad20||root_type!=0||
-       table_ap!=image+0x16f04e0||count<1||count>4096||capacity<count||!data||
+    if(map_ap!=image+0x1748c00||root_ap!=image+0x17510c0||root_type!=0||
+       table_ap!=image+0x16f6880||count<1||count>4096||capacity<count||!data||
        owned_count<0||owned_count>count||owned_capacity<owned_count||(owned_count&&!owned))
         return reject(error,"saved Map Region table class or bounds differ");
     std::vector<Region> value;value.reserve(size_t(count));
@@ -54,7 +54,7 @@ bool saved_regions(Memory& memory,uintptr_t image,uintptr_t map,uintptr_t root,
         if(!field(memory,data,size_t(index)*8,row.object,error)||!row.object||
            !field(memory,row.object,0,ap,error)||!field(memory,row.object,0x70,shard,error)||
            !field(memory,row.object,0x834,row.id,error))return false;
-        if(ap!=image+0x1787930||shard!=root||row.id<0||
+        if(ap!=image+0x178dcd0||shard!=root||row.id<0||
            !ids.insert(row.id).second||!pointers.insert(row.object).second)
             return reject(error,"saved Region AP/shard/ID or uniqueness differs");
         value.push_back(row);
@@ -63,7 +63,7 @@ bool saved_regions(Memory& memory,uintptr_t image,uintptr_t map,uintptr_t root,
     for(int32_t index=0;index<owned_count;++index){uintptr_t region=0,ap=0,shard=0;
         if(!field(memory,owned,size_t(index)*8,region,error)||!region||
            !field(memory,region,0,ap,error)||!field(memory,region,0x70,shard,error))return false;
-        if(ap!=image+0x1787930||shard!=root||!pointers.contains(region)||
+        if(ap!=image+0x178dcd0||shard!=root||!pointers.contains(region)||
            !owned_unique.insert(region).second)return reject(error,"owned Region subset differs");
     }
     uintptr_t fresh_data=0,fresh_owned=0;int32_t fresh_count=-1,fresh_owned_count=-1;
@@ -96,7 +96,7 @@ bool read(Memory& memory,uintptr_t image,const std::vector<Region>& supplied,Cen
         int32_t actual=-1;uintptr_t manager=0,reciprocal=0;
         if(region.id<0||!region.object||!ids.insert(region.id).second||!regions.emplace(region.object,region.id).second)
             return reject(error,"Region ID/pointer is absent or duplicated");
-        if(!ap(memory,region.object,image,0x1787930,error)||!field(memory,region.object,0x834,actual,error)||
+        if(!ap(memory,region.object,image,0x178dcd0,error)||!field(memory,region.object,0x834,actual,error)||
            !field(memory,region.object,0x9a0,manager,error)||!field(memory,manager,0x6a0,reciprocal,error))return false;
         if(actual!=region.id)return reject(error,"supplied Region ID differs from its native row");
         if(reciprocal!=region.object)return reject(error,"PathManager Region reciprocal differs");
@@ -107,7 +107,7 @@ bool read(Memory& memory,uintptr_t image,const std::vector<Region>& supplied,Cen
             for(size_t index=0;index<members.size();++index){
                 Path row;row.member.object=members[index];row.member.ref={region.id,type,int32_t(index)};int32_t actual_type=-1;uint8_t preview=0;
                 if(!all.insert(row.member.object).second||!row.member.object)return reject(error,"owned Path pointer is absent or duplicated");
-                if(!ap(memory,row.member.object,image,0x1743f10,error)||!field(memory,row.member.object,0x18,row.member.uid,error)||
+                if(!ap(memory,row.member.object,image,0x174a2b0,error)||!field(memory,row.member.object,0x18,row.member.uid,error)||
                    !field(memory,row.member.object,0x21c,actual_type,error)||!field(memory,row.member.object,0x178,row.owner,error)||
                    !field(memory,row.member.object,0x2f8,row.second,error)||!field(memory,row.member.object,0x268,row.start,error)||
                    !field(memory,row.member.object,0x270,row.end,error)||!field(memory,row.member.object,0x46e,preview,error))return false;
@@ -136,7 +136,7 @@ bool read(Memory& memory,uintptr_t image,const std::vector<Region>& supplied,Cen
             for(size_t index=0;index<members.size();++index){
                 Node row;row.member.object=members[index];row.member.ref={region.id,type,int32_t(index)};int32_t actual_type=-1;
                 if(!row.member.object||!all.insert(row.member.object).second)return reject(error,"Intersection pointer is absent or duplicated");
-                if(!ap(memory,row.member.object,image,0x1700a10,error)||!field(memory,row.member.object,0x18,row.member.uid,error)||
+                if(!ap(memory,row.member.object,image,0x1706db0,error)||!field(memory,row.member.object,0x18,row.member.uid,error)||
                    !field(memory,row.member.object,0x298,actual_type,error)||!field(memory,row.member.object,0x178,row.owner,error)||
                    !field(memory,row.member.object,0x110,row.position,error)||!array(memory,row.member.object,0x2c8,0x2d0,0x2d4,65536,row.edges,error))return false;
                 if(!row.member.uid||!uids.insert(row.member.uid).second||actual_type!=type||row.owner!=region.object||!finite(row.position))

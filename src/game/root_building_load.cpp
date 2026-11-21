@@ -13,7 +13,7 @@ namespace mt2mp::game::root_building_load {
 namespace {
 namespace opened = building_mixed_identity::opened_file;
 using namespace root_saved_building;
-constexpr std::array<uintptr_t, 3> entries{0xc0ab50, 0x96bf30, 0x89e770};
+constexpr std::array<uintptr_t, 3> entries{0xc17290, 0x975150, 0x8a7890};
 uintptr_t image = 0;
 uint32_t hooks = 0, main_thread = 0;
 uint64_t sequence = 0, generation = 0;
@@ -49,17 +49,17 @@ bool live(void* reader, std::string& error) {
     return true;
 }
 DWORD cast_native(void* object, uintptr_t source, ptrdiff_t hint, void*& typed) {
-    __try { typed = reinterpret_cast<void*(*)(void*, const void*, const void*, ptrdiff_t)>(image + 0x12654f0)(
-        object, reinterpret_cast<void*>(image + source), reinterpret_cast<void*>(image + 0x1655090), hint); return 0; }
+    __try { typed = reinterpret_cast<void*(*)(void*, const void*, const void*, ptrdiff_t)>(image + 0x1270eb0)(
+        object, reinterpret_cast<void*>(image + source), reinterpret_cast<void*>(image + 0x165a670), hint); return 0; }
     __except (EXCEPTION_EXECUTE_HANDLER) { return GetExceptionCode(); }
 }
 bool typed_native(void* object, std::string& error) {
-    void* actual = nullptr; const auto code = cast_native(object, 0x1657270, -1, actual);
+    void* actual = nullptr; const auto code = cast_native(object, 0x165c850, -1, actual);
     if (code || actual != object) { error = "native Building RTTI differs exception=" + std::to_string(code); return false; }
     return true;
 }
 DWORD lookup_native_call(void* context, int32_t id, void*& actual) {
-    __try { actual = reinterpret_cast<void*(*)(void*, int32_t)>(image + 0x89e0f0)(context, id); return 0; }
+    __try { actual = reinterpret_cast<void*(*)(void*, int32_t)>(image + 0x8a7210)(context, id); return 0; }
     __except (EXCEPTION_EXECUTE_HANDLER) { return GetExceptionCode(); }
 }
 bool lookup_native(void* context, int32_t id, void*& actual, std::string& error) {
@@ -69,9 +69,9 @@ bool lookup_native(void* context, int32_t id, void*& actual, std::string& error)
 }
 DWORD registry_native(uint64_t uid, void*& actual) {
     __try {
-        auto* object = reinterpret_cast<void*(*)(uint64_t)>(image + 0x47ce20)(uid);
+        auto* object = reinterpret_cast<void*(*)(uint64_t)>(image + 0x481f60)(uid);
         if (!object) { actual = nullptr; return 0; }
-        return cast_native(object, 0x1673900, 0, actual);
+        return cast_native(object, 0x1678ee0, 0, actual);
     } __except (EXCEPTION_EXECUTE_HANDLER) { return GetExceptionCode(); }
 }
 bool readback_native(uint64_t uid, void* expected, native::BuildingState& building, std::string& error) {
@@ -92,7 +92,7 @@ Frame* top(std::string& error) {
 }
 bool bounds(void* array, void*& data, int32_t& count, std::string& error) {
     int32_t capacity = 0;
-    if (!type(image, array, 0x172d7c0, error) || !read(array, 8, data, error) ||
+    if (!type(image, array, 0x1733b60, error) || !read(array, 8, data, error) ||
         !read(array, 0x10, count, error) || !read(array, 0x14, capacity, error)) return false;
     if (count < 0 || count > 4096 || capacity < count) { error = "native Building array count/capacity invalid required_max=4096"; return false; }
     return true;
@@ -137,7 +137,7 @@ Ticket before(void* array, void* reader, void* context) noexcept try {
     std::lock_guard lock(mutex); std::string error;
     if (!failure.empty() || emergency || !live(reader, error)) return 0;
     void* mode = nullptr; void* owned_context = nullptr; void* data = nullptr; int32_t count = -1;
-    if (!read(reinterpret_cast<void*>(image), 0x13df320, mode, error) || !type(image, mode, 0x16e6730, error) ||
+    if (!read(reinterpret_cast<void*>(image), 0x13eb320, mode, error) || !type(image, mode, 0x16ecad0, error) ||
         !read(mode, 0xd8, owned_context, error) || owned_context != context || !context || (bound_context && context != bound_context) ||
         !bounds(array, data, count, error) || count != 0) { reject(error, "native load array requires empty array and current Mode context: " + error); return 0; }
     Frame frame; frame.array = array; frame.reader = reader; frame.context = context; frame.thread = GetCurrentThreadId();
@@ -149,7 +149,7 @@ Ticket before(void* array, void* reader, void* context) noexcept try {
     pending.emplace(ticket, std::move(frame)); stacks[GetCurrentThreadId()].push_back(ticket); return ticket;
 } catch (const std::exception& e) { caught(e.what()); return 0; } catch (...) { caught("non-standard before exception"); return 0; }
 void children(uintptr_t caller, void* reader, int32_t count) noexcept try {
-    if (!armed || caller != 0xc0ab73) return;
+    if (!armed || caller != 0xc172b3) return;
     std::lock_guard lock(mutex); std::string error; if (!failure.empty() || emergency) return;
     auto* frame = top(error); if (!frame) return;
     if (frame->reader != reader || frame->counted || frame->declared != count || !live(reader, error)) {
@@ -158,10 +158,10 @@ void children(uintptr_t caller, void* reader, int32_t count) noexcept try {
     frame->counted = true;
 } catch (const std::exception& e) { caught(e.what()); } catch (...) { caught("non-standard count exception"); }
 void registered(uintptr_t caller, void* context, int32_t id, void* object) noexcept try {
-    if (!armed || (caller != 0xc0ae44 && caller != 0xc0aef5)) return;
+    if (!armed || (caller != 0xc17584 && caller != 0xc17635)) return;
     std::lock_guard lock(mutex); std::string error; if (!failure.empty() || emergency) return;
     auto* frame = top(error); if (!frame) return;
-    void* actual = nullptr; void* object_context = nullptr; const bool positive = caller == 0xc0ae44;
+    void* actual = nullptr; void* object_context = nullptr; const bool positive = caller == 0xc17584;
     if (context != frame->context || !frame->counted || (positive ? id <= 0 : id != 0) || !typed(object, error) ||
         !read(object, 8, object_context, error) || object_context != context || !live(frame->reader, error) ||
         (positive && (!lookup(context, id, actual, error) || actual != object)) || frame->registrations.size() >= size_t(frame->declared) ||
@@ -226,14 +226,14 @@ bool finalize(std::vector<normal_load_identity::Binding>& result, std::string& e
     // Every root manager, including empty arrays, must have a native load receipt.
     auto* root_regions = static_cast<char*>(world.map) + 0x230;
     void* region_data = nullptr; int32_t region_count = 0, region_capacity = 0;
-    if (!type(image, world.map, 0x1742860, error) || !type(image, root_regions, 0x16f04e0, error) ||
+    if (!type(image, world.map, 0x1748c00, error) || !type(image, root_regions, 0x16f6880, error) ||
         !read(root_regions, 8, region_data, error) || !read(root_regions, 0x10, region_count, error) ||
         !read(root_regions, 0x14, region_capacity, error) || region_count < 0 || region_count > 4096 || region_capacity < region_count)
         return reject(error, "loaded saved root region coverage bounds invalid: " + error);
     for (int32_t index = 0; index < region_count; ++index) {
         void* region = nullptr; void* manager = nullptr;
-        if (!read(region_data, size_t(index) * 8, region, error) || !type(image, region, 0x1787930, error) ||
-            !read(region, 0x950, manager, error) || !type(image, manager, 0x17183c0, error))
+        if (!read(region_data, size_t(index) * 8, region, error) || !type(image, region, 0x178dcd0, error) ||
+            !read(region, 0x950, manager, error) || !type(image, manager, 0x171e760, error))
             return reject(error, "loaded root manager coverage read failed: " + error);
         const auto array = reinterpret_cast<uintptr_t>(manager) + 0x408;
         if (std::none_of(saved.begin(), saved.end(), [&](const Saved& value) { return reinterpret_cast<uintptr_t>(value.array) == array; }))

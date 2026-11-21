@@ -55,10 +55,10 @@ uint32_t pack_getter(uintptr_t image,uintptr_t rva,uintptr_t store,uintptr_t pac
 }
 uint32_t call(uintptr_t image,p::Command command,uintptr_t lounge,uintptr_t source,int32_t workers,uint32_t& returned,bool& accepted)noexcept{
     __try{accepted=true;
-        if(command==p::Command::Start){accepted=reinterpret_cast<bool(*)(void*)>(image+0x262ec0)(reinterpret_cast<void*>(source));returned|=1;if(accepted){reinterpret_cast<void(*)(void*,const void*)>(image+0x25f290)(reinterpret_cast<void*>(lounge),reinterpret_cast<const void*>(source));returned|=2;}}
-        else if(command==p::Command::Cancel){reinterpret_cast<void(*)(void*)>(image+0x25f1e0)(reinterpret_cast<void*>(lounge));returned|=4;}
-        else if(command==p::Command::Commit){reinterpret_cast<void(*)(void*)>(image+0x25fb10)(reinterpret_cast<void*>(lounge));returned|=8;}
-        else if(command==p::Command::Workers){reinterpret_cast<void(*)(void*,int32_t)>(image+0x25ec40)(reinterpret_cast<void*>(lounge),workers);returned|=16;}
+        if(command==p::Command::Start){accepted=reinterpret_cast<bool(*)(void*)>(image+0x265fc0)(reinterpret_cast<void*>(source));returned|=1;if(accepted){reinterpret_cast<void(*)(void*,const void*)>(image+0x262390)(reinterpret_cast<void*>(lounge),reinterpret_cast<const void*>(source));returned|=2;}}
+        else if(command==p::Command::Cancel){reinterpret_cast<void(*)(void*)>(image+0x2622e0)(reinterpret_cast<void*>(lounge));returned|=4;}
+        else if(command==p::Command::Commit){reinterpret_cast<void(*)(void*)>(image+0x262c10)(reinterpret_cast<void*>(lounge));returned|=8;}
+        else if(command==p::Command::Workers){reinterpret_cast<void(*)(void*,int32_t)>(image+0x261d40)(reinterpret_cast<void*>(lounge),workers);returned|=16;}
         return 0;
     }__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
@@ -68,7 +68,7 @@ uint32_t seed(uintptr_t address,const std::array<uint64_t,4>& before,const std::
 std::string hash(const std::string& value){return mt2mp::sha256(std::vector<unsigned char>(value.begin(),value.end()));}
 #include "general_project_pins.inc"
 bool code(Runtime& r,std::string& e){
-    if(!developer_staff::action_runtime::verify_entry(r.image+0x6c7b70,e)||!tutorial_replication::verify_pay_entry(r.image+0x262ec0,e)||!tutorial_replication::verify_commit_entry(r.image+0x25fb10,e)||!tutorial_replication::verify_allocate_entry(r.image+0x25ec40,e))return false;
+    if(!developer_staff::action_runtime::verify_entry(r.image+0x6cef90,e)||!tutorial_replication::verify_pay_entry(r.image+0x265fc0,e)||!tutorial_replication::verify_commit_entry(r.image+0x262c10,e)||!tutorial_replication::verify_allocate_entry(r.image+0x261d40,e))return false;
     if(!tutorial_replication::start_intent::verify_ui(r.image,[&](auto address,auto out,auto count,auto& cause){return r.memory.copy(address,out,count,cause);},e,developer_staff::action_runtime::verify_entry))return false;
     for(const auto& pin:project_pins){std::vector<unsigned char> bytes(pin.bytes);if(!r.memory.copy(r.image+pin.rva,bytes.data(),bytes.size(),e))return false;if(mt2mp::sha256(bytes)!=pin.sha)return fail(e,"General project original body differs RVA="+std::to_string(pin.rva));}return true;
 }
@@ -83,7 +83,7 @@ bool ordered_current(const a::Context& c,const a::Binding& b,const a::Request* r
 }
 bool context(Runtime& r,const a::Context& c,const a::Binding& b,live::Pin& pin,std::string& e,bool ordered_input=false,const a::Request* request=nullptr,bool original_go=false){
     a::Context actual;uintptr_t image=0;uint32_t thread=0;std::string sha;
-    if(GetCurrentThreadId()!=r.thread||!a::selected_session().current(actual,e)||actual!=c||!native::read_resolver_receipt(image,thread,sha,e)||image!=r.image||thread!=r.thread||sha!="bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6")return fail(e,e.empty()?"General project actual Session/Mainthread/EXE differs":e);
+    if(GetCurrentThreadId()!=r.thread||!a::selected_session().current(actual,e)||actual!=c||!native::read_resolver_receipt(image,thread,sha,e)||image!=r.image||thread!=r.thread||sha!="7efd8ee7b97f78362e7a2f8116b327fa6b756bdce23114b68143c4c9d2dd50eb")return fail(e,e.empty()?"General project actual Session/Mainthread/EXE differs":e);
     live::NativePort port(c,b,nullptr);if(!port.read(pin,e))return false;
     if(request||original_go){if(!ordered_current(c,b,request,original_go,e))return false;}
     else if(ordered_input){
@@ -113,10 +113,10 @@ bool snapshot(Runtime& r,const a::Context& c,const a::Binding& b,p::Local& local
     auto read=[&](uintptr_t address,size_t offset,auto& value,std::string& cause){return at(r,address,offset,value,cause);};
     auto text=[&](uintptr_t address,std::string& value,std::string& cause){return string(r,address,value,cause);};
     auto flags=[&](uintptr_t source,p::Catalogue& row,std::string& cause){
-        const std::array<uintptr_t,5> entries{0x262b20,0x263210,0x262bf0,0x262d30,0x263010};bool* values[]{&row.valid,&row.visible,&row.owned,&row.choose,&row.afford};
+        const std::array<uintptr_t,5> entries{0x265c20,0x266310,0x265cf0,0x265e30,0x266110};bool* values[]{&row.valid,&row.visible,&row.owned,&row.choose,&row.afford};
         for(size_t i=0;i<entries.size();++i){const auto seh=getter(r.image,entries[i],source,*values[i]);if(seh)return fail(cause,"General project original predicate SEH="+std::to_string(seh)+" RVA="+std::to_string(entries[i]));}return true;
     };
-    auto packs=[&](uintptr_t store,uintptr_t pack,bool& purchased,bool& deployed,std::string& cause){const auto a=pack_getter(r.image,0x45250,store,pack,purchased);if(a)return fail(cause,"General project original pack purchase getter SEH="+std::to_string(a));const auto b=pack_getter(r.image,0x45330,store,pack,deployed);return !b||fail(cause,"General project original pack deploy getter SEH="+std::to_string(b));};
+    auto packs=[&](uintptr_t store,uintptr_t pack,bool& purchased,bool& deployed,std::string& cause){const auto a=pack_getter(r.image,0x455a0,store,pack,purchased);if(a)return fail(cause,"General project original pack purchase getter SEH="+std::to_string(a));const auto b=pack_getter(r.image,0x45680,store,pack,deployed);return !b||fail(cause,"General project original pack deploy getter SEH="+std::to_string(b));};
     p::State first;p::Local before;
     if(!p::read(read,text,flags,packs,r.image,before,first,e)||!p::read(read,text,flags,packs,r.image,local,out,e))return false;
     if(before!=local||first!=out)return fail(e,"General project complete native owners/state changed during double read");
@@ -133,28 +133,28 @@ std::string uuid(std::string& e){unsigned char b[16]{};const auto code=BCryptGen
     b[6]=(b[6]&15)|64;b[8]=(b[8]&63)|128;char text[37]{};std::snprintf(text,sizeof text,"%02x%02x%02x%02x-%02x%02x-%02x%02x-%02x%02x-%02x%02x%02x%02x%02x%02x",b[0],b[1],b[2],b[3],b[4],b[5],b[6],b[7],b[8],b[9],b[10],b[11],b[12],b[13],b[14],b[15]);return text;
 }
 uint32_t command_label(uintptr_t image,void* record,uintptr_t& result)noexcept{
-    __try{result=uintptr_t(reinterpret_cast<const void*(*)(const void*)>(image+0x96d880)(record));return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
+    __try{result=uintptr_t(reinterpret_cast<const void*(*)(const void*)>(image+0x976aa0)(record));return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 uint32_t command_workers(uintptr_t image,void* record,int32_t& value)noexcept{
-    __try{void* token=reinterpret_cast<void*(*)(void*,int32_t)>(image+0x967740)(record,0);value=reinterpret_cast<int32_t(*)(const void*)>(image+0x96d2c0)(token);return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
+    __try{void* token=reinterpret_cast<void*(*)(void*,int32_t)>(image+0x970960)(record,0);value=reinterpret_cast<int32_t(*)(const void*)>(image+0x9764e0)(token);return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 bool window(Runtime& r,uintptr_t receiver,uintptr_t& tabs,std::string& e){
     building_mixed_identity::opened_file::CurrentWorld world;if(!native_open_runtime::read_current_world(world,e))return false;
     auto read=[&](uintptr_t base,size_t offset,auto& value,std::string& cause){return at(r,base,offset,value,cause);};std::vector<uintptr_t> windows;
     if(!p::array(read,uintptr_t(world.mode),0xa0,windows,e)||std::count(windows.begin(),windows.end(),receiver)!=1)return fail(e,e.empty()?"General project UI is not an actual owned Mode window":e);
     uintptr_t ap=0,logic=1;uint8_t visible=0;std::string name;
-    if(!at(r,receiver,0,ap,e)||ap!=r.image+0x1722e60||!at(r,receiver,0x318,logic,e)||logic||!at(r,receiver,0x45f,visible,e)||visible!=1||!at(r,receiver,0x540,tabs,e)||!tabs||!string(r,receiver+0x1b0,name,e)||name!="development")return fail(e,e.empty()?"General project actual DevelopmentWindow class/owner/name/visibility differs":e);return true;
+    if(!at(r,receiver,0,ap,e)||ap!=r.image+0x1729200||!at(r,receiver,0x318,logic,e)||logic||!at(r,receiver,0x45f,visible,e)||visible!=1||!at(r,receiver,0x540,tabs,e)||!tabs||!string(r,receiver+0x1b0,name,e)||name!="development")return fail(e,e.empty()?"General project actual DevelopmentWindow class/owner/name/visibility differs":e);return true;
 }
 bool completed(Runtime& r,uintptr_t lounge,p::Command command,std::string& e){
     if(command!=p::Command::Commit&&command!=p::Command::Workers)return true;
-    bool value=false;const auto seh=getter(r.image,command==p::Command::Commit?0x25ed50:0x25edb0,lounge,value);
+    bool value=false;const auto seh=getter(r.image,command==p::Command::Commit?0x261e50:0x261eb0,lounge,value);
     if(seh)return fail(e,"General project original completion predicate SEH="+std::to_string(seh));
     return (command==p::Command::Commit?value:!value)||fail(e,"General project original implementation/debugging prerequisite rejects command");
 }
 uint32_t refresh(uintptr_t image,uintptr_t window,uintptr_t tabs,p::Command command)noexcept{
     if(command==p::Command::Start)return tutorial_replication::start_intent::native_present(image,window,tabs);
-    __try{if(command==p::Command::Cancel)reinterpret_cast<void(*)(void*)>(image+0x6c37f0)(reinterpret_cast<void*>(window));
-        if(command==p::Command::Cancel||command==p::Command::Commit)reinterpret_cast<void(*)(void*)>(image+0x6c2d70)(reinterpret_cast<void*>(window));return 0;
+    __try{if(command==p::Command::Cancel)reinterpret_cast<void(*)(void*)>(image+0x6cac10)(reinterpret_cast<void*>(window));
+        if(command==p::Command::Cancel||command==p::Command::Commit)reinterpret_cast<void(*)(void*)>(image+0x6ca190)(reinterpret_cast<void*>(window));return 0;
     }__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 bool presentation(Runtime& r,Operation& op,std::string& e){
@@ -175,7 +175,7 @@ bool presentation(Runtime& r,Operation& op,std::string& e){
 bool progress_once(Runtime& r,const a::Context& c,const a::Binding& b,p::Progress& out,uintptr_t& lounge,uintptr_t& current,std::string& e,bool validate=true){
     live::Pin pin;if(!context(r,c,b,pin,e))return false;uintptr_t ap=0;out={};
     live::apply_timing::PageReadScope progress_pages;
-    if(!at(r,r.image,0x13df290,lounge,e)||!at(r,lounge,0,ap,e)||ap!=r.image+0x16de6c0||!at(r,lounge,0xa8,current,e))return fail(e,e.empty()?"General project Frame current Lounge/class differs":e);
+    if(!at(r,r.image,0x13eb290,lounge,e)||!at(r,lounge,0,ap,e)||ap!=r.image+0x16e4a60||!at(r,lounge,0xa8,current,e))return fail(e,e.empty()?"General project Frame current Lounge/class differs":e);
     auto read=[&](uintptr_t base,size_t offset,auto& value,std::string& cause){return at(r,base,offset,value,cause);};auto text=[&](uintptr_t address,std::string& value,std::string& cause){return string(r,address,value,cause);};
     if(current){p::Source source;if(!p::source(read,text,r.image,current,source,e))return false;std::vector<uintptr_t> catalogue;if(!p::array(read,lounge,0xd8,catalogue,e))return false;size_t matches=0;
         for(auto object:catalogue){p::Source candidate;if(object==current)return fail(e,"General project Frame current clone aliases owned catalogue");if(!p::source(read,text,r.image,object,candidate,e))return false;if(candidate==source)++matches;}
@@ -187,13 +187,13 @@ bool progress_once(Runtime& r,const a::Context& c,const a::Binding& b,p::Progres
 }
 bool enable(std::string& e){auto* old=published.load(std::memory_order_acquire);if(old){if(old->ready){e.clear();return true;}return fail(e,old->cause);}
     auto* r=new Runtime;published.store(r,std::memory_order_release);uintptr_t image=0;uint32_t thread=0;std::string sha;
-    if(!native::read_resolver_receipt(image,thread,sha,e)||image!=uintptr_t(GetModuleHandleW(nullptr))||thread!=r->thread||sha!="bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6"){r->cause=e.empty()?"General project actual resolver differs":e;return fail(e,r->cause);}
+    if(!native::read_resolver_receipt(image,thread,sha,e)||image!=uintptr_t(GetModuleHandleW(nullptr))||thread!=r->thread||sha!="7efd8ee7b97f78362e7a2f8116b327fa6b756bdce23114b68143c4c9d2dd50eb"){r->cause=e.empty()?"General project actual resolver differs":e;return fail(e,r->cause);}
     r->image=image;if(!code(*r,e)){r->cause=e;return false;}r->ready=true;e.clear();return true;
 }
 bool original_route(uintptr_t entry,void* receiver,int32_t workers,bool& handled){
     handled=false;auto* r=published.load(std::memory_order_acquire);if(!r||!r->ready||!r->replay)return false;auto& replay=*r->replay;
-    const auto expected=replay.intent.command==p::Command::Start?0x262ec0:replay.intent.command==p::Command::Commit?0x25fb10:replay.intent.command==p::Command::Workers?0x25ec40:0;
-    const bool nested_stat=entry==0x2de2d0&&replay.intent.command==p::Command::Start&&replay.intent.source.kind==2;
+    const auto expected=replay.intent.command==p::Command::Start?0x265fc0:replay.intent.command==p::Command::Commit?0x262c10:replay.intent.command==p::Command::Workers?0x261d40:0;
+    const bool nested_stat=entry==0x2e1a80&&replay.intent.command==p::Command::Start&&replay.intent.source.kind==2;
     if(entry!=expected&&!nested_stat)return false;handled=true;const uint32_t bit=nested_stat?2:1;
     const auto blocked=[&](const std::string& cause){if(replay.cause.empty()){replay.cause=cause;LOG_ERROR("[GeneralProject] original admission failed action={} cause={}",replay.id,cause);}return false;};
     if(GetCurrentThreadId()!=r->thread)return blocked("General project private original Mainthread differs");
@@ -204,12 +204,12 @@ bool original_route(uintptr_t entry,void* receiver,int32_t workers,bool& handled
     if(replay.ordered_request&&!ordered_current(actual,replay.binding,replay.ordered_request,false,e))return blocked(e);
     if(replay.entered&bit)return blocked("General project private original already entered once; no replay");
     if(nested_stat&&!(replay.entered&1))return blocked("General project nested statistic purchase lacks its original Pay entry");
-    const auto owner=nested_stat?replay.software:entry==0x262ec0?replay.source:replay.lounge;
-    if(uintptr_t(receiver)!=owner||(entry==0x25ec40&&workers!=replay.intent.workers)||(nested_stat&&workers!=replay.intent.source.statistic))return blocked("General project private original receiver/worker/statistic value differs");
+    const auto owner=nested_stat?replay.software:entry==0x265fc0?replay.source:replay.lounge;
+    if(uintptr_t(receiver)!=owner||(entry==0x261d40&&workers!=replay.intent.workers)||(nested_stat&&workers!=replay.intent.source.statistic))return blocked("General project private original receiver/worker/statistic value differs");
     replay.entered|=bit;return true;
 }
 bool admit_bug_birth(const a::Context& c,const a::Binding& b,const std::string& action,uintptr_t caller,bool& owned,std::string& e){
-    owned=false;auto* r=published.load(std::memory_order_acquire);if(!r||!r->ready||!r->replay||r->replay->intent.command!=p::Command::Commit||caller!=r->image+0x354e8d){e.clear();return false;}
+    owned=false;auto* r=published.load(std::memory_order_acquire);if(!r||!r->ready||!r->replay||r->replay->intent.command!=p::Command::Commit||caller!=r->image+0x3556fd){e.clear();return false;}
     owned=true;const auto& replay=*r->replay;const auto controller=typed_action_runtime::controller_status();
     if(GetCurrentThreadId()!=r->thread||replay.context!=c||replay.binding!=b||replay.id!=action||!(replay.entered&1)||!controller.value("pending",false)||controller.value("action_uuid",std::string{})!=action)return fail(e,"General project Bug birth lacks exact entered original Commit/Context/Binding/action");
     building_mixed_identity::opened_file::CurrentWorld world;if(!native_open_runtime::read_current_world(world,e))return false;

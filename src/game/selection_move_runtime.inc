@@ -10,18 +10,18 @@ uint64_t captures=0,submitted=0,rejections=0;std::string cause;
 void reject(const std::string& e){++rejections;if(cause!=e){cause=e;LOG_ERROR("[SelectionMove] {}",e);}}
 struct Box {uint32_t present=1;std::array<float,3> low{},high{};};
 uint32_t average(uintptr_t image,uintptr_t shard,const Box& box,float& value){
-    __try{value=reinterpret_cast<float(*)(void*,const Box*)>(image+0x508450)(reinterpret_cast<void*>(shard),&box);return 0;}
+    __try{value=reinterpret_cast<float(*)(void*,const Box*)>(image+0x50e5a0)(reinterpret_cast<void*>(shard),&box);return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 bool destination_height(Runtime& r,move_kiss::Intent& row,uintptr_t blueprint,std::string& e){
     uintptr_t ap=0,floating=0;if(!r.memory.read(row.target,&ap,sizeof ap,e)||!r.memory.read(ap+0x100,&floating,sizeof floating,e))return false;
-    if(ap==r.image+0x16c1390){
-        if(floating!=r.image+0xcf30c0){e="Selection Move Scenery floating vslot differs";return false;}
+    if(ap==r.image+0x16c7730){
+        if(floating!=r.image+0xcfe800){e="Selection Move Scenery floating vslot differs";return false;}
         return true;
     }
-    if(ap!=r.image+0x16d93c0||floating!=r.image+0xe3f4a0){e="Selection Move normal Building floating vslot differs";return false;}
+    if(ap!=r.image+0x16df760||floating!=r.image+0xe4af90){e="Selection Move normal Building floating vslot differs";return false;}
     host::WorldState current;uintptr_t manager=0,shard=0;std::array<float,6> bounds{};
-    if(!world(r,current,e)||!r.memory.read(r.image+0x13df440,&manager,sizeof manager,e)||!manager||
+    if(!world(r,current,e)||!r.memory.read(r.image+0x13eb440,&manager,sizeof manager,e)||!manager||
        !r.memory.read(manager+0x60,&shard,sizeof shard,e)||shard!=current.root||
        !r.memory.read(blueprint+0x4c,bounds.data(),sizeof bounds,e)){
         if(e.empty())e="Selection Move original current Shard/Blueprint bounds unavailable";return false;}
@@ -37,10 +37,10 @@ bool read(Runtime& r,uintptr_t behaviour,const move_kiss::Origin& origin,selecti
     return selection_move_reader::read(r.memory,r.services,r.image,behaviour,origin,height,out,e);
 }
 bool calls(Runtime& r,move_kiss::Calls& out,std::string& e){
-    if(!move_kiss::resolve_calls(r.memory,r.image,"bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6",out,e))return false;
+    if(!move_kiss::resolve_calls(r.memory,r.image,"7efd8ee7b97f78362e7a2f8116b327fa6b756bdce23114b68143c4c9d2dd50eb",out,e))return false;
     struct Guard{uintptr_t rva;const char* bytes;size_t size;};
-    const Guard guards[]{{0x508450,"\x53\x48\x83\xec\x30\x8b\x41\x48\x48\x89\xd3\x83\xf8\x01\x74\x78",16},
-        {0xe3f4a0,"\x31\xc0\xc3",3},{0xcf30c0,"\xb8\x01\x00\x00\x00\xc3",6}};
+    const Guard guards[]{{0x50e5a0,"\x53\x48\x83\xec\x30\x8b\x41\x48\x48\x89\xd3\x83\xf8\x01\x74\x78",16},
+        {0xe4af90,"\x31\xc0\xc3",3},{0xcfe800,"\xb8\x01\x00\x00\x00\xc3",6}};
     for(const auto& guard:guards){unsigned char bytes[16]{};
         if(!r.memory.read(r.image+guard.rva,bytes,guard.size,e))return false;
         if(std::memcmp(bytes,guard.bytes,guard.size)){e="Selection Move original pose helper differs RVA="+std::to_string(guard.rva);return false;}}
@@ -90,7 +90,7 @@ bool command_scope(const action::Binding& binding,const action::Request& request
 }
 bool capture_purchase(uintptr_t behaviour,uintptr_t caller,bool& handled,std::string& e){
     handled=false;auto* r=published.load(std::memory_order_acquire);
-    if(!r||!r->ready||caller!=r->image+0x5c2a20||GetCurrentThreadId()!=r->thread||!net::session_wire::connected())return true;
+    if(!r||!r->ready||caller!=r->image+0x5c91c0||GetCurrentThreadId()!=r->thread||!net::session_wire::connected())return true;
     int32_t count=0;if(!r->memory.read(behaviour+0x468,&count,sizeof count,e))return false;
     if(count<=1)return true;handled=true;
     const auto controller=typed_action_runtime::controller_status();action::Binding binding;move_kiss::Origin origin;

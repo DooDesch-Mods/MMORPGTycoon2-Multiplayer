@@ -12,11 +12,11 @@ bool camera_pin(std::string& error){
     return true;
 }
 bool camera_button_state(Snapshot& out,std::string& error,bool releasing=false){
-    uintptr_t input=0,ap=0;if(!at(image,0x13df990,input,error)||!at(input,0,ap,error))return false;
-    if(ap!=image+0x1749430)return reject(error,"tutorial camera native Input owner differs");
-    Array axes,controls;if(!array(input+0x48,0x17461c0,0x70,axes,error)||axes.count<=29)return reject(error,"tutorial camera rotation axis29 absent");
+    uintptr_t input=0,ap=0;if(!at(image,0x13eb990,input,error)||!at(input,0,ap,error))return false;
+    if(ap!=image+0x174f7d0)return reject(error,"tutorial camera native Input owner differs");
+    Array axes,controls;if(!array(input+0x48,0x174c560,0x70,axes,error)||axes.count<=29)return reject(error,"tutorial camera rotation axis29 absent");
     const auto axis=axes.data+29*0x70;
-    if(!array(axis+0x40,0x1746310,0x14,controls,error)||!at(axis,0x5c,out.axis,error))return false;
+    if(!array(axis+0x40,0x174c6b0,0x14,controls,error)||!at(axis,0x5c,out.axis,error))return false;
     uint8_t derived=0;if(!at(axis,0x63,derived,error))return false;
     if(derived||!std::isfinite(out.axis))return reject(error,"tutorial camera original rotation axis invalid");
     bool found=false;

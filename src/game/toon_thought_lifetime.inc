@@ -15,7 +15,7 @@ bool zone_current(Runtime& r,const a::Context& c,const a::Binding& b,const world
     world_zone_runtime::Current actual;{live::apply_timing::PageReadScope boundary(live::apply_timing::PageBoundary::OriginalCall);if(!world_zone_runtime::resolve_current(b,c.snapshot_uuid,expected.object,expected.uid,actual,e))return false;}
     return actual==expected||fail(e,"Thought current full Zone/UID/Region/scene owner differs");
 }
-uint32_t remove_call(uintptr_t image,uintptr_t zone,uintptr_t thought)noexcept{__try{reinterpret_cast<void(*)(void*,void*)>(image+0x4543c0)(reinterpret_cast<void*>(zone),reinterpret_cast<void*>(thought));return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
+uint32_t remove_call(uintptr_t image,uintptr_t zone,uintptr_t thought)noexcept{__try{reinterpret_cast<void(*)(void*,void*)>(image+0x4593d0)(reinterpret_cast<void*>(zone),reinterpret_cast<void*>(thought));return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
 bool remove(Runtime& r,const a::Context& c,const a::Binding& b,const world_zone_runtime::Current& zone,uintptr_t thought,bool& attempted,std::string& e){
     auto read=[&](uintptr_t object,size_t offset,auto& value,std::string& cause){return at(r,object,offset,value,cause);};
     auto current=[&](std::string& cause){return zone_current(r,c,b,zone,cause);};
@@ -33,7 +33,7 @@ void destroy(void* receiver){
         building_mixed_identity::opened_file::CurrentWorld origin;std::string e;uintptr_t zone=0,proxy=0;
         ::mt2mp::game::native_weak_reference::Observation weak;
         auto read_weak=[&](uintptr_t owner,size_t offset,auto& value,std::string& cause){return at(*r,owner,offset,value,cause);};
-        if(!joined(*r,c,b,origin,e)||!ap(*r,object,0x16fdef0,e)||!at(*r,object,0x88,zone,e)||!at(*r,object,0x90,proxy,e)||!::mt2mp::game::native_weak_reference::observe(read_weak,zone,proxy,weak,e))defer(e);
+        if(!joined(*r,c,b,origin,e)||!ap(*r,object,0x1704290,e)||!at(*r,object,0x88,zone,e)||!at(*r,object,0x90,proxy,e)||!::mt2mp::game::native_weak_reference::observe(read_weak,zone,proxy,weak,e))defer(e);
         else if(weak.live()){
             world_zone_runtime::Current zone_pin;uint64_t uid=0;bool read=false;
             if(at(*r,zone,0x18,uid,e)){live::apply_timing::PageReadScope boundary(live::apply_timing::PageBoundary::OriginalCall);read=world_zone_runtime::resolve_current(b,c.snapshot_uuid,zone,uid,zone_pin,e);}
@@ -56,10 +56,10 @@ void destroy(void* receiver){
 }
 bool enable(Runtime& r,std::string& e){
     struct Body{uintptr_t rva;size_t bytes;const char* sha;};constexpr Body bodies[]={
-        {0x3f0fc0,432,"b809f7293fa4d0c143cddd610b18480853bc841ab4ea3441fc6aacd40b0dc625"},
-        {0x3f1170,32,"c7612d8fa43401163a68209387f44d700ad121da575cd770b3528704b0d61c5d"},
-        {0x4543c0,352,"9efdc58b8c7c038faf16154d087acc6c8ccc1b04e1494a7953320bd99f24b0bb"}};
-    for(const auto& body:bodies){std::vector<unsigned char> bytes(body.bytes);if(!r.memory.copy(r.image+body.rva,bytes.data(),bytes.size(),e)||mt2mp::sha256(bytes)!=body.sha)return fail(e,e.empty()?"Thought original lifetime/remover full body differs":e);if(body.rva==0x3f0fc0)destroy_owner={r.image+body.rva,reinterpret_cast<uintptr_t>(&destroy),0,1,5,std::move(bytes)};}
+        {0x3f5ad0,432,"75d1262bbe8cb628c61ad814c30f10416161203dce0aa14624a625ab64ebcb4a"},
+        {0x3f5c80,32,"6df7395a037b90e9990d73d62a5bd0527ca595fc16d3b7dee786481f43c00de4"},
+        {0x4593d0,352,"e3568b7291b40101072d6ac930a44c9c581cf8a9f79e657deff9770421dd3e9f"}};
+    for(const auto& body:bodies){std::vector<unsigned char> bytes(body.bytes);if(!r.memory.copy(r.image+body.rva,bytes.data(),bytes.size(),e)||mt2mp::sha256(bytes)!=body.sha)return fail(e,e.empty()?"Thought original lifetime/remover full body differs":e);if(body.rva==0x3f5ad0)destroy_owner={r.image+body.rva,reinterpret_cast<uintptr_t>(&destroy),0,1,5,std::move(bytes)};}
     const auto made=MH_CreateHook(reinterpret_cast<void*>(destroy_owner.entry),reinterpret_cast<void*>(&destroy),reinterpret_cast<void**>(&original_destroy));if(made!=MH_OK||!original_destroy)return fail(e,"Thought D1 hook create failed status="+std::to_string(made));destroy_owner.trampoline=reinterpret_cast<uintptr_t>(original_destroy);
     const auto result=MH_EnableHook(reinterpret_cast<void*>(destroy_owner.entry));if(result!=MH_OK)return fail(e,"Thought D1 hook enable failed status="+std::to_string(result));
     auto copy=[&](auto p,auto out,auto count,auto& cause){return r.memory.copy(p,out,count,cause);};auto hash=[](const auto& bytes){return mt2mp::sha256(bytes);};
@@ -69,21 +69,21 @@ bool reconcile(Runtime& r,const a::Context& c,const a::Binding& b,uint64_t& remo
     removals=0;if(!fault.empty())return fail(e,fault);live::NativePort port(c,b,nullptr);live::Pin pin;if(!port.read(pin,e)||pin.image!=r.image)return fail(e,e.empty()?"Thought cleanup current idle World admission differs":e);
     building_mixed_identity::opened_file::CurrentWorld current;if(!world(r,c,b,current,e))return false;
     uintptr_t manager=0,data=0;int32_t count=0,capacity=0;
-    if(!at(r,r.image,0x13df690,manager,e)||!ap(r,manager,0x1725f40,e)||!at(r,manager,0x40,data,e)||!at(r,manager,0x48,count,e)||!at(r,manager,0x4c,capacity,e)||count<0||count>1000000||capacity<count||capacity>1000000||(!data&&capacity))return fail(e,e.empty()?"Thought stale cleanup current Subscriber manager extent differs":e);
+    if(!at(r,r.image,0x13eb690,manager,e)||!ap(r,manager,0x172c2e0,e)||!at(r,manager,0x40,data,e)||!at(r,manager,0x48,count,e)||!at(r,manager,0x4c,capacity,e)||count<0||count>1000000||capacity<count||capacity>1000000||(!data&&capacity))return fail(e,e.empty()?"Thought stale cleanup current Subscriber manager extent differs":e);
     std::set<uintptr_t> live_objects,subscribers,toons;std::vector<std::pair<uintptr_t,values::Array>> owners;std::map<uintptr_t,std::vector<uintptr_t>> slots;std::vector<uintptr_t> subscriber_slots;
-    for(int32_t i=0;i<count;++i){uintptr_t subscriber=0,toon=0,reverse=0;if(!at(r,data,size_t(i)*8,subscriber,e)||!ap(r,subscriber,0x16e75f0,e)||!subscribers.insert(subscriber).second||!at(r,subscriber,0x80,toon,e))return fail(e,e.empty()?"Thought cleanup complete Subscriber owner duplicated":e);
-        subscriber_slots.push_back(subscriber);if(!toon)continue;if(!ap(r,toon,0x1744e90,e)||!at(r,toon,0x940,reverse,e)||reverse!=subscriber||!toons.insert(toon).second)return fail(e,e.empty()?"Thought cleanup Toon reciprocal current owner differs":e);
+    for(int32_t i=0;i<count;++i){uintptr_t subscriber=0,toon=0,reverse=0;if(!at(r,data,size_t(i)*8,subscriber,e)||!ap(r,subscriber,0x16ed990,e)||!subscribers.insert(subscriber).second||!at(r,subscriber,0x80,toon,e))return fail(e,e.empty()?"Thought cleanup complete Subscriber owner duplicated":e);
+        subscriber_slots.push_back(subscriber);if(!toon)continue;if(!ap(r,toon,0x174b230,e)||!at(r,toon,0x940,reverse,e)||reverse!=subscriber||!toons.insert(toon).second)return fail(e,e.empty()?"Thought cleanup Toon reciprocal current owner differs":e);
         values::Array array;auto read=[&](uintptr_t object,size_t offset,auto& value,std::string& cause){return at(r,object,offset,value,cause);};if(!values::array(read,toon,0x8c8,array,e))return false;owners.emplace_back(toon,array);
         for(int32_t n=0;n<array.count;++n){uintptr_t object=0;if(!at(r,array.data,size_t(n)*8,object,e)||!object||!live_objects.insert(object).second)return fail(e,e.empty()?"Thought cleanup live ownership slots are null or duplicated":e);slots[toon].push_back(object);}
     }
     boss_current::State bosses;character_definition_identity::Census definitions;character_membership_reader::Users users;
     {live::apply_timing::PageReadScope boundary(live::apply_timing::PageBoundary::OriginalCall);if(!boss_current::read_with_characters(c,b,bosses,definitions,users,e))return false;}
     for(const auto& user:users.rows)if(user.family==character_membership_reader::Family::Toon&&!toons.contains(user.object)){
-        const auto toon=user.object;if(!ap(r,toon,0x1744e90,e))return false;values::Array array;auto read=[&](uintptr_t object,size_t offset,auto& value,std::string& cause){return at(r,object,offset,value,cause);};if(!values::array(read,toon,0x8c8,array,e))return false;owners.emplace_back(toon,array);toons.insert(toon);
+        const auto toon=user.object;if(!ap(r,toon,0x174b230,e))return false;values::Array array;auto read=[&](uintptr_t object,size_t offset,auto& value,std::string& cause){return at(r,object,offset,value,cause);};if(!values::array(read,toon,0x8c8,array,e))return false;owners.emplace_back(toon,array);toons.insert(toon);
         for(int32_t n=0;n<array.count;++n){uintptr_t object=0;if(!at(r,array.data,size_t(n)*8,object,e)||!object||!live_objects.insert(object).second)return fail(e,e.empty()?"Thought cleanup complete Character user ownership is null or duplicated":e);slots[toon].push_back(object);}
     }
     std::vector<world_zone_runtime::Current> zones;{live::apply_timing::PageReadScope boundary(live::apply_timing::PageBoundary::OriginalCall);if(!world_zone_runtime::read_current(b,c.snapshot_uuid,zones,e))return false;}
-    const auto complete=[&](){uintptr_t checked=0,checked_data=0;int32_t checked_count=0,checked_capacity=0;if(!world(r,c,b,current,e)||!port.current_owners(pin,e)||!at(r,r.image,0x13df690,checked,e)||checked!=manager||!at(r,manager,0x40,checked_data,e)||checked_data!=data||!at(r,manager,0x48,checked_count,e)||checked_count!=count||!at(r,manager,0x4c,checked_capacity,e)||checked_capacity!=capacity)return fail(e,e.empty()?"Thought cleanup current complete manager changed":e);
+    const auto complete=[&](){uintptr_t checked=0,checked_data=0;int32_t checked_count=0,checked_capacity=0;if(!world(r,c,b,current,e)||!port.current_owners(pin,e)||!at(r,r.image,0x13eb690,checked,e)||checked!=manager||!at(r,manager,0x40,checked_data,e)||checked_data!=data||!at(r,manager,0x48,checked_count,e)||checked_count!=count||!at(r,manager,0x4c,checked_capacity,e)||checked_capacity!=capacity)return fail(e,e.empty()?"Thought cleanup current complete manager changed":e);
         for(size_t i=0;i<subscriber_slots.size();++i){uintptr_t member=0;if(!at(r,data,i*8,member,e)||member!=subscriber_slots[i])return fail(e,e.empty()?"Thought cleanup current Subscriber slot identity changed":e);}
         for(const auto& [toon,array]:owners){values::Array now;auto read=[&](uintptr_t object,size_t offset,auto& value,std::string& cause){return at(r,object,offset,value,cause);};if(!values::array(read,toon,0x8c8,now,e)||now!=array)return fail(e,e.empty()?"Thought cleanup live Toon owning array changed":e);
             for(int32_t n=0;n<now.count;++n){uintptr_t thought=0;if(!at(r,now.data,size_t(n)*8,thought,e)||thought!=slots.at(toon)[size_t(n)])return fail(e,e.empty()?"Thought cleanup complete live owned slot identity changed":e);}}

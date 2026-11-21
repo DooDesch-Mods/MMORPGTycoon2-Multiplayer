@@ -98,7 +98,7 @@ bool read_sample(Sample& out,std::string& error){
     uintptr_t image=0;uint32_t bound_thread=0;std::string sha;
     if(!native::read_resolver_receipt(image,bound_thread,sha,error))return false;
     if(bound_thread!=thread||GetCurrentThreadId()!=thread||
-       sha!="bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6"){
+       sha!="7efd8ee7b97f78362e7a2f8116b327fa6b756bdce23114b68143c4c9d2dd50eb"){
         error="cursor native resolver executable/thread differs";return false;
     }
     return read_native_sample(image,[](uintptr_t address,void* output,size_t bytes,std::string& cause){

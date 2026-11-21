@@ -13,12 +13,12 @@ struct Memory {
     std::map<uintptr_t,unsigned char> bytes;std::map<uintptr_t,std::string> strings;bool fail_find=false,missing_parent=false,empty_parent=false,mutate=false;
     template<class T>void put(uintptr_t object,size_t offset,T value){const auto* p=reinterpret_cast<const unsigned char*>(&value);for(size_t i=0;i<sizeof value;++i)bytes[object+offset+i]=p[i];}
     template<class T>bool read(uintptr_t object,size_t offset,T& value,std::string& e){auto* p=reinterpret_cast<unsigned char*>(&value);for(size_t i=0;i<sizeof value;++i){const auto found=bytes.find(object+offset+i);if(found==bytes.end()){e="original Gizmo field read failure";return false;}p[i]=found->second;}return true;}
-    Memory(){put(region,0x9a8,manager);put(manager,0,image+0x1700260);put(manager,0x18,image+0x172e300);put(manager,0x68,shard);put(manager,0x70,region);put(manager,0x20,roster);put(manager,0x28,int32_t(2));put(manager,0x2c,int32_t(4));put(manager,0x78,uint32_t(7));
-        for(size_t i=0;i<2;++i){const auto object=objects[i];put(roster,i*8,object);put(object,0,image+0x1749ab0);put(object,0x18,ids[i]);put(object,0x170,shard);put(object,0x178,region);
+    Memory(){put(region,0x9a8,manager);put(manager,0,image+0x1706600);put(manager,0x18,image+0x17346a0);put(manager,0x68,shard);put(manager,0x70,region);put(manager,0x20,roster);put(manager,0x28,int32_t(2));put(manager,0x2c,int32_t(4));put(manager,0x78,uint32_t(7));
+        for(size_t i=0;i<2;++i){const auto object=objects[i];put(roster,i*8,object);put(object,0,image+0x174fe50);put(object,0x18,ids[i]);put(object,0x170,shard);put(object,0x178,region);
             put(object,0x258,i?objects[2]:uintptr_t(0));put(object,0x278,uintptr_t(0x40000000+i*0x100));put(object,0x100,std::array<float,4>{0,0,0,1});put(object,0x110,std::array<float,3>{float(i),2,3});put(object,0x11c,std::array<float,3>{1,1,1});
             put(object,0x250,uint8_t(i));put(object,0x254,int32_t(i));for(size_t offset=0x260;offset<=0x270;offset+=4)put(object,offset,int32_t(offset+i));put(object,0x330,int32_t(3));put(object,0x334,int32_t(11));put(object,0x338,int32_t(12));
             strings[object+0x38]=i?"Chest #2":"Door #1";strings[object+0x210]=i?"Chest":"Door";strings[object+0x230]="Stone";}
-        put(objects[2],0,image+0x1749ab0);put(objects[2],0x18,ids[2]);
+        put(objects[2],0,image+0x174fe50);put(objects[2],0x18,ids[2]);
     }
 };
 }

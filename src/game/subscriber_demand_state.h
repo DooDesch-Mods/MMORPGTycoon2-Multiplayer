@@ -33,12 +33,12 @@ struct Local {uintptr_t object=0,demand=0;int32_t id=-1;bool operator==(const Lo
 struct Owners {uintptr_t manager=0,data=0;int32_t count=0,capacity=0;std::vector<Local> rows;bool operator==(const Owners&)const=default;};
 template<class Read>bool read(Read& at,uintptr_t image,const std::map<uintptr_t,std::string>& keys,Owners& owners,State& out,std::string& e){
     owners={};out.clear();uintptr_t ap=0;
-    if(!at(image,0x13df690,owners.manager,e)||!at(owners.manager,0,ap,e)||ap!=image+0x1725f40||!at(owners.manager,0x40,owners.data,e)||!at(owners.manager,0x48,owners.count,e)||!at(owners.manager,0x4c,owners.capacity,e)){
+    if(!at(image,0x13eb690,owners.manager,e)||!at(owners.manager,0,ap,e)||ap!=image+0x172c2e0||!at(owners.manager,0x40,owners.data,e)||!at(owners.manager,0x48,owners.count,e)||!at(owners.manager,0x4c,owners.capacity,e)){
         if(e.empty())e="Subscriber Demand current Manager singleton/class differs";return false;}
     if(owners.count<0||owners.count>1000000||owners.capacity<owners.count||owners.capacity>1000000||(!owners.data&&owners.capacity)||owners.data>UINTPTR_MAX-size_t(owners.capacity)*8){e="Subscriber Demand complete manager extent invalid";return false;}
     std::set<uintptr_t> unique;std::map<int32_t,std::pair<Local,Row>> sorted;
     for(int32_t i=0;i<owners.count;++i){Local local;Row value;
-        if(!at(owners.data,size_t(i)*8,local.object,e)||!at(local.object,0,ap,e)||ap!=image+0x16e75f0||!at(local.object,0x20,local.id,e)||!at(local.object,0xc0,local.demand,e)){if(e.empty())e="Subscriber Demand actual member class/ID differs";return false;}
+        if(!at(owners.data,size_t(i)*8,local.object,e)||!at(local.object,0,ap,e)||ap!=image+0x16ed990||!at(local.object,0x20,local.id,e)||!at(local.object,0xc0,local.demand,e)){if(e.empty())e="Subscriber Demand actual member class/ID differs";return false;}
         if(local.id<0||!unique.insert(local.object).second){e="Subscriber Demand native allocation or ID duplicated";return false;}value.id=local.id;
         if(local.demand){const auto found=keys.find(local.demand);if(found==keys.end()||!key(found->second)){e="Subscriber Demand current pointer has no exact registered Character owner";return false;}value.key=found->second;}
         if(!sorted.emplace(local.id,std::pair{local,value}).second){e="Subscriber Demand serialized ID duplicated";return false;}

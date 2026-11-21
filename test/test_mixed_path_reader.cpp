@@ -33,11 +33,11 @@ int main(){try{
     constexpr uintptr_t r1=0x200000,r2=0x210000,m1=0x300000,m2=0x310000;
     constexpr uintptr_t wall=0x500000,pass=0x510000,n1=0x600000,n2=0x610000,n3=0x620000;
     Memory memory;std::string error;unsigned cases=0;
-    memory.put(map,image+0x1742860);memory.put(root,image+0x174ad20);memory.field(root,0x48,int32_t(0));
-    memory.put(map+0x230,image+0x16f04e0);memory.vector(map+0x230,8,std::vector<uintptr_t>{r1,r2});
+    memory.put(map,image+0x1748c00);memory.put(root,image+0x17510c0);memory.field(root,0x48,int32_t(0));
+    memory.put(map+0x230,image+0x16f6880);memory.vector(map+0x230,8,std::vector<uintptr_t>{r1,r2});
     memory.vector(map,0x358,std::vector<uintptr_t>{r1});
     auto region=[&](uintptr_t address,int32_t id,uintptr_t manager){
-        memory.put(address,image+0x1787930);memory.field(address,0x70,root);
+        memory.put(address,image+0x178dcd0);memory.field(address,0x70,root);
         memory.field(address,0x834,id);memory.field(address,0x9a0,manager);
         memory.field(manager,0x6a0,address);
         for(int type=0;type<11;++type){
@@ -53,7 +53,7 @@ int main(){try{
     memory.vector(m2,0x238,std::vector<uintptr_t>{n3});
     auto path=[&](uintptr_t address,uint64_t uid,int32_t type,uintptr_t second,uintptr_t start,uintptr_t end,
                   std::vector<Point> points){
-        memory.put(address,image+0x1743f10);memory.field(address,0x18,uid);memory.field(address,0x21c,type);
+        memory.put(address,image+0x174a2b0);memory.field(address,0x18,uid);memory.field(address,0x21c,type);
         memory.field(address,0x178,r1);memory.field(address,0x2f8,second);
         memory.field(address,0x268,start);memory.field(address,0x270,end);
         memory.field(address,0x46e,uint8_t(0));
@@ -62,7 +62,7 @@ int main(){try{
     path(wall,11,4,0,n1,n2,{{0,0,0},{1,0,0}});
     path(pass,12,5,r2,n2,n3,{{1,0,0},{2,0,0}});
     auto node=[&](uintptr_t address,uint64_t uid,uintptr_t owner,Point position,std::vector<uintptr_t> edges){
-        memory.put(address,image+0x1700a10);memory.field(address,0x18,uid);
+        memory.put(address,image+0x1706db0);memory.field(address,0x18,uid);
         memory.field(address,0x298,int32_t(0));memory.field(address,0x178,owner);
         memory.field(address,0x110,position);memory.vector(address,0x2c8,edges);
     };

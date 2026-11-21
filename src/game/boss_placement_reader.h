@@ -8,8 +8,8 @@
 namespace mt2mp::game::boss_placement_reader {
 namespace q=npc_quest_targets;
 using Intent=action_session::BossPlacementIntent;
-inline constexpr uintptr_t addresspoint=0x172f040,cursor_addresspoint=0x1786dd0;
-inline constexpr uintptr_t release_rva=0x58b020;
+inline constexpr uintptr_t addresspoint=0x17353e0,cursor_addresspoint=0x178d170;
+inline constexpr uintptr_t release_rva=0x5917d0;
 struct Source {
     uintptr_t receiver=0,cursor=0,visual=0;
     std::array<unsigned char,0x6c> transform{};
@@ -33,7 +33,7 @@ inline bool transform(const Intent& value,std::array<unsigned char,0x6c>& out,st
 }
 template<class Memory>bool current(Memory& memory,uintptr_t image,uintptr_t expected_cursor,uintptr_t& behaviour,std::string& error){
     uintptr_t cursor=0;behaviour=0;
-    if(!q::at(memory,image,0x13df9d0,cursor,error)||!q::typed(memory,image,cursor,cursor_addresspoint,error)||
+    if(!q::at(memory,image,0x13eb9d0,cursor,error)||!q::typed(memory,image,cursor,cursor_addresspoint,error)||
        !q::at(memory,cursor,0x190,behaviour,error))return false;
     return cursor==expected_cursor||q::fail(error,"Boss placement actual source Cursor changed");
 }

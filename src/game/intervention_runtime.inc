@@ -4,8 +4,8 @@ struct InterventionRoute {uintptr_t rva;size_t bytes,stolen;const char* sha;inte
 struct InterventionPending {a::Context context;a::Binding binding;a::InterventionIntent intent;std::string id;};
 struct InterventionRuntime {
     std::array<InterventionRoute,2> routes{{
-        {0x39f9f0,336,7,"5379a117ed2e285af583ceb59f2cd667d70bded7a9e963bd5eba5b478a92bdb2"},
-        {0x3eb9f0,896,10,"4652b983637842fe3f594a7b1dc43be13baf700bdcea99482388c9aeee6f5972"}}};
+        {0x3a44f0,336,7,"db61a6550b6b19117570b7998b2706d7a8c4b02eb30bdd64065e5e3e9b4c3520"},
+        {0x3f0500,896,10,"7810a13524528c1305a2c115661f11d7762ac381ec98bf5920291038426f6205"}}};
     std::optional<InterventionPending> pending;std::map<std::string,Receipt> operations;
     bool original_active=false;
 } interventions_runtime;
@@ -13,8 +13,8 @@ bool intervention_routes(Runtime& r,std::string& error){for(const auto& route:in
     if(!hooks::framework::process_backend().read_route(reinterpret_cast<void*>(owner.entry),actual))return fail(error,"Intervention route read failed original="+hooks::framework::process_backend().error());
     if(actual.state!=MT2FW_MT2_ROUTE_ENABLED||actual.generation!=owner.generation||actual.entry!=owner.entry||actual.trampoline!=owner.trampoline||actual.detour!=owner.detour||std::strcmp(actual.owner,"doodesch.multiplayer"))return fail(error,"Intervention route owner/generation/trampoline changed");
     if(!release_ui_owner::verify(owner,[&](auto address,auto out,auto bytes,auto& cause){return r.memory.copy(address,out,bytes,cause);},[](const auto& bytes){return mt2mp::sha256(bytes);},route.sha,error)||!hooks::framework::process_backend().verify_code(owner.entry,owner.pristine.data(),owner.pristine.size(),error))return false;}
-    std::vector<unsigned char> compare(96);if(!r.memory.copy(r.image+0x11e3aa0,compare.data(),compare.size(),error))return false;
-    return mt2mp::sha256(compare)=="0e61786467a8750678d39484e6d505ebadce3a61c3ea992e786c93f0d0732939"||fail(error,"Intervention original GNU string comparison helper differs");
+    std::vector<unsigned char> compare(96);if(!r.memory.copy(r.image+0x11ef440,compare.data(),compare.size(),error))return false;
+    return mt2mp::sha256(compare)=="d3b1b218c2d29fea0e5608d3ef52b2f75217f31042e20a0131459bdd772adb4f"||fail(error,"Intervention original GNU string comparison helper differs");
 }
 bool intervention_pending(){return interventions_runtime.pending.has_value();}
 void intervention_reset(){interventions_runtime.pending.reset();interventions_runtime.operations.clear();interventions_runtime.original_active=false;}

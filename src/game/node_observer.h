@@ -4,7 +4,7 @@
 #include <string>
 namespace mt2mp::game::node_observer {
 enum class Leaf : uint8_t { Presentation, Network, Finish, Drain, Charge, Count };
-inline constexpr std::array<uintptr_t,5> rvas{0x42d570,0x42c8f0,0x42cb10,0x42cc10,0x42cc30};
+inline constexpr std::array<uintptr_t,5> rvas{0x432350,0x4316d0,0x4318f0,0x4319f0,0x431a10};
 struct Scalars {
     std::array<float,4> values{};
     std::array<uint8_t,3> flags{};

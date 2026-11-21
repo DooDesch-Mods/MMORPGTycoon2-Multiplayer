@@ -16,7 +16,7 @@ bool native_remove_ui(const json& args,json& result,std::string& e)try{
     local=remove_local;
     if(before.undo.active_graph)return fail(e,"Monster Remove UI requires idle Undo");
     a::ui_diagnostic::Api api;if(!a::ui_diagnostic::resolve_api(m,state.image,exe_sha,api,e))return false;
-    api.command=reinterpret_cast<a::ui_diagnostic::UiCommand>(state.image+0x7490c0);api.destroy_label="Destroy";
+    api.command=reinterpret_cast<a::ui_diagnostic::UiCommand>(state.image+0x750a60);api.destroy_label="Destroy";
     a::ui_diagnostic::Context context{state.image,local.manager,local.object,local.uid,binding.native_epoch,binding.native_generation,exe_sha,a::ui_diagnostic::Family::Building};
     a::ui_diagnostic::Receipt receipt;
     auto& job=state.ui_jobs.emplace(token,json{{"operation","remove"},{"family","monster"},{"token",token},{"target_action_uuid",birth},

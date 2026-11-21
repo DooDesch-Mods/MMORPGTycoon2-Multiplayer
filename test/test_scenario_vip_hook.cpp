@@ -43,12 +43,12 @@ void reset(){
     vip::installed={};vip::installed[0]=0xe9;int32_t displacement=0x100;
     std::memcpy(vip::installed.data()+1,&displacement,sizeof displacement);
     vip::relocated.fill(0x42);
-    fixture::memory[vip::image+0x4f85b0]={vip::installed.begin(),vip::installed.end()};
+    fixture::memory[vip::image+0x4fe550]={vip::installed.begin(),vip::installed.end()};
     fixture::memory[uintptr_t(vip::original_update)]={vip::relocated.begin(),vip::relocated.end()};
-    auto& relay=fixture::memory[vip::image+0x4f85b0+5+0x100];relay.resize(14);relay[0]=0xff;relay[1]=0x25;
+    auto& relay=fixture::memory[vip::image+0x4fe550+5+0x100];relay.resize(14);relay[0]=0xff;relay[1]=0x25;
     const auto target=uintptr_t(&vip::update);std::memcpy(relay.data()+6,&target,sizeof target);
 }
-void dispatch(){vip::dispatch(0xabc123,std::bit_cast<float>(uint32_t(0x3eaaaaab)),vip::image+0x4f43f5);}
+void dispatch(){vip::dispatch(0xabc123,std::bit_cast<float>(uint32_t(0x3eaaaaab)),vip::image+0x4fa375);}
 void suppressed(){need(!fixture::originals&&fixture::publishes==1&&fixture::last.owned&&fixture::last.suppressed&&fixture::last.cause.empty(),"owned Update not suppressed exactly");}
 void failed(const char* cause){need(!fixture::originals&&fixture::publishes==1&&fixture::last.owned&&!fixture::last.suppressed&&fixture::last.cause.find(cause)!=std::string::npos,cause);}
 }
@@ -62,24 +62,24 @@ int main(){try{
     reset();fixture::throw_owner=true;dispatch();failed("actual owner exception");
     reset();vip::dispatch(1,0,vip::image+0x4f43f6);failed("different original ScenarioLog caller");
     reset();vip::ready=false;dispatch();failed("not ready");
-    reset();fixture::memory[vip::image+0x4f85b0][7]^=1;dispatch();failed("entry/trampoline changed");
+    reset();fixture::memory[vip::image+0x4fe550][7]^=1;dispatch();failed("entry/trampoline changed");
     reset();fixture::memory[uintptr_t(vip::original_update)][8]^=1;dispatch();failed("entry/trampoline changed");
-    reset();fixture::memory[vip::image+0x4f85b0+5+0x100][6]^=1;dispatch();failed("relay target differs");
-    reset();fixture::unreadable=vip::image+0x4f85b0;dispatch();failed("actual hook read failure");
+    reset();fixture::memory[vip::image+0x4fe550+5+0x100][6]^=1;dispatch();failed("relay target differs");
+    reset();fixture::unreadable=vip::image+0x4fe550;dispatch();failed("actual hook read failure");
     reset();fixture::unreadable=uintptr_t(vip::original_update);dispatch();failed("actual hook read failure");
-    reset();fixture::unreadable=vip::image+0x4f85b0+5+0x100;dispatch();failed("actual hook read failure");
+    reset();fixture::unreadable=vip::image+0x4fe550+5+0x100;dispatch();failed("actual hook read failure");
     reset();fixture::active=false;fixture::throw_original=true;bool caught=false;
     try{dispatch();}catch(const std::runtime_error& e){caught=std::string(e.what())=="original exception unchanged";}
     need(caught&&fixture::originals==1&&!fixture::publishes,"Host original exception changed or replayed");
     reset();std::string error;need(!vip::initialize(vip::image,vip::callbacks,error)&&error=="VIP installation already attempted"&&!fixture::creates,"installation replay admitted");
     reset();vip::image=0;need(!vip::initialize(0,vip::callbacks,error)&&!fixture::creates,"empty image installed");
-    reset();vip::image=0;fixture::memory[0x140000000+0x4f4360].resize(1600);
+    reset();vip::image=0;fixture::memory[0x140000000+0x4fa2e0].resize(1600);
     need(!vip::initialize(0x140000000,vip::callbacks,error)&&error.find("original owner body differs")!=std::string::npos&&!fixture::creates&&!fixture::enables,"wrong shipped owner body enabled hook");
     reset();fixture::active=false;dispatch();fixture::active=true;dispatch();
     need(fixture::originals==1&&fixture::last.suppressed,"Host-to-Client ownership switch cached old decision");
     reset();fixture::order.clear();fixture::active=false;vip::callbacks.host_update=fixture::host;dispatch();
     need(fixture::order==std::vector<int>({1,2})&&fixture::originals==1&&!fixture::pins&&!fixture::publishes,"Host callback surrounds one original call");
-    need(fixture::caller_seen==vip::image+0x4f43f5&&fixture::original_receiver==0xabc123&&std::bit_cast<uint32_t>(fixture::original_dt)==0x3eaaaaab,"Host callback preserves caller and exact original arguments");
+    need(fixture::caller_seen==vip::image+0x4fa375&&fixture::original_receiver==0xabc123&&std::bit_cast<uint32_t>(fixture::original_dt)==0x3eaaaaab,"Host callback preserves caller and exact original arguments");
     reset();fixture::order.clear();vip::callbacks.host_update=fixture::host;dispatch();suppressed();
     need(fixture::order.empty(),"Host callback never runs for owned Client");
     reset();fixture::order.clear();fixture::owned=false;vip::callbacks.host_update=fixture::host;dispatch();

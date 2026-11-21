@@ -54,8 +54,8 @@ struct Port {
                 return q::fail(e,e.empty()?"Scenery original PolyShape reconstruction differs":e);
             if(intent.kind==Kind::Paint&&intent.mode==2&&!fault(calls::prepare(owned.transfer,stamp.dots),"generated transform preparation",e))return false;
         }
-        if(!q::at(r.memory,r.image,0x13df440,context.manager,e)||!context.manager||!q::at(r.memory,r.image,0x13df9d0,context.cursor,e)||
-           !q::typed(r.memory,r.image,context.cursor,0x1786dd0,e))return q::fail(e,e.empty()?"Scenery replay native ShardManager/Cursor is absent":e);
+        if(!q::at(r.memory,r.image,0x13eb440,context.manager,e)||!context.manager||!q::at(r.memory,r.image,0x13eb9d0,context.cursor,e)||
+           !q::typed(r.memory,r.image,context.cursor,0x178d170,e))return q::fail(e,e.empty()?"Scenery replay native ShardManager/Cursor is absent":e);
         return true;
     }
     bool enter_context(bool& entered,std::string& e){
@@ -69,7 +69,7 @@ struct Port {
     }
     bool before_stamp(size_t index,std::string& e){
         uintptr_t current_graph=0,active=0,current_root=0;
-        if(index>=shapes.size()||!q::at(r.memory,r.image,0x1a3aa80,active,e)||active||!q::at(r.memory,context.manager,0x60,current_root,e)||
+        if(index>=shapes.size()||!q::at(r.memory,r.image,0x1a41a80,active,e)||active||!q::at(r.memory,context.manager,0x60,current_root,e)||
            current_root!=before.props.world.root||!q::at(r.memory,cursor.object,cursor.brush?0xc50:0x5c0,current_graph,e)||current_graph!=receipt.graph)
             return q::fail(e,e.empty()?"Scenery original graph/root changed before stamp index="+std::to_string(index):e);
         return true;
@@ -85,7 +85,7 @@ struct Port {
     }
     bool after_stamp(size_t,uintptr_t,std::string& e){
         if(!cursor.brush)return true;q::Bounds rows;
-        if(!q::typed(r.memory,r.image,cursor.object+0xb70,0x1748c50,e)||!q::bounds(r.memory,cursor.object+0xb70,1000000,rows,e))return false;
+        if(!q::typed(r.memory,r.image,cursor.object+0xb70,0x174eff0,e)||!q::bounds(r.memory,cursor.object+0xb70,1000000,rows,e))return false;
         if(rows.count<seen_births)return q::fail(e,"Scenery original birth list lost an earlier entry");
         auto find=[&](uint64_t uid,uintptr_t& object,std::string& cause){return group_edit::find(r,uid,object,cause);};
         for(int32_t index=seen_births;index<rows.count;++index){uintptr_t object=0;uint64_t uid=0;Saved saved;std::string key;
@@ -159,7 +159,7 @@ struct Port {
         }
         std::vector<uintptr_t> raw,filtered;std::array<uint8_t,9> current_filter{};
         if(!group_reader::selection(r.memory,r.image,before.props.world.selection,raw,filtered,e))return false;
-        if(raw!=desired){const duplicate_calls::Array values{r.image+0x1748c50,desired.data(),int32_t(desired.size()),int32_t(desired.size())};
+        if(raw!=desired){const duplicate_calls::Array values{r.image+0x174eff0,desired.data(),int32_t(desired.size()),int32_t(desired.size())};
             if(!fault(duplicate_calls::select(r.image,before.props.world.selection,values),"local Selection restore",e)||
                !group_reader::selection(r.memory,r.image,before.props.world.selection,raw,filtered,e))return false;}
         if(!q::at(r.memory,before.props.world.selection,0xc8,current_filter,e))return false;

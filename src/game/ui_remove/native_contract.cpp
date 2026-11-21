@@ -10,12 +10,12 @@ namespace mt2mp::action_session::ui_capture {
 namespace {
 struct Call {uintptr_t pc,target;Origin origin;};
 constexpr std::array ui_calls{
-    Call{0x42d89f,0x2d5520,Origin::NetworkWindow},Call{0x434117,0x2d5520,Origin::NetworkWindow},
-    Call{0x59bc43,0x2d5520,Origin::DestroyCursor},Call{0x66de50,0x2d5520,Origin::BuildingWindow},
-    Call{0x6cb617,0x2d5520,Origin::DistrictWindow},Call{0x6f4f82,0x2d5520,Origin::OtherWindow},
-    Call{0x71900b,0x2d5520,Origin::OtherWindow},Call{0x74f583,0x2d5520,Origin::NetworkWindow},
-    Call{0x759c4e,0x2d5520,Origin::NpcWindow},Call{0x7b3f7c,0x2d5520,Origin::OtherWindow},
-    Call{0x82bbf6,0x2d5520,Origin::ZoneWindow},Call{0x74bf48,0x2d4d90,Origin::SelectionWindow}
+    Call{0x43267f,0x2d8c10,Origin::NetworkWindow},Call{0x438ef7,0x2d8c10,Origin::NetworkWindow},
+    Call{0x5a23f3,0x2d8c10,Origin::DestroyCursor},Call{0x675020,0x2d8c10,Origin::BuildingWindow},
+    Call{0x6d2a37,0x2d8c10,Origin::DistrictWindow},Call{0x6fc412,0x2d8c10,Origin::OtherWindow},
+    Call{0x72059b,0x2d8c10,Origin::OtherWindow},Call{0x756f23,0x2d8c10,Origin::NetworkWindow},
+    Call{0x7616ce,0x2d8c10,Origin::NpcWindow},Call{0x7bc21c,0x2d8c10,Origin::OtherWindow},
+    Call{0x8341e6,0x2d8c10,Origin::ZoneWindow},Call{0x7538e8,0x2d8480,Origin::SelectionWindow}
 };
 bool bytes(Memory& memory,uintptr_t address,const uint8_t* expected,size_t count,std::string& cause) {
     std::vector<uint8_t> actual(count);
@@ -35,14 +35,14 @@ bool relative(uintptr_t next,int32_t displacement,uintptr_t& target) {
 bool monster_frames(Memory& memory,uintptr_t image,std::string& cause){
     struct Code {uintptr_t rva;size_t size;const char* sha;};
     constexpr Code codes[]{
-        {0x7490c0,2144,"e6242e22cca51685d273afcf28ad8d9cfb8e6fc17046f4d56ea444125a743c6a"},
-        {0x3bc9a0,768,"e6277d4d6740da834e76de74780af680e656cdd86461f8771bd9ddc72e03925d"}};
+        {0x750a60,2144,"b2e9a282c6c78860c7f8e169e8fb1ab24774a4a49a9a71f35ee3832f9f670833"},
+        {0x3c14b0,768,"bd7c31bc233c3b86b7f62d37924786af4e988af7075a0712c018f97217ee2768"}};
     for(const auto& code:codes){std::vector<unsigned char> body(code.size);
         if(!memory.copy(image+code.rva,body.data(),body.size(),cause))return false;
         if(mt2mp::sha256(body)!=code.sha){cause="Monster Remove exact original UI/Command frame body differs RVA="+std::to_string(code.rva);return false;}}
     uintptr_t target=0;
-    if(!memory.copy(image+0x16c0770+0xb0,&target,sizeof target,cause))return false;
-    if(target!=image+0x3bc9a0){cause="Monster Remove original Command virtual target differs";return false;}
+    if(!memory.copy(image+0x16c6b10+0xb0,&target,sizeof target,cause))return false;
+    if(target!=image+0x3c14b0){cause="Monster Remove original Command virtual target differs";return false;}
     return true;
 }
 bool frames(Memory& memory,uintptr_t image,std::string& cause) {
@@ -58,7 +58,7 @@ bool frames(Memory& memory,uintptr_t image,std::string& cause) {
 }
 }
 bool validate_unpatched(Memory& memory,uintptr_t image,std::string_view sha,std::string& cause) {
-    if(sha!=contract::exe_sha256||!image||image>UINTPTR_MAX-0x1748c68){cause="UI Remove exact native executable/image identity differs";return false;}
+    if(sha!=contract::exe_sha256||!image||image>UINTPTR_MAX-0x174f008){cause="UI Remove exact native executable/image identity differs";return false;}
     Region target;
     if(!executable(memory,image+contract::destroy_props_rva,target,cause)||!target.image||target.writable||target.allocation_base!=image){if(cause.empty())cause="UI Remove target is not immutable native image code";return false;}
     return frames(memory,image,cause)&&bytes(memory,image+contract::destroy_props_rva,contract::destroy_props_bytes,sizeof contract::destroy_props_bytes,cause);
@@ -100,16 +100,16 @@ bool classify_origin(Memory& memory,uintptr_t image,uintptr_t return_slot,Origin
     out=Origin::Foreign;uintptr_t immediate=0;
     if(!return_slot||!memory.copy(return_slot,&immediate,sizeof immediate,cause))return false;
     uintptr_t offset=0,target=0;
-    if(immediate==image+0x2d55a8){offset=0xa0;target=0x2d5520;}
-    else if(immediate==image+0x2d4e25){offset=0x60;target=0x2d4d90;}
+    if(immediate==image+0x2d8c98){offset=0xa0;target=0x2d8c10;}
+    else if(immediate==image+0x2d8515){offset=0x60;target=0x2d8480;}
     else {cause.clear();return true;}
     if(return_slot>UINTPTR_MAX-offset){cause="UI Remove native frame slot overflows address range";return false;}
     uintptr_t outer=0;if(!memory.copy(return_slot+offset,&outer,sizeof outer,cause))return false;
-    if(target==0x2d5520&&outer==image+0x3bcb34){
+    if(target==0x2d8c10&&outer==image+0x3c1644){
         if(return_slot>UINTPTR_MAX-0x2d0){cause="Monster Remove InfoWindow frame slot overflows";return false;}
         uintptr_t window=0;
         if(!memory.copy(return_slot+0x2d0,&window,sizeof window,cause))return false;
-        if(window==image+0x749454){
+        if(window==image+0x750df4){
             if(!monster_frames(memory,image,cause))return false;
             out=Origin::MonsterWindow;cause.clear();return true;
         }

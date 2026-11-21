@@ -24,9 +24,9 @@ bool read(Read& at,Text& text,Find& find,Parent& parent_key,uintptr_t image,uint
     output.clear();local={};Local owner;owner.manager=manager;owner.shard=shard;owner.region=region;uintptr_t ap=0,reverse_shard=0,reverse_region=0;
     if(!at(region,0x9a8,owner.manager,error)||!at(manager,0,ap,error)||!at(manager,0x68,reverse_shard,error)||!at(manager,0x70,reverse_region,error)||
        !at(manager,0x20,owner.data,error)||!at(manager,0x28,owner.count,error)||!at(manager,0x2c,owner.capacity,error)||!at(manager,0x78,owner.mutation_count,error))return false;
-    if(owner.manager!=manager||ap!=image+0x1700260||reverse_shard!=shard||reverse_region!=region){error="Dungeon Gizmo manager class/reciprocal scene owner differs";return false;}
+    if(owner.manager!=manager||ap!=image+0x1706600||reverse_shard!=shard||reverse_region!=region){error="Dungeon Gizmo manager class/reciprocal scene owner differs";return false;}
     if(!at(manager,0x18,ap,error))return false;
-    if(ap!=image+0x172e300){error="Dungeon Gizmo actual saved volatile-array addresspoint differs";return false;}
+    if(ap!=image+0x17346a0){error="Dungeon Gizmo actual saved volatile-array addresspoint differs";return false;}
     if(owner.count<0||owner.capacity<owner.count||(owner.count&&(!owner.data||owner.data>UINTPTR_MAX-size_t(owner.count)*8))){error="Dungeon Gizmo volatile owner roster/span differs";return false;}
     std::set<uintptr_t> pointers;std::set<uint64_t> uids;std::vector<Record> records;
     for(int32_t i=0;i<owner.count;++i){Member member;Record record;uintptr_t actual=0,actor_shard=0,actor_region=0;uint8_t triggered=2;
@@ -34,7 +34,7 @@ bool read(Read& at,Text& text,Find& find,Parent& parent_key,uintptr_t image,uint
         if(!member.object||!pointers.insert(member.object).second){error="Dungeon Gizmo roster has an absent or duplicate native member";return false;}
         if(!at(member.object,0,ap,error)||!at(member.object,0x18,member.uid,error)||!at(member.object,0x170,actor_shard,error)||!at(member.object,0x178,actor_region,error)||
            !at(member.object,0x258,member.parent,error)||!at(member.object,0x278,member.definition,error))return false;
-        if(ap!=image+0x1749ab0||!member.uid||!uids.insert(member.uid).second||actor_shard!=shard||actor_region!=region){error="Dungeon Gizmo native class/full UID/scene membership differs";return false;}
+        if(ap!=image+0x174fe50||!member.uid||!uids.insert(member.uid).second||actor_shard!=shard||actor_region!=region){error="Dungeon Gizmo native class/full UID/scene membership differs";return false;}
         if(!find(member.uid,actual,error))return false;if(actual!=member.object){error="Dungeon Gizmo original UID registry resolves a different native member";return false;}
         if(!text(member.object,0x38,record.name,error)||!text(member.object,0x210,record.type,error)||!text(member.object,0x230,record.variant,error)||
            !at(member.object,0x100,record.rotation,error)||!at(member.object,0x110,record.position,error)||!at(member.object,0x11c,record.scale,error)||
@@ -47,7 +47,7 @@ bool read(Read& at,Text& text,Find& find,Parent& parent_key,uintptr_t image,uint
         for(float x:record.scale)if(!std::isfinite(x)){error="Dungeon Gizmo native scale is non-finite";return false;}
         if(member.parent){
             if(!at(member.parent,0,ap,error)||!at(member.parent,0x18,member.parent_uid,error))return false;
-            if(member.parent==member.object||ap!=image+0x1749ab0||!member.parent_uid){error="Dungeon Gizmo prototype parent class/full UID differs";return false;}
+            if(member.parent==member.object||ap!=image+0x174fe50||!member.parent_uid){error="Dungeon Gizmo prototype parent class/full UID differs";return false;}
             if(!find(member.parent_uid,actual,error))return false;if(actual!=member.parent){error="Dungeon Gizmo prototype parent is absent from original UID registry";return false;}
             if(!parent_key(member.parent,member.parent_uid,record.parent,error))return false;
             if(record.parent.empty()){error="Dungeon Gizmo prototype parent has no current canonical scene identity";return false;}

@@ -38,14 +38,14 @@ struct Runtime {
     std::map<std::string,std::vector<life::Event>> local_events;size_t receipt_bytes=0;
     uint64_t observed=0,replayed=0,deduplicated=0,presented=0;
     std::array<Route,8> routes{{
-        {0x3c8d50,816,6,"7c523b7c20db0d6c39ec594be62865fd48ef1b6891e4956ac692e4c2b019ca12"},
-        {0x3c95c0,912,7,"d7b920d1da040ff56a1d59be8362d1e428515e557696c56f56d066e3fea90115"},
-        {0x397a50,528,6,"76845116a6bc652111fef8ff1ba2f9129763b55d69ca14e2dd840438a5bee820"},
-        {0x399660,608,7,"4e2d4a2aba643c4f8cde3a26c68a31affdb5332d6d913da7e5437b4325c2d1d2"},
-        {0x239ba0,592,5,"2613bc5dc2eb38aac1903b8951115b0f054123fd65a602f650cfa81ab69695e1"},
-        {0x39f920,208,7,"4df09753bf3f4b1bfe553506fbcd724d1736a9a10a0f9b2773297890ff393b48"},
-        {0x39d560,96,6,"6b2cfd2d932839ba6f9ea33deeb8a73f232616b7a6b11fe155c3592103037896"},
-        {0x39e760,496,7,"3c6b2d2f40bfb03057953423834024adcd5a098857a34ab786ba79584ca9f822"}}};
+        {0x3cd860,816,6,"66305f8db1b8ab372fba5fb7f2ea5bff995d4cd0a8c29b25223e583f200ea0e5"},
+        {0x3ce0d0,912,7,"17b0be04e69a8c5a2f48d817b6c9542d6f66041d05b84df11e8732ab779849a3"},
+        {0x39c550,528,6,"5dfbf708db4fd0d510bfa8d37b1b2843763841ebdb0c6d50464f136623e60079"},
+        {0x39e160,608,7,"9e424f186e31eb88161c732c36f07ca98dea050203a88b859b500e8a6efa002b"},
+        {0x23ca10,592,5,"ea99ce6bce33cf435dc2873f0f0d2b995f166c0a7585e20a888dfe0cad6a8cf4"},
+        {0x3a4420,208,7,"d4114192801238055f79419cc88b00039f98ff0891fcf0c0d92b32a47cdd2337"},
+        {0x3a2060,96,6,"b369610c35179adf530cf3807d05df3d770c67b61eb9e0b67c49652ef53f9f05"},
+        {0x3a3260,496,7,"ee7022f2e6fa09181af0442159930e6ed2a925b3baa7f8d3c0b1e0dd89bc42f7"}}};
 } state;
 struct NpcGate {bool attempted=false,enabled=false;uint64_t generation=0;std::array<unsigned char,9> original{};std::array<unsigned char,16> installed{};std::array<unsigned char,64> relocated{};} npc_gate;
 bool fail(std::string& error,const std::string& cause){error=cause;return false;}
@@ -56,8 +56,8 @@ template<class T>bool at(uintptr_t object,size_t offset,T& value,std::string& er
 bool npc_gate_current(std::string& error){
     if(!npc_gate.enabled)return fail(error,"NPC camera gate is not enabled");
     MT2FW_MT2_RouteReceipt actual{};actual.size=sizeof actual;
-    if(!hooks::framework::process_backend().read_route(reinterpret_cast<void*>(state.image+0x3c8db7),actual))return fail(error,"NPC camera gate route read failed: "+hooks::framework::process_backend().error());
-    if(actual.state!=MT2FW_MT2_ROUTE_ENABLED||actual.generation!=npc_gate.generation||actual.entry!=state.image+0x3c8db7||
+    if(!hooks::framework::process_backend().read_route(reinterpret_cast<void*>(state.image+0x3cd8c7),actual))return fail(error,"NPC camera gate route read failed: "+hooks::framework::process_backend().error());
+    if(actual.state!=MT2FW_MT2_ROUTE_ENABLED||actual.generation!=npc_gate.generation||actual.entry!=state.image+0x3cd8c7||
        actual.trampoline!=mt2mp_npc_gate_original||actual.detour!=uintptr_t(&mt2mp_npc_camera_gate)||std::strcmp(actual.owner,"doodesch.multiplayer"))return fail(error,"NPC camera gate route ownership changed");
     std::array<unsigned char,16> entry{};std::array<unsigned char,64> relocated{};
     if(!root_saved_building::bytes(reinterpret_cast<void*>(actual.entry),0,entry.data(),entry.size(),error)||
@@ -69,13 +69,13 @@ bool route_current(Route& route,std::string& error,bool full){
     if(!hooks::framework::process_backend().read_route(reinterpret_cast<void*>(owner.entry),actual))return fail(error,"Actor24 named route read failed original="+hooks::framework::process_backend().error());
     if(actual.state!=MT2FW_MT2_ROUTE_ENABLED||actual.generation!=owner.generation||actual.entry!=owner.entry||actual.trampoline!=owner.trampoline||actual.detour!=owner.detour||std::strcmp(actual.owner,"doodesch.multiplayer"))return fail(error,"Actor24 named route owner/generation/trampoline changed");
     if(!full)return true;
-    if(route.rva==0x3c8d50&&npc_gate.enabled){
+    if(route.rva==0x3cd860&&npc_gate.enabled){
         if(!npc_gate_current(error)||!hooks::framework::process_backend().verify_code(owner.entry,owner.pristine.data(),owner.pristine.size(),error))return false;
     }
     const auto copy=[&](auto address,auto out,auto bytes,auto& cause){
         if(!root_saved_building::bytes(reinterpret_cast<void*>(address),0,out,bytes,cause))return false;
-        if(route.rva==0x3c8d50&&npc_gate.enabled&&address==owner.entry&&bytes==owner.pristine.size())
-            std::memcpy(static_cast<unsigned char*>(out)+(0x3c8db7-0x3c8d50),npc_gate.original.data(),npc_gate.original.size());
+        if(route.rva==0x3cd860&&npc_gate.enabled&&address==owner.entry&&bytes==owner.pristine.size())
+            std::memcpy(static_cast<unsigned char*>(out)+(0x3cd8c7-0x3cd860),npc_gate.original.data(),npc_gate.original.size());
         return true;
     };
     return release_ui_owner::verify(owner,copy,[](const auto& bytes){return mt2mp::sha256(bytes);},route.sha,error)&&hooks::framework::process_backend().verify_code(owner.entry,owner.pristine.data(),owner.pristine.size(),error);
@@ -115,7 +115,7 @@ uint32_t call_void(uintptr_t function,uintptr_t receiver,bool& returned)noexcept
 }
 uint32_t expire_general_proxy(uintptr_t image,uintptr_t receiver,uintptr_t expected,bool& returned)noexcept{
     returned=false;__try{if(*reinterpret_cast<uintptr_t*>(receiver+0x28)!=expected)return ERROR_INVALID_DATA;
-        if(expected)reinterpret_cast<Void>(image+0xbfa730)(expected);
+        if(expected)reinterpret_cast<Void>(image+0xc06e40)(expected);
         *reinterpret_cast<uintptr_t*>(receiver+0x28)=0;returned=true;return 0;
     }__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
@@ -197,8 +197,8 @@ bool enable(std::string& error){
     if(state.enabled)return routes(error);if(state.attempted)return fail(error,state.cause.empty()?"Actor24 named route initialization was already attempted":state.cause);state.attempted=true;state.thread=GetCurrentThreadId();state.image=uintptr_t(GetModuleHandleW(nullptr));
     const uintptr_t entries[]={uintptr_t(&npc_update),uintptr_t(&npc_tick),uintptr_t(&boss_update),uintptr_t(&boss_tick),uintptr_t(&manager_update),uintptr_t(&on_spawn),uintptr_t(&clear_pointers),uintptr_t(&character_die)};
     const auto failed=[&](){state.cause=error;return false;};
-    std::vector<unsigned char> detach(160);if(!root_saved_building::bytes(reinterpret_cast<void*>(state.image+0xbfa730),0,detach.data(),detach.size(),error))return failed();
-    if(mt2mp::sha256(detach)!="f55694a3d019d6fec953667a2db29ef47d1c9413bbe721c879d3a4141ca6c684"){error="Actor24 original Boss proxy Detach complete body differs";return failed();}
+    std::vector<unsigned char> detach(160);if(!root_saved_building::bytes(reinterpret_cast<void*>(state.image+0xc06e40),0,detach.data(),detach.size(),error))return failed();
+    if(mt2mp::sha256(detach)!="6e9237cc2fb7abff474eff69a85df643b1ad179fd356da3964fc3addd44ba280"){error="Actor24 original Boss proxy Detach complete body differs";return failed();}
     for(size_t n=0;n<state.routes.size();++n){auto& route=state.routes[n];auto& owner=route.owner;owner.entry=state.image+route.rva;owner.detour=entries[n];owner.stolen=route.stolen;owner.pristine.resize(route.size);
         if(!root_saved_building::bytes(reinterpret_cast<void*>(owner.entry),0,owner.pristine.data(),owner.pristine.size(),error))return failed();
         if(mt2mp::sha256(owner.pristine)!=route.sha){error="Actor24 original complete named route body differs RVA="+std::to_string(route.rva);return failed();}
@@ -214,14 +214,14 @@ bool enable_npc_camera_gate(std::string& error){
     if(npc_gate.attempted)return fail(error,"NPC camera gate installation already attempted");
     npc_gate.attempted=true;
     if(!state.enabled||GetCurrentThreadId()!=state.thread||!routes(error))return fail(error,error.empty()?"NPC camera gate requires the current entry owner":error);
-    const auto target=state.image+0x3c8db7;
+    const auto target=state.image+0x3cd8c7;
     std::array<unsigned char,16> before{};
     if(!root_saved_building::bytes(reinterpret_cast<void*>(target),0,before.data(),before.size(),error))return false;
     std::copy_n(before.begin(),npc_gate.original.size(),npc_gate.original.begin());
     if(mt2mp::sha256(std::vector<unsigned char>(npc_gate.original.begin(),npc_gate.original.end()))!="9be443f68b129ad7fd04163b47b7251aec1fe8de1182aa9e153cd9e85b51818c")return fail(error,"NPC camera original branch differs");
     const auto prepared=MH_CreateHook(reinterpret_cast<void*>(target),reinterpret_cast<void*>(&mt2mp_npc_camera_gate),reinterpret_cast<void**>(&mt2mp_npc_gate_original));
     if(prepared!=MH_OK||!mt2mp_npc_gate_original)return fail(error,"NPC camera gate prepare failed status="+std::to_string(prepared));
-    mt2mp_npc_gate_full=state.image+0x3c8e78;
+    mt2mp_npc_gate_full=state.image+0x3cd988;
     if(!root_saved_building::bytes(reinterpret_cast<void*>(mt2mp_npc_gate_original),0,npc_gate.relocated.data(),npc_gate.relocated.size(),error))return false;
     if(!toon_time_fence::camera_gate::npc_relocation(npc_gate.relocated,state.image,uintptr_t(&mt2mp_npc_camera_gate)))return fail(error,"NPC camera relocated branches or relay differ");
     const auto enabled=MH_EnableHook(reinterpret_cast<void*>(target));
@@ -236,7 +236,7 @@ bool enable_npc_camera_gate(std::string& error){
 }
 bool normalize_npc_body(uintptr_t entry,std::vector<unsigned char>& bytes,std::string& error){
     if(!npc_gate.enabled)return true;
-    const auto& owner=state.routes[0].owner;constexpr size_t offset=0x3c8db7-0x3c8d50;
+    const auto& owner=state.routes[0].owner;constexpr size_t offset=0x3cd8c7-0x3cd860;
     if(entry!=owner.entry||bytes.size()!=801||offset+npc_gate.installed.size()>bytes.size())return fail(error,"NPC original-body normalization extent differs");
     if(!route_current(state.routes[0],error,true))return false;
     if(!std::equal(npc_gate.installed.begin(),npc_gate.installed.end(),bytes.begin()+offset))return fail(error,"NPC original-body observed gate differs");
@@ -304,7 +304,7 @@ bool apply(const a::Context& context,const a::Binding& binding,const live_host_s
         }
         const auto found=state.locals.find(event.target.key);if(found==state.locals.end()||found->second.target!=event.target){error="Actor24 Host lifecycle canonical current owner is absent";return failed();}
         Row actual;Local physical;if(!read_bound(found->second,actual,physical,error)||physical!=found->second)return failed();
-        if(event.source==life::Source::BossWait){std::vector<unsigned char> body(160);if(!root_saved_building::bytes(reinterpret_cast<void*>(state.image+0xbfa730),0,body.data(),body.size(),error))return failed();if(mt2mp::sha256(body)!="f55694a3d019d6fec953667a2db29ef47d1c9413bbe721c879d3a4141ca6c684"){error="Actor24 witnessed Boss proxy Detach original body changed before replay";return failed();}uintptr_t proxy=0;if(!at(physical.object,0x28,proxy,error))return failed();receipt.attempted=true;++receipt.attempted_stores;bool returned=false;const auto code=expire_general_proxy(state.image,physical.object,proxy,returned);if(code||!returned){error="Actor24 witnessed Boss wait original proxy expiry failed SEH="+std::to_string(code)+"; no replay";return failed();}++receipt.stores;}
+        if(event.source==life::Source::BossWait){std::vector<unsigned char> body(160);if(!root_saved_building::bytes(reinterpret_cast<void*>(state.image+0xc06e40),0,body.data(),body.size(),error))return failed();if(mt2mp::sha256(body)!="6e9237cc2fb7abff474eff69a85df643b1ad179fd356da3964fc3addd44ba280"){error="Actor24 witnessed Boss proxy Detach original body changed before replay";return failed();}uintptr_t proxy=0;if(!at(physical.object,0x28,proxy,error))return failed();receipt.attempted=true;++receipt.attempted_stores;bool returned=false;const auto code=expire_general_proxy(state.image,physical.object,proxy,returned);if(code||!returned){error="Actor24 witnessed Boss wait original proxy expiry failed SEH="+std::to_string(code)+"; no replay";return failed();}++receipt.stores;}
         const auto index=event.effect==life::Effect::OnSpawn?5:event.effect==life::Effect::ClearLivePointers?6:7;if(!route_current(state.routes[index],error,true))return failed();bool returned=false;receipt.attempted=true;++receipt.attempted_stores;state.replaying=true;const auto code=call_void(state.routes[index].original,physical.object,returned);state.replaying=false;
         if(code||!returned){error="Actor24 witnessed original lifecycle failed SEH="+std::to_string(code)+"; no replay";return failed();}++receipt.stores;
         if(!world(error)||!read_bound(found->second,actual,physical,error)||physical!=found->second)return failed();++state.replayed;

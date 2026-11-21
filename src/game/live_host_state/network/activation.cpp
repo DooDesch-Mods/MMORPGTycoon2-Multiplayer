@@ -17,12 +17,12 @@ bool owner(const Owner& o,bool activated,std::string& e){
     if(!o.image||!o.node||!o.region||!o.manager||!o.definition||!o.uid||!o.thread||GetCurrentThreadId()!=o.thread)
         return fail(e,"network activation owner/Mainthread absent or differs");
     uintptr_t ap=0,region=0,manager=0,definition=0;uint64_t uid=0;uint8_t flag=0;
-    if(!read(o.node,ap)||ap!=o.image+0x16fc700)return fail(e,"network activation Node AddressPoint differs");
+    if(!read(o.node,ap)||ap!=o.image+0x1702aa0)return fail(e,"network activation Node AddressPoint differs");
     if(!read(o.node+0x18,uid)||uid!=o.uid)return fail(e,"network activation Node UID differs");
     if(!read(o.node+0x178,region)||region!=o.region)return fail(e,"network activation Region differs");
-    if(!read(o.region+0x978,manager)||manager!=o.manager||!read(manager,ap)||ap!=o.image+0x17141e0)
+    if(!read(o.region+0x978,manager)||manager!=o.manager||!read(manager,ap)||ap!=o.image+0x171a580)
         return fail(e,"network activation Manager ownership differs");
-    if(!read(o.node+0x258,definition)||definition!=o.definition||!read(definition,ap)||ap!=o.image+0x1738010)
+    if(!read(o.node+0x258,definition)||definition!=o.definition||!read(definition,ap)||ap!=o.image+0x173e3b0)
         return fail(e,"network activation Definition ownership differs");
     if(!read(o.node+0x2ec,flag)||flag!=uint8_t(activated))return fail(e,"network activation expected Activated differs");
     return true;
@@ -41,18 +41,18 @@ DWORD mark_raw(const Owner* o)noexcept{
     }__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 DWORD construct_raw(uintptr_t image,void* event,uintptr_t node)noexcept{
-    __try{reinterpret_cast<void*(*)(void*,void*)>(image+0xd6390)(event,reinterpret_cast<void*>(node));return 0;}
+    __try{reinterpret_cast<void*(*)(void*,void*)>(image+0xd73c0)(event,reinterpret_cast<void*>(node));return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 DWORD send_raw(uintptr_t image,void* event)noexcept{
-    __try{reinterpret_cast<void(*)(const void*)>(image+0xd9200)(event);return 0;}
+    __try{reinterpret_cast<void(*)(const void*)>(image+0xda230)(event);return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 DWORD cleanup_raw(uintptr_t image,unsigned char* event)noexcept{
     __try{
-        *reinterpret_cast<uintptr_t*>(event+0xd0)=image+0x174cca0;
-        reinterpret_cast<void(*)(void*)>(image+0x89da30)(event+0xd0);
-        reinterpret_cast<void(*)(void*)>(image+0x11bd1e0)(event+8);return 0;
+        *reinterpret_cast<uintptr_t*>(event+0xd0)=image+0x1753040;
+        reinterpret_cast<void(*)(void*)>(image+0x8a6b50)(event+0xd0);
+        reinterpret_cast<void(*)(void*)>(image+0x11c8b80)(event+8);return 0;
     }__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 class Native final:public detail::Calls {
@@ -69,7 +69,7 @@ public:
         std::memcpy(&type,event_.bytes,4);std::memcpy(&region,event_.bytes+0x28,8);
         std::memcpy(&count,event_.bytes+0x30,4);std::memcpy(&node,event_.bytes+0x50,8);
         if(type!=7||count!=1||region!=owner_.region||node!=owner_.node)return fail(r.cause,"network original AddNodeEvent payload differs");
-        if(!read(owner_.image+0x13b9820,r.dispatch_enabled)||r.dispatch_enabled>1)return fail(r.cause,"network original EventManager enabled flag unreadable or invalid");
+        if(!read(owner_.image+0x13c5820,r.dispatch_enabled)||r.dispatch_enabled>1)return fail(r.cause,"network original EventManager enabled flag unreadable or invalid");
         return result(send_raw(owner_.image,event_.bytes),r,"SendEvent");
     }
     bool cleanup(Receipt& r)override{return result(cleanup_raw(owner_.image,event_.bytes),r,"event cleanup");}

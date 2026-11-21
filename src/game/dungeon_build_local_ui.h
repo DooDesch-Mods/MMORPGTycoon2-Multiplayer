@@ -11,16 +11,16 @@ bool complete(uintptr_t image,uintptr_t captured,uintptr_t building,Receipt& rec
               Read&& read,Call&& call,Selected&& selected,std::string& error){
     if(receipt.attempted){error="Dungeon Building local UI completion already attempted; no replay";return false;}
     uintptr_t cursor=0,ap=0,current=0,desired=0,selection=0;
-    if(!image||!captured||!building||!read(image,0x13df9d0,cursor,error)||!cursor||
-       !read(cursor,0,ap,error)||ap!=image+0x1786dd0||
+    if(!image||!captured||!building||!read(image,0x13eb9d0,cursor,error)||!cursor||
+       !read(cursor,0,ap,error)||ap!=image+0x178d170||
        !read(cursor,0x190,current,error)){
         if(error.empty())error="Dungeon Building local UI current Cursor owner differs";
         return false;
     }
     if(current!=captured){receipt.attempted=true;receipt.superseded=true;return true;}
-    if(!read(current,0,ap,error)||ap!=image+0x17327d0||
+    if(!read(current,0,ap,error)||ap!=image+0x1738b70||
        !read(cursor,0x198,desired,error)||!desired||
-       !read(desired,0,ap,error)||ap!=image+0x17391a0||
+       !read(desired,0,ap,error)||ap!=image+0x173f540||
        !read(cursor,0x148,selection,error)||!selection){
         if(error.empty())error="Dungeon Building local UI original Build/Default owner differs";
         return false;

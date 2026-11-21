@@ -10,7 +10,7 @@ struct Operation {a::Binding binding;a::Request request;Sample before,after;a::E
 std::optional<Pending> pending;std::map<std::string,Operation> operations;
 bool entry(void*,int32_t);
 bool reject(const std::string& error){++rejected;if(cause!=error){cause=error;LOG_ERROR("[BuildingStatus] {}",error);}return false;}
-bool normal_caller(uintptr_t caller){return caller==0x6d5b62||caller==0x6d5baa||caller==0x6d5bba||caller==0x66e41e||caller==0x66e435||caller==0x66e46b;}
+bool normal_caller(uintptr_t caller){return caller==0x6dcf82||caller==0x6dcfca||caller==0x6dcfda||caller==0x6755ee||caller==0x675605||caller==0x67563b;}
 bool code(Memory& memory,std::string& error){
     const auto& pin=building_status_codes::entry;std::string bytes(pin.bytes,'\0'),hash;if(!memory.copy(state.image+pin.rva,bytes.data(),bytes.size(),error))return false;
     if(original){MT2FW_MT2_RouteReceipt receipt{sizeof receipt};const npc_quest_list_ui_codes::Owned owner{uintptr_t(&entry),uintptr_t(original),generation};
@@ -22,22 +22,22 @@ bool code(Memory& memory,std::string& error){
     if(!quest_bridge::sha256(bytes,hash,error)||hash!=pin.sha)return fail(error,error.empty()?"Building status original complete transaction body differs":error);
     for(const auto& helper:building_status_codes::helpers){bytes.assign(helper.size,'\0');if(!memory.copy(state.image+helper.rva,bytes.data(),bytes.size(),error)||!quest_bridge::sha256(bytes,hash,error))return false;
         if(hash!=helper.sha)return fail(error,"Building status normal UI/native dependency body differs RVA="+std::to_string(helper.rva));}
-    float bandwidth=0;if(!field(memory,state.image,0x149d1d0,bandwidth,error)||bandwidth!=.5f)return fail(error,error.empty()?"Building original online bandwidth constant differs":error);return true;
+    float bandwidth=0;if(!field(memory,state.image,0x14a6430,bandwidth,error)||bandwidth!=.5f)return fail(error,error.empty()?"Building original online bandwidth constant differs":error);return true;
 }
 bool sample(Memory& memory,const a::Binding& binding,const std::string& snapshot,const a::BuildingStatusIntent& intent,Sample& out,std::string& error){
     out={};host::LookupApi api;host::NativeOrigin origin;if(!host::resolve_lookup(memory.process,state.image,exe_sha,api,error))return false;host::Reader reader(memory.process,origin,state.image,state.thread,api);
     if(!reader.current(out.world,true,error)||!action_runtime::bound(out.world,binding,snapshot,error)||!remove_diagnostics::resolve_current_building_identity(snapshot,intent.key,out.building,out.uid,error))return false;
     uintptr_t ap=0,shard=0;uint8_t flag=2;
-    if(!field(memory,out.building,0,ap,error)||ap!=state.image+0x16d93c0||!field(memory,out.building,0x170,shard,error)||shard!=out.world.root||!field(memory,out.building,0x7a8,out.value.state,error)||out.value.state<0||out.value.state>2||
+    if(!field(memory,out.building,0,ap,error)||ap!=state.image+0x16df760||!field(memory,out.building,0x170,shard,error)||shard!=out.world.root||!field(memory,out.building,0x7a8,out.value.state,error)||out.value.state<0||out.value.state>2||
        !field(memory,out.building,0x388,flag,error)||flag>1)return fail(error,error.empty()?"Building status root/full identity/state/construction differs":error);out.value.construction=flag;
     if(!field(memory,out.building,0xbd0,flag,error)||flag>1||!field(memory,out.building,0x988,out.value.bandwidth,error)||!std::isfinite(out.value.bandwidth)||out.value.bandwidth<0)return fail(error,error.empty()?"Building status original user flag/bandwidth differs":error);out.value.user_set=flag!=0;
     if(!field(memory,out.building,0xa38,out.dungeon,error)||!field(memory,out.building,0xbd8,out.collection,error))return false;out.value.dungeon=out.dungeon!=0;
-    if(out.dungeon){uintptr_t exterior=0;if(!field(memory,out.dungeon,0,ap,error)||ap!=state.image+0x16c0560||!field(memory,out.dungeon,0x6f8,exterior,error)||exterior!=out.building||!field(memory,out.dungeon,0x408,flag,error)||flag>1)return fail(error,error.empty()?"Building status Dungeon reciprocal exterior/readiness differs":error);out.value.dungeon_ready=flag!=0;}
+    if(out.dungeon){uintptr_t exterior=0;if(!field(memory,out.dungeon,0,ap,error)||ap!=state.image+0x16c6900||!field(memory,out.dungeon,0x6f8,exterior,error)||exterior!=out.building||!field(memory,out.dungeon,0x408,flag,error)||flag>1)return fail(error,error.empty()?"Building status Dungeon reciprocal exterior/readiness differs":error);out.value.dungeon_ready=flag!=0;}
     a::Context context;if(!a::selected_session().current(context,error)||context.snapshot_uuid!=snapshot||
        !building_status_work::read(context,binding,state.image,state.thread,uintptr_t(out.world.origin.world),uintptr_t(out.world.origin.map),out.building,out.collection,intent.key,intent.state,out.work,error))return false;
     out.value.bugs=out.work.bugs;out.value.jobs=out.work.jobs;out.value.linked=out.work.linked;out.value.developers=out.work.developers;
     out.value.bugs_sha256=out.work.bugs_sha256;out.value.expected_bugs_sha256=out.work.expected_bugs_sha256;out.value.pool_sha256=out.work.pool_sha256;
-    native::SimulationState money;uintptr_t random=0;if(!native::read_simulation_state(money,error)||!undo_probe::read_undo(memory.process,state.image,out.undo,error)||out.undo.active_graph||!field(memory,state.image,0x164b250,random,error)||!field(memory,random,0,out.value.global_random,error))return fail(error,error.empty()?"Building status ledger/Undo/global RNG binding differs":error);
+    native::SimulationState money;uintptr_t random=0;if(!native::read_simulation_state(money,error)||!undo_probe::read_undo(memory.process,state.image,out.undo,error)||out.undo.active_graph||!field(memory,state.image,0x1650830,random,error)||!field(memory,random,0,out.value.global_random,error))return fail(error,error.empty()?"Building status ledger/Undo/global RNG binding differs":error);
     out.money=ledger(money);out.value.undo_count=out.undo.undo.size();
     return true;
 }
@@ -53,7 +53,7 @@ bool entry(void* receiver,int32_t value)try{
     const auto caller=uintptr_t(_ReturnAddress())-state.image;if(!normal_caller(caller))return original(receiver,value);
     Memory memory;std::string error;const auto controller=typed_action_runtime::controller_status();a::Binding binding;const auto snapshot=net::current_snapshot_id();
     if(!ready||fault||pending||costume_edit::pending_ui()||dungeon_config::pending_ui()||dungeon_sound::pending_ui()||dungeon_gizmo::pending_ui()||dungeon_palette::pending_ui()||dungeon_light::pending_ui()||quest_list::pending_ui()||character_rename::pending_ui()||ability_edit::pending_ui()||GetCurrentThreadId()!=state.thread||!controller.value("started",false)||controller.value("locked",true)||controller.value("pending",true)||value<0||value>2||!code(memory,error)||!typed_action_runtime::network_binding(snapshot,binding,error))return reject(error.empty()?"Building status capture requires idle bound Mainthread Controller":error);
-    uint64_t uid=0;a::BuildingStatusIntent intent;intent.state=value;intent.dungeon_ui=caller==0x6d5b62||caller==0x6d5baa||caller==0x6d5bba;
+    uint64_t uid=0;a::BuildingStatusIntent intent;intent.state=value;intent.dungeon_ui=caller==0x6dcf82||caller==0x6dcfca||caller==0x6dcfda;
     if(!field(memory,uintptr_t(receiver),0x18,uid,error)||!remove_diagnostics::resolve_current_building_key(snapshot,uintptr_t(receiver),uid,intent.key,error)||!field(memory,uintptr_t(receiver),0x7a8,intent.before,error))return reject(error);
     Sample before;if(!sample(memory,binding,snapshot,intent,before,error)||before.building!=uintptr_t(receiver)||!eligible(intent,before.value,error))return reject(error.empty()?"Building status current captured receiver differs":error);
     pending=Pending{binding,snapshot,intent};++captures;return true;

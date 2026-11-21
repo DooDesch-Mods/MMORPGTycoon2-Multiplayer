@@ -66,9 +66,9 @@ bool run_stroke(Runtime& runtime,Operation& value,std::string& error){
     if(!prepare_shapes(runtime,value,error))return false;
     value.cursor.image=runtime.image;
     if(!fault(calls::construct(value.cursor,intent,owner,selected,&value.shapes.front()->value),"cursor construction",error)||!value.cursor.constructed)return false;
-    if(!q::at(runtime.memory,runtime.image,0x13df440,value.context.manager,error)||!value.context.manager||
-       !q::at(runtime.memory,runtime.image,0x13df9d0,value.context.cursor,error)||
-       !q::typed(runtime.memory,runtime.image,value.context.cursor,0x1786dd0,error))return false;
+    if(!q::at(runtime.memory,runtime.image,0x13eb440,value.context.manager,error)||!value.context.manager||
+       !q::at(runtime.memory,runtime.image,0x13eb9d0,value.context.cursor,error)||
+       !q::typed(runtime.memory,runtime.image,value.context.cursor,0x178d170,error))return false;
     if(!fault(scenery_stroke_calls::enter(value.context,value.before.world.root,intent.finish),"original Shard/Cursor context",error)||
        !fault(calls::begin_edit(value.cursor,value.edit_open),"BeginEdit",error)||
        !fault(calls::press(value.cursor,value.context.cursor,intent.press),"HandlePress",error)||!value.cursor.press_returned)return false;
@@ -78,7 +78,7 @@ bool run_stroke(Runtime& runtime,Operation& value,std::string& error){
     value.attempted=true;
     for(size_t index=0;index<intent.stamps.size();++index){
         uintptr_t active=0,current=0,root=0;
-        if(!q::at(runtime.memory,runtime.image,0x1a3aa80,active,error)||active||
+        if(!q::at(runtime.memory,runtime.image,0x1a41a80,active,error)||active||
            !q::at(runtime.memory,value.context.manager,0x60,root,error)||root!=value.before.world.root||
            !q::at(runtime.memory,value.cursor.object,0x790,current,error)||current!=graph)
             return q::fail(error,error.empty()?"District original stroke root/graph changed between stamps":error);

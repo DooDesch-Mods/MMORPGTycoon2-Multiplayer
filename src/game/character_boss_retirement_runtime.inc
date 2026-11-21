@@ -66,7 +66,7 @@ bool prepare_character_boss_retirement(const action_session::Binding& binding,co
             error="Character Boss retirement selected identity is absent or duplicated";return false;}
         if(!read(object,0,ap,error)||!read(object,0x18,actual_uid,error)||!read(object,0x170,shard,error)||
            !read(object,0x178,region,error)||!read(ap,0x438,notify,error)||!find(uid,found,error))return false;
-        if(ap!=heap.image+0x1743040||notify!=heap.image+0x3976f0||actual_uid!=uid||found!=object){
+        if(ap!=heap.image+0x17493e0||notify!=heap.image+0x39c1f0||actual_uid!=uid||found!=object){
             error="Character Boss retirement selected native class/UID/Notify differs";return false;}
         if(!prepared.pools.contains(region)){
             if(shard==root){int32_t saved=-1;uintptr_t selected=0;

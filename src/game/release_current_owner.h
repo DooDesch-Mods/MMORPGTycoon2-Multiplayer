@@ -2,7 +2,7 @@
 #include <cstdint>
 #include <string>
 namespace mt2mp::game::release_current_owner {
-constexpr uintptr_t got_rva=0x164b030,current_rva=0x1a38700,manager_ap=0x1714ed0,release_ap=0x16c12b0;
+constexpr uintptr_t got_rva=0x1650610,current_rva=0x1a3f700,manager_ap=0x171b270,release_ap=0x16c7650;
 struct Receipt {bool attempted=false,stored=false,confirmed=false;};
 template<class Read>bool read(Read& memory,uintptr_t image,uintptr_t manager,uintptr_t required,std::string& e){
     e.clear();

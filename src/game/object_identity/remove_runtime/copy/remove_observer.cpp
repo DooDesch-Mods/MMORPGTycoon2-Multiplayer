@@ -26,13 +26,13 @@ bool RemoveObserver::begin(const RemoveContext& c,const std::vector<uintptr_t>& 
 }
 void RemoveObserver::undo_open_returned(const RemoveContext& c,uintptr_t caller,uintptr_t graph){
     if(!scope(c))return;
-    if(caller!=0x2d444d){++state_.foreign;return;}
+    if(caller!=0x2d7c85){++state_.foreign;return;}
     if(state_.open_returned||!graph){fail("remove_observer_open_duplicate_or_null");return;}
     state_.graph=graph;state_.open_returned=true;
 }
 void RemoveObserver::graph_lock_enter(const RemoveContext& c,uintptr_t caller,uintptr_t graph,Memory& m,uintptr_t image){
     if(!scope(c))return;
-    if(caller!=0x53b2c4||graph!=state_.graph){++state_.foreign;return;}
+    if(caller!=0x5417f4||graph!=state_.graph){++state_.foreign;return;}
     if(!state_.open_returned||state_.in_lock||state_.lock_returned){fail("remove_observer_lock_order");return;}
     Busy busy(busy_);GraphWitness witness;std::string e;
     if(!read_graph(m,image,graph,witness,e)){fail(e);return;}
@@ -47,9 +47,9 @@ void RemoveObserver::prop_destructor_enter(const RemoveContext& c,uintptr_t prop
     if(it==members_.end()){++state_.foreign;return;}
     if(!state_.in_lock){
         Busy busy(busy_);uintptr_t active=0;std::string error;
-        if(!image||image>UINTPTR_MAX-0x1a3aa80){fail("remove_observer_image_range");return;}
+        if(!image||image>UINTPTR_MAX-0x1a41a80){fail("remove_observer_image_range");return;}
         try {
-            if(!memory.copy(image+0x1a3aa80,&active,sizeof(active),error)){fail(error.empty()?"remove_observer_active_graph_unreadable":error);return;}
+            if(!memory.copy(image+0x1a41a80,&active,sizeof(active),error)){fail(error.empty()?"remove_observer_active_graph_unreadable":error);return;}
         }catch(const std::exception& x){fail(std::string("remove_observer_active_graph_exception: ")+x.what());return;}
         catch(...){fail("remove_observer_active_graph_unknown_exception");return;}
         if(active!=state_.graph){fail("remove_observer_destruction_wrong_graph");return;}

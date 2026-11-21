@@ -18,7 +18,7 @@ bool read_window(Copy&& copy,const Capture& c,uintptr_t& out,std::string& e){
         if(!at(data,size_t(i)*8,window))return false;
         if(!window||!seen.insert(window).second)return fail("Developer fixture Mode windows null/duplicate");
         if(!at(window,0,ap))return false;
-        if(ap!=c.image+0x1722e60)continue;
+        if(ap!=c.image+0x1729200)continue;
         uintptr_t text=0,logic=0;uint64_t length=0;std::array<char,12> id{};
         if(!at(window,0x1b0,text)||!at(window,0x1b8,length)||!at(window,0x318,logic))return false;
         if(out||logic||length!=11||!text)return fail("Developer fixture DevelopmentWindow identity/logic differs");

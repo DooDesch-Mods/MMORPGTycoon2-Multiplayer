@@ -5,7 +5,7 @@ bool dungeon_building_target(host::ProcessMemory& memory,uintptr_t image,uintptr
     }
     uintptr_t definition=0,ap=0,data=0,shard=0,region=0;uint64_t length=0;uint32_t flags=0;
     if(!memory.copy(object+0x390,&definition,8,error)||!definition||definition>UINTPTR_MAX-0x170||
-       !memory.copy(definition,&ap,8,error)||ap!=image+0x172ae50||
+       !memory.copy(definition,&ap,8,error)||ap!=image+0x17311f0||
        !memory.copy(definition+0x18,&data,8,error)||!data||
        !memory.copy(definition+0x20,&length,8,error)||!length||length>256||
        !memory.copy(definition+0x16c,&flags,4,error)||

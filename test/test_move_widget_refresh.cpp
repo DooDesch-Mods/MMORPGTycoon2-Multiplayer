@@ -34,7 +34,7 @@ struct Fixture {
         put(target+0x128,uint8_t(1));put(target+0x12c,matrix(3820));
         for(size_t i=0;i<3;++i){
             const uintptr_t widget=0x30000+i*0x1000,model=0x50000+i*0x1000;
-            put(data+i*8,widget);put(widget,image+0x1712b20);put(widget+8,model);
+            put(data+i*8,widget);put(widget,image+0x1718ec0);put(widget+8,model);
             put(widget+0x10,matrix(3820));
             put(widget+0x50,std::array<float,3>{0,float(i),-2});
             put(widget+0x5c,std::array<float,4>{0,0,0,1});
@@ -88,7 +88,7 @@ int main()try{
     require(!good.run()&&good.calls==1,"native effect cannot replay");
     Fixture empty;empty.put(Fixture::target+0x378,int32_t(0));
     require(empty.run()&&!empty.receipt.required&&!empty.receipt.attempted&&empty.calls==0,"no existing widgets creates none");
-    Fixture invalid;invalid.put(0x30000,Fixture::image+0x1712b28);
+    Fixture invalid;invalid.put(0x30000,Fixture::image+0x1718ec8);
     require(!invalid.run()&&invalid.calls==0,"foreign widget class blocks native call");
     Fixture duplicate;duplicate.put(Fixture::data+8,uintptr_t(0x30000));
     require(!duplicate.run()&&duplicate.calls==0,"duplicate widget owner blocks native call");

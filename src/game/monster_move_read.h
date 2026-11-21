@@ -13,9 +13,9 @@ template<class Read>
 bool actor(uintptr_t image,uintptr_t object,Read&& field,Actor& out,std::string& error){
     out={};uintptr_t ap=0,set=0,notify=0;uint8_t on=2,visible=2,in_view=2,distance_visible=2;
     if(!field(object,0,ap,error))return false;
-    if(ap!=image+0x16c0770){error="Monster Move class differs";return false;}
+    if(ap!=image+0x16c6b10){error="Monster Move class differs";return false;}
     if(!field(ap,0x290,set,error)||!field(ap,0x2a0,notify,error))return false;
-    if(set!=image+0x39a920||notify!=image+0x3b9eb0){error="Monster Move native virtual methods differ";return false;}
+    if(set!=image+0x39f420||notify!=image+0x3be9c0){error="Monster Move native virtual methods differ";return false;}
     if(!field(object,0x368,on,error)||!field(object,0x6f0,out.character,error)||!field(object,0x82c,out.spawn,error))return false;
     if(!out.character||!field(out.character,0,out.actor,error)||!out.actor||
        !field(out.actor,0x40,out.skeleton,error)||!out.skeleton){if(error.empty())error="Monster Move actor binding absent";return false;}

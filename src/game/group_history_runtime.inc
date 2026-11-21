@@ -78,7 +78,7 @@ bool history_identity(Runtime& r,const Sample& before,const Sample& after,const 
 bool history_ready(Port& port,const Sample& before,std::string& e){
     uintptr_t shards=0;
     if(!q::at(port.r.memory,before.world.selection,0xc8,port.old_filter,e)||
-       !q::at(port.r.memory,port.r.image,0x13df440,shards,e)||!q::at(port.r.memory,shards,0x60,port.camera_shard,e))return false;
+       !q::at(port.r.memory,port.r.image,0x13eb440,shards,e)||!q::at(port.r.memory,shards,0x60,port.camera_shard,e))return false;
     if(std::any_of(port.old_filter.begin(),port.old_filter.end(),[](auto value){return value>1;}))return q::fail(e,"Group history local Selection filter invalid");
     for(auto object:before.local.raw){group_reader::Handle handle{object};uintptr_t actual=0;
         if(!q::at(port.r.memory,object,0x18,handle.uid,e)||!handle.uid||!find(port.r,handle.uid,actual,e)||actual!=object)
@@ -110,7 +110,7 @@ bool history_restore(Port& port,const Sample& before,const Sample& after,std::st
     if(!selected){e=selection_cause;return false;}
     std::vector<uintptr_t> raw,filtered;std::array<uint8_t,9> actual_filter{};uintptr_t shards=0,camera=0;
     if(!group_reader::selection(port.r.memory,port.r.image,before.world.selection,raw,filtered,e)||
-       !q::at(port.r.memory,before.world.selection,0xc8,actual_filter,e)||!q::at(port.r.memory,port.r.image,0x13df440,shards,e)||
+       !q::at(port.r.memory,before.world.selection,0xc8,actual_filter,e)||!q::at(port.r.memory,port.r.image,0x13eb440,shards,e)||
        !q::at(port.r.memory,shards,0x60,camera,e))return false;
     return (raw==desired&&actual_filter==port.old_filter&&camera==port.camera_shard)||q::fail(e,"Group history restored Selection/filter/camera differs");
 }

@@ -7,7 +7,7 @@ template<class Memory>bool read(Memory& memory,uintptr_t image,uintptr_t quest,V
     out={};uintptr_t ap=0;
     if(!quest||quest>UINTPTR_MAX-0x220){error="Quest runtime address null or overflows";return false;}
     if(!memory.copy(quest,&ap,sizeof ap,error))return false;
-    if(ap!=image+0x174ac10){error="Quest runtime class addresspoint differs";return false;}
+    if(ap!=image+0x1750fb0){error="Quest runtime class addresspoint differs";return false;}
     npc_quest_records::Rating rating;
     if(!npc_quest_records::read_rating(memory,image,quest,rating,error)||
        !npc_quest_records::get(memory,quest,0x88,out.xp_reward,"runtime XP reward",error)||
@@ -66,7 +66,7 @@ template<class Calls>CompletionReceipt complete(Calls& calls,uintptr_t quest,uin
     }
     if(!calls.owner(quest,r.owned,r.cause))return r;
     if(!r.owned){r.attempted=true;r.returned=calls.original(quest,path,r.cause);r.confirmed=r.returned;return r;}
-    if(caller!=image+0x4d8f13&&caller!=image+0x4d92a4){r.cause="Quest rating owned physical Tick caller differs";return r;}
+    if(caller!=image+0x4dedd3&&caller!=image+0x4df164){r.cause="Quest rating owned physical Tick caller differs";return r;}
     if(!calls.read(quest,r.before,r.cause))return r;
     r.attempted=true;
     if(r.client){r.suppressed=true;r.returned=calls.advertise(quest,r.cause);}

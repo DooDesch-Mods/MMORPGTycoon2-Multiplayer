@@ -26,7 +26,7 @@ struct ActivationStatus {
 };
 class Activation {
 public:
-    static constexpr uintptr_t mouse_caller_rva=0x58095c;
+    static constexpr uintptr_t mouse_caller_rva=0x58711c;
     bool initialize(uint32_t game_thread,Reader&,ActivationServices,std::string&);
     shared_time::HookResult on_activate(uintptr_t type,uintptr_t item,uintptr_t caller_rva);
     const ActivationStatus& status() const {return state_;}

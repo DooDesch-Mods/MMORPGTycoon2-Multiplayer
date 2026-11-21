@@ -55,7 +55,7 @@ bool read(Memory& m,uintptr_t image,uintptr_t object,const std::string& target,
     for(int32_t i=0;i<manager.manager_count;++i){
         uintptr_t quest=0,ap=0,destination=0,proxy=0,weak=0,owner=0,owner_proxy=0,owner_weak=0;
         if(!q::get(m,data,size_t(i)*8,quest,"Monster Quest global member",e)||!quest||!unique.insert(quest).second||
-           !q::get(m,quest,0,ap,"Monster Quest class",e)||ap!=image+0x174ac10||
+           !q::get(m,quest,0,ap,"Monster Quest class",e)||ap!=image+0x1750fb0||
            !q::manager_member(m,image,out.manager,quest,e)||
            !q::get(m,quest,0xf0,destination,"Monster Quest destination",e)||
            !q::get(m,quest,0xf8,proxy,"Monster Quest destination proxy",e)||
@@ -145,7 +145,7 @@ bool absent(Memory& m,uintptr_t image,const Witness& before,std::string& e){
 template<class Memory>
 bool inverse(Memory& m,uintptr_t image,uintptr_t pointer,const Owner& owner,std::string& e){
     uintptr_t ap=0,data=0;uint64_t uid=0;uint8_t random=1;int32_t count=0,capacity=0;
-    if(!q::get(m,pointer,0,ap,"Monster Quest inverse class",e)||ap!=image+0x1713330||
+    if(!q::get(m,pointer,0,ap,"Monster Quest inverse class",e)||ap!=image+0x17196d0||
        !q::get(m,pointer,0xb8,uid,"Monster Quest inverse owner UID",e)||uid!=owner.uid||
        !q::get(m,pointer,0xc0,random,"Monster Quest inverse generation flag",e)||random||
        !q::get(m,pointer,0xd0,data,"Monster Quest inverse records",e)||

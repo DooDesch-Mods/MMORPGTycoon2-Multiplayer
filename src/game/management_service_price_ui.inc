@@ -1,22 +1,22 @@
 namespace {
 void price_ui_call(uintptr_t image,uintptr_t target,const char* label,GmFixtureCall& out)noexcept{
-    initial_release::Record record{};__try{reinterpret_cast<initial_release::RecordCtor>(image+0x967370)(&record,label);out.constructed=true;
-        out.label=reinterpret_cast<initial_release::RecordEquals>(image+0x1113d80)(&record,label);if(out.label){out.attempted=true;out.accepted=reinterpret_cast<Ui>(image+0x7ce7d0)(reinterpret_cast<void*>(target),&record);out.returned=true;}}
+    initial_release::Record record{};__try{reinterpret_cast<initial_release::RecordCtor>(image+0x970590)(&record,label);out.constructed=true;
+        out.label=reinterpret_cast<initial_release::RecordEquals>(image+0x111f720)(&record,label);if(out.label){out.attempted=true;out.accepted=reinterpret_cast<Ui>(image+0x7d6af0)(reinterpret_cast<void*>(target),&record);out.returned=true;}}
     __except(EXCEPTION_EXECUTE_HANDLER){out.exception=GetExceptionCode();}
-    if(out.constructed){__try{reinterpret_cast<initial_release::RecordDtor>(image+0x9676a0)(&record);out.cleaned=true;}__except(EXCEPTION_EXECUTE_HANDLER){out.cleanup_exception=GetExceptionCode();}}
+    if(out.constructed){__try{reinterpret_cast<initial_release::RecordDtor>(image+0x9708c0)(&record);out.cleaned=true;}__except(EXCEPTION_EXECUTE_HANDLER){out.cleanup_exception=GetExceptionCode();}}
 }
 bool price_ui_target(Runtime& r,const ServiceUi& ui,const a::ManagementServices& services,int32_t ordinal,int direction,int32_t& currency,int32_t& next,std::string& e){
     if(!ui.window||!ui.spinner||ordinal<0||size_t(ordinal)>=services.rows.size())return fail(e,"Service price visible selected spinner absent");
     const auto spinner=ui.spinner;std::string live,final,sync;uintptr_t klass=0,button=0,button_interface=0,text_child=0,click=0,finalize=0;
     uint8_t enabled=0,editing=1,text_editing=1,shown=0,disabled=1,clickable=0,synced=2;int32_t min=0,max=0,step=0,current=0,scale=0;
-    if(!at(r,spinner,0,klass,e)||klass!=r.image+0x17019c0||!at(r,klass,0x1b8,click,e)||click!=r.image+0x7cede0||!at(r,klass,0x1d8,finalize,e)||finalize!=r.image+0x7cc520||
+    if(!at(r,spinner,0,klass,e)||klass!=r.image+0x1707d60||!at(r,klass,0x1b8,click,e)||click!=r.image+0x7d7100||!at(r,klass,0x1d8,finalize,e)||finalize!=r.image+0x7d4840||
        !text(r,spinner+0x368,live,256,e)||!text(r,spinner+0x388,final,256,e)||!text(r,spinner+0x3a8,sync,256,e)||
        !at(r,spinner,0x409,enabled,e)||!at(r,spinner,0x418,text_child,e)||!text_child||!at(r,text_child,0x584,text_editing,e)||!at(r,spinner,0x475,editing,e)||
-       !at(r,spinner,0x320,min,e)||!at(r,spinner,0x324,max,e)||!at(r,spinner,0x328,step,e)||!ap(r,spinner+0x450,0x174ab50,e)||!at(r,spinner,0x468,currency,e)||!at(r,spinner,0x46c,current,e)||!at(r,spinner,0x474,synced,e))return fail(e,e.empty()?"Service price spinner fields or callback differ":e);
+       !at(r,spinner,0x320,min,e)||!at(r,spinner,0x324,max,e)||!at(r,spinner,0x328,step,e)||!ap(r,spinner+0x450,0x1750ef0,e)||!at(r,spinner,0x468,currency,e)||!at(r,spinner,0x46c,current,e)||!at(r,spinner,0x474,synced,e))return fail(e,e.empty()?"Service price spinner fields or callback differ":e);
     if(live!=""||final!="MessageTo Parent SetPrice "+std::to_string(ordinal)||sync!="MessageTo Parent SetSync "+std::to_string(ordinal)||enabled!=1||editing||text_editing||synced>1||step<=0||min>max||current<min||current>max)return fail(e,"Service price actual spinner command, enabled/edit state or bounds differ");
     const auto& row=services.rows[size_t(ordinal)];auto actual=row.price;if(row.synced&&services.config_present){const auto found=std::find_if(services.configs.begin(),services.configs.end(),[&](const auto& config){return config.key==row.config_key;});if(found!=services.configs.end())actual=found->price;}
     if(synced!=uint8_t(row.synced)||currency!=actual[0]||current!=actual[1])return fail(e,"Service price visible value or sync differs from actual Service");
-    if(!at(r,spinner,direction>0?0x430:0x438,button,e)||!button||!ap(r,button,0x1708f10,e)||!at(r,button,0x598,button_interface,e)||button_interface!=spinner+0x318||!at(r,button,0x588,scale,e)||scale!=direction||
+    if(!at(r,spinner,direction>0?0x430:0x438,button,e)||!button||!ap(r,button,0x170f2b0,e)||!at(r,button,0x598,button_interface,e)||button_interface!=spinner+0x318||!at(r,button,0x588,scale,e)||scale!=direction||
        !at(r,button,0x69,shown,e)||!at(r,button,0x46d,disabled,e)||!at(r,button,0x174,clickable,e))return fail(e,e.empty()?"Service price arrow actual owner or flags differ":e);
     std::string name;if(!text(r,button+0x1b0,name,256,e))return false;if(name!=(direction>0?"buttonUp":"buttonDown")||shown!=1||disabled||clickable!=1)return fail(e,"Service price actual arrow is not visible and enabled");
     uintptr_t pane=button;std::set<uintptr_t> parents;bool contains_spinner=false;
@@ -44,8 +44,8 @@ bool service_price_ui_fixture(const nlohmann::json& args,nlohmann::json& out,std
         a::ManagementIntent intent;intent.op=a::ManagementOp::SetServicePrice;intent.key=args.at("key").get<std::string>();intent.service_ordinal=args.at("ordinal").get<int32_t>();intent.currency=0;intent.value=0;if(!a::management_valid(intent))return fail(e,"Service price UI Building key/ordinal invalid");
         Local local,after_local;a::ManagementState before,after;a::Ledger money,after_money;if(!read(*r,c,b,local,before,money,e,&intent)||!before.services||!before.services->price)return false;
         const bool synced=before.services->rows[size_t(intent.service_ordinal)].synced;ServiceUi ui;if(!service_ui_find(*r,local,intent.service_ordinal,synced,ui,e)||!price_ui_target(*r,ui,*before.services,intent.service_ordinal,direction,intent.currency,intent.value,e))return false;
-        if(!loan_ui_body(*r,0x7ce7d0,832,"8c0eae47eb7fb09979214b10c47193e6ccd4040ff5763ab6d6924e84ba0bf872",e)||!loan_ui_body(*r,0x7cede0,272,"bfa108dff5af0223e22205127c9b696ead62194c6460258b199053638217e1db",e)||!loan_ui_body(*r,0x7cc520,1552,"17878ce2afc44c0047071ebb4b2b5176dc9fc3dd98d5c51a98b39046c7fd87d6",e))return false;
-        for(const auto& guard:initial_release::bytes::guards)if(guard.rva==0x967370||guard.rva==0x9676a0||guard.rva==0x1113d80){std::vector<unsigned char> bytes(guard.size);if(!r->memory.copy(r->image+guard.rva,bytes.data(),bytes.size(),e)||std::memcmp(bytes.data(),guard.data,guard.size))return fail(e,e.empty()?"Service price UI record body differs":e);}
+        if(!loan_ui_body(*r,0x7d6af0,832,"92864b8d628738e7f1ce18dc0c220c4a38ac027f25acc98093f37a043d163d01",e)||!loan_ui_body(*r,0x7d7100,272,"5998392f72d44137ea7dc1295692286cfe7b1bb22d27e9167dbc5d5b4d3b69e4",e)||!loan_ui_body(*r,0x7d4840,1552,"0f8e02af8af90cde6e075e55716dc667ef93c3f024c74dfb84c6dd958b175b22",e))return false;
+        for(const auto& guard:initial_release::bytes::guards)if(guard.rva==0x970590||guard.rva==0x9708c0||guard.rva==0x111f720){std::vector<unsigned char> bytes(guard.size);if(!r->memory.copy(r->image+guard.rva,bytes.data(),bytes.size(),e)||std::memcmp(bytes.data(),guard.data,guard.size))return fail(e,e.empty()?"Service price UI record body differs":e);}
         const auto captures=r->captures,rejected=r->rejected;out["token"]=token;out["unknown"]=true;r->service_ui_proofs.emplace(token,out);r->service_ui_locked=true;r->service_ui_cause="Service price original callback unconfirmed; no replay";out["ui_attempted"]=true;r->service_ui_proofs[token]=out;attempted=true;
         GmFixtureCall call;price_ui_call(r->image,ui.spinner,direction>0?"SpinnerIncrement":"SpinnerDecrement",call);
         out["record_constructed"]=call.constructed;out["record_confirmed"]=call.label;out["callback_attempted"]=call.attempted;out["ui_returned"]=call.returned;out["ui_accepted"]=call.accepted;out["record_cleanup_confirmed"]=call.cleaned;out["exception"]=call.exception;out["cleanup_exception"]=call.cleanup_exception;

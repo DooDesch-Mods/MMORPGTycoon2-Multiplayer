@@ -3,8 +3,8 @@ void uptime_cases(){
     Memory fixture_memory;std::string fixture_error;up::Receipt fixture_receipt;up::Native fixture_read;
     unsigned fixture_stores=0,fixture_reserves=0;bool fixture_guard_ok=true,fixture_store_ok=true,fixture_reserve_ok=true;
     auto fixture_reset=[&](const up::Values& values,int32_t capacity=10){
-        fixture_memory.bytes.fill(0);fixture_memory.put(Memory::object+0xc60,Memory::image+0x17138d0);
-        fixture_memory.put(Memory::object+0xc78,Memory::image+0x1749370);fixture_memory.put(Memory::object+0xc80,Memory::history);
+        fixture_memory.bytes.fill(0);fixture_memory.put(Memory::object+0xc60,Memory::image+0x1719c70);
+        fixture_memory.put(Memory::object+0xc78,Memory::image+0x174f710);fixture_memory.put(Memory::object+0xc80,Memory::history);
         fixture_memory.put(Memory::object+0xc88,int32_t(values.size()));fixture_memory.put(Memory::object+0xc8c,capacity);
         fixture_memory.put(Memory::object+0xc90,int32_t{10});for(size_t i=0;i<values.size();++i)fixture_memory.put(Memory::history+i*4,values[i]);
         fixture_stores=fixture_reserves=0;fixture_guard_ok=fixture_store_ok=fixture_reserve_ok=true;

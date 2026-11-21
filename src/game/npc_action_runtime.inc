@@ -120,12 +120,12 @@ bool bound(const host::WorldState& world,const action::Binding& binding,
         fail(error,"NPC action current native World or snapshot differs from Controller");
 }
 uint32_t transform(uintptr_t image,uintptr_t behaviour,const action::NpcIntent& intent) noexcept {
-    __try {reinterpret_cast<void(__fastcall*)(void*,const float*,const float*,const float*)>(image+0x9ff370)(
+    __try {reinterpret_cast<void(__fastcall*)(void*,const float*,const float*,const float*)>(image+0xa09f30)(
         reinterpret_cast<void*>(behaviour+0x368),intent.rotation.data(),intent.position.data(),intent.scale.data());return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 uint32_t seed(uintptr_t image,const std::array<uint64_t,4>& words) noexcept {
-    __try {auto* source=*reinterpret_cast<void**>(image+0x164b250);
+    __try {auto* source=*reinterpret_cast<void**>(image+0x1650830);
         if(!source)return ERROR_INVALID_ADDRESS;std::memcpy(source,words.data(),32);return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
@@ -142,7 +142,7 @@ void release_entry(void* receiver,void* cursor,const float* point) {
         if(state.release)state.release(receiver,cursor,point);return;
     }
     std::string error;const auto controller=typed_action_runtime::controller_status();
-    if(!state.ready||GetCurrentThreadId()!=state.thread||uintptr_t(_ReturnAddress())!=state.image+0x587e6c||
+    if(!state.ready||GetCurrentThreadId()!=state.thread||uintptr_t(_ReturnAddress())!=state.image+0x58e62c||
        !controller.value("started",false)||controller.value("locked",true)||
        state.pending||state.capture_failed){rejected("NPC original Release requires ready idle Controller and exact cursor caller");return;}
     const auto snapshot=net::current_snapshot_id();action::Binding binding;
@@ -217,23 +217,23 @@ void release_entry(void* receiver,void* cursor,const float* point) {
 }
 uint32_t generic_release(uintptr_t image,uintptr_t cursor,const std::array<float,2>& screen,
                          const std::array<float,3>& world) noexcept {
-    __try {reinterpret_cast<void(__fastcall*)(void*,const float*,const float*)>(image+0x5879d0)(
+    __try {reinterpret_cast<void(__fastcall*)(void*,const float*,const float*)>(image+0x58e190)(
         reinterpret_cast<void*>(cursor),screen.data(),world.data());return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 uint32_t warp_cursor(uintptr_t image,uintptr_t cursor,const std::array<float,3>& target,
                      bool& warped) noexcept {
-    __try {warped=reinterpret_cast<bool(__fastcall*)(void*,const float*)>(image+0x5863e0)(
+    __try {warped=reinterpret_cast<bool(__fastcall*)(void*,const float*)>(image+0x58cba0)(
         reinterpret_cast<void*>(cursor),target.data());return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 uint32_t calculate_cursor_hit(uintptr_t image,uintptr_t cursor,const float*& hit) noexcept {
-    __try {hit=reinterpret_cast<const float*(__fastcall*)(void*)>(image+0x588d10)(
+    __try {hit=reinterpret_cast<const float*(__fastcall*)(void*)>(image+0x58f4d0)(
         reinterpret_cast<void*>(cursor));return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 uint32_t modal_window(uintptr_t image,bool& modal) noexcept {
-    __try {modal=reinterpret_cast<bool(__fastcall*)()>(image+0x81a350)();return 0;}
+    __try {modal=reinterpret_cast<bool(__fastcall*)()>(image+0x822940)();return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 }
@@ -264,12 +264,12 @@ bool enable(std::string& error) {
     if(!native::read_resolver_receipt(state.image,thread,sha,error)||sha!=exe_sha||thread!=state.thread)
         return install_fail("NPC Release exact EXE/Mainthread differs: "+error);
     Memory memory;uintptr_t actual=0;
-    if(!memory.copy(state.image+0x172b450+0xe8,&actual,sizeof actual,error)||actual!=state.image+0x5c3ef0)
+    if(!memory.copy(state.image+0x17317f0+0xe8,&actual,sizeof actual,error)||actual!=state.image+0x5ca640)
         return install_fail("NPC Release vtable entry differs: "+error);
-    const auto created=MH_CreateHook(reinterpret_cast<void*>(state.image+0x5c3ef0),
+    const auto created=MH_CreateHook(reinterpret_cast<void*>(state.image+0x5ca640),
         reinterpret_cast<void*>(&release_entry),reinterpret_cast<void**>(&state.release));
     if(created!=MH_OK||!state.release)return install_fail("NPC Release MH_CreateHook status="+std::to_string(created));
-    const auto enabled=MH_EnableHook(reinterpret_cast<void*>(state.image+0x5c3ef0));
+    const auto enabled=MH_EnableHook(reinterpret_cast<void*>(state.image+0x5ca640));
     if(enabled!=MH_OK)return install_fail("NPC Release MH_EnableHook status="+std::to_string(enabled));
     state.ready=true;state.install_cause.clear();error.clear();return property_enable(error);
 }
@@ -401,7 +401,7 @@ bool native_ui(const json& args,json& result,std::string& error) {
     const auto& item=inventory.at(tool);std::vector<Option> available;json selected=nullptr;
     uint8_t alternate=1;
     if(item.count!=1||item.native_type!=quest_bridge::tool_type(tool)||!item.behaviour||
-       !field(memory,state.image,0x13df9d0,cursor,error)||!cursor||
+       !field(memory,state.image,0x13eb9d0,cursor,error)||!cursor||
        !point_and_cursor(memory,state.image,uintptr_t(world.origin.map),world.root,
            region,cursor,item.behaviour,point,error)||
        !field(memory,item.behaviour,0x3e1,alternate,error)||alternate||
@@ -538,7 +538,7 @@ action::Outcome perform(const action::Binding& binding,const action::Request& re
        !region_saved_identity::resolve(state.image,uintptr_t(world.origin.map),world.root,
            request.npc.region,0,region,read_field,error))return action::Outcome::RejectedNoEffect;
     uintptr_t cursor=0,actual_region=0,from_shard=0;std::map<std::string,Tool> inventory;
-    if(!field(memory,state.image,0x13df9d0,cursor,error)||!cursor||
+    if(!field(memory,state.image,0x13eb9d0,cursor,error)||!cursor||
        !tools(memory,state.image,inventory,error))return action::Outcome::RejectedNoEffect;
     const auto name=request.npc.type==0?"QuestGiver":request.npc.type==1?"Guard":"ClassTrainer";
     const auto& item=inventory.at(name);

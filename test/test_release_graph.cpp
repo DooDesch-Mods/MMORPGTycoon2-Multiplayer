@@ -58,7 +58,7 @@ int main(){try{
         check(current::read(read,image,manager,fresh,e),"new current owner remains reciprocal before old destructor");
         memory[slot]=old;concurrent=true;check(!current::adopt(read,exchange,image,manager,old,fresh,receipt,e)&&receipt.attempted&&!receipt.stored&&!receipt.confirmed&&exchanges==2,"concurrent static-current replacement fails without success-shaped readback");concurrent=false;
         memory[slot]=old;memory[image+current::got_rva]=slot+8;check(!current::adopt(read,exchange,image,manager,old,fresh,receipt,e)&&!receipt.attempted&&exchanges==2,"wrong actual initialized GOT target rejects before mutation");memory[image+current::got_rva]=slot;
-        memory[fresh]=image+0x1715450;check(!current::adopt(read,exchange,image,manager,old,fresh,receipt,e)&&!receipt.attempted&&exchanges==2,"foreign loaded object class rejects before mutation");memory[fresh]=image+current::release_ap;
+        memory[fresh]=image+0x171b7f0;check(!current::adopt(read,exchange,image,manager,old,fresh,receipt,e)&&!receipt.attempted&&exchanges==2,"foreign loaded object class rejects before mutation");memory[fresh]=image+current::release_ap;
         memory[manager+0x38]=old;check(!current::adopt(read,exchange,image,manager,old,fresh,receipt,e)&&!receipt.attempted&&exchanges==2,"loader must have installed the exact fresh object before static pointer adoption");
     }
     {
@@ -85,10 +85,10 @@ int main(){try{
         const auto read=[&](uintptr_t base,size_t offset,auto& value,std::string& cause){const auto found=fields.find(base+offset);if(found==fields.end()||found->second.size()!=sizeof value){cause="fixture exact field missing";return false;}std::memcpy(&value,found->second.data(),sizeof value);return true;};
         const auto text=[&](uintptr_t address,std::string& value,std::string& cause){const auto found=texts.find(address);if(found==texts.end()){cause="fixture exact text missing";return false;}value=found->second;return true;};
         const uintptr_t image=0x140000000,manager=0x20000,state=0x30000;
-        put(image,0x13df7a0,manager);put(state,0x168,manager);put(manager,0,image+0x1732430);
+        put(image,0x13eb7a0,manager);put(state,0x168,manager);put(manager,0,image+0x17387d0);
         for(int32_t kind=0;kind<5;++kind){const auto offset=0x80+size_t(kind)*0x50;const uintptr_t data=0x40000+uintptr_t(kind)*0x1000,object=0x50000+uintptr_t(kind)*0x1000;
             put(manager,offset+8,data);put(manager,offset+0x10,int32_t(1));put(manager,offset+0x14,int32_t(1));put(data,0,object);
-            put(object,0,image+0x1705990);put(object,0x18,uint64_t(100+kind));put(object,0x2c,kind);put(object,0x30,int32_t(0));put(object,0x4a0,uintptr_t(0));put(object,0x498,uintptr_t(0));put(object,0x2c8,uintptr_t(0));
+            put(object,0,image+0x170bd30);put(object,0x18,uint64_t(100+kind));put(object,0x2c,kind);put(object,0x30,int32_t(0));put(object,0x4a0,uintptr_t(0));put(object,0x498,uintptr_t(0));put(object,0x2c8,uintptr_t(0));
             for(size_t flag:{size_t(0x490),size_t(0x491),size_t(0x492)})put(object,flag,uint8_t(0));texts[object+0xb0]="name";texts[object+0x248]="definition";
         }
         references::Types first,second;std::map<uintptr_t,std::string> keys;
@@ -107,26 +107,26 @@ int main(){try{
         namespace owner=mt2mp::game::release_demand_owner;
         const uintptr_t image=0x140000000,destination=0x4000,temporary=0x5000;
         const owner::Storage old{0x6000,uint64_t(3)|(uint64_t(4)<<32)},fresh{0x7000,uint64_t(5)|(uint64_t(8)<<32)};
-        const auto initial=[&]{return std::map<uintptr_t,uint64_t>{{destination,image+0x16e2100},{destination+8,old.data},{destination+0x10,old.extent},{temporary,image+0x16ebf20},{temporary+0x18,image+0x16ebf88},{temporary+8,fresh.data},{temporary+0x10,fresh.extent}};};
+        const auto initial=[&]{return std::map<uintptr_t,uint64_t>{{destination,image+0x16e84a0},{destination+8,old.data},{destination+0x10,old.extent},{temporary,image+0x16f22c0},{temporary+0x18,image+0x16f2328},{temporary+8,fresh.data},{temporary+0x10,fresh.extent}};};
         auto memory=initial();unsigned calls=0,fail_at=0;
         auto read=[&](uintptr_t base,size_t offset,auto& out,std::string& cause){const auto found=memory.find(base+offset);if(found==memory.end()){cause="fixture exact demand storage field missing";return false;}out=found->second;return true;};
         auto exchange=[&](uintptr_t address,uint64_t expected,uint64_t desired,bool& stored,std::string&){++calls;stored=calls!=fail_at&&memory.at(address)==expected;if(stored)memory[address]=desired;return true;};
         auto guard=[](std::string&){return true;};owner::Receipt receipt;
         check(owner::transfer(read,exchange,guard,image,destination,temporary,old,fresh,receipt,e)&&receipt.confirmed&&receipt.stored==4,"actual checked ArrayStore ownership transfer commits four fields");
-        check(memory.at(destination)==image+0x16e2100&&memory.at(temporary)==image+0x16ebf20&&memory.at(temporary+0x18)==image+0x16ebf88,"native object/base classes stay in their actual owners");
+        check(memory.at(destination)==image+0x16e84a0&&memory.at(temporary)==image+0x16f22c0&&memory.at(temporary+0x18)==image+0x16f2328,"native object/base classes stay in their actual owners");
         check(memory.at(temporary+8)==old.data&&memory.at(destination+8)==fresh.data,"old storage remains owned by original temporary D0, new storage by manager");
         for(unsigned failed=1;failed<=4;++failed){memory=initial();calls=0;fail_at=failed;check(!owner::transfer(read,exchange,guard,image,destination,temporary,old,fresh,receipt,e)&&!receipt.confirmed&&receipt.stored==failed-1&&calls==failed,"partial CAS stops at first failure without replay/cleanup claim");}
         memory=initial();calls=0;fail_at=0;memory[temporary+0x18]=0;check(!owner::transfer(read,exchange,guard,image,destination,temporary,old,fresh,receipt,e)&&!calls,"wrong original secondary owner rejects before transfer");
         memory=initial();memory[destination+0x10]=UINT64_MAX;check(!owner::transfer(read,exchange,guard,image,destination,temporary,old,fresh,receipt,e)&&!calls,"invalid native count/capacity rejects before transfer");
     }
     using O=boundary::Origin;
-    check(boundary::origin(0x4faf6a,{0x4faf6a,0x4fc025,0x4e6d0c})==O::Finish,"real MessageTo tail chain Finish");
-    check(boundary::origin(0x4faf6a,{0x4faf6a,0x4fc025,0x4e6dec})==O::Skip,"real MessageTo tail chain Skip");
-    check(boundary::origin(0x4faf6a,{0x4faf6a,0x4fc025,0x4e6f53})==O::Begin,"real MessageTo tail chain Begin");
-    check(boundary::origin(0x4faf6a,{0x4faf6a,0x4fc025,0x79be1f})==O::Immediate,"real HUD immediate chain");
-    check(boundary::origin(0x4faf6a,{0x4e6d0c})==O::Other,"outer caller alone is not immediate provenance");
-    check(boundary::origin(0x4faf6a,{0x4faf6a,0x4fc025,0x123,0x4e6d0c})==O::Other,"arbitrary later matching frame cannot prove Release origin");
-    check(boundary::origin(0x4e6d0c,{0x4faf6a,0x4fc025,0x4e6d0c})==O::Other,"nested plugin return cannot replace physical Mode caller");
+    check(boundary::origin(0x500f1a,{0x500f1a,0x501fd5,0x4ecbcc})==O::Finish,"real MessageTo tail chain Finish");
+    check(boundary::origin(0x500f1a,{0x500f1a,0x501fd5,0x4eccac})==O::Skip,"real MessageTo tail chain Skip");
+    check(boundary::origin(0x500f1a,{0x500f1a,0x501fd5,0x4ece13})==O::Begin,"real MessageTo tail chain Begin");
+    check(boundary::origin(0x500f1a,{0x500f1a,0x501fd5,0x7a401f})==O::Immediate,"real HUD immediate chain");
+    check(boundary::origin(0x500f1a,{0x4ecbcc})==O::Other,"outer caller alone is not immediate provenance");
+    check(boundary::origin(0x500f1a,{0x500f1a,0x501fd5,0x123,0x4ecbcc})==O::Other,"arbitrary later matching frame cannot prove Release origin");
+    check(boundary::origin(0x4ecbcc,{0x500f1a,0x501fd5,0x4ecbcc})==O::Other,"nested plugin return cannot replace physical Mode caller");
     Framework framework;boundary::Owner owner;unsigned captures=0;
     auto capture=[&](const auto&,uint32_t& disposition,std::string&){++captures;disposition=MT2FW_MT2_RELEASE_SUPPRESS;return true;};
     check(owner.bind(framework.api(),91,capture,e),"exact private V1 bind receipt");auto call=framework.call();check(framework.invoke(call).disposition==MT2FW_MT2_RELEASE_SUPPRESS&&captures==1,"actual consumer suppress decision without original call");

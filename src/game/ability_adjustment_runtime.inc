@@ -25,7 +25,7 @@ void view_select_entry(void* view,void* selected){
 bool view_route(Memory& memory,std::string& error){
     if(!original_view_select)return true;
     MT2FW_MT2_RouteReceipt receipt{sizeof receipt};
-    if(!quest_list::read_route(state.image+0x689100,receipt,error))return false;
+    if(!quest_list::read_route(state.image+0x690310,receipt,error))return false;
     if(receipt.detour!=uintptr_t(&view_select_entry)||receipt.trampoline!=uintptr_t(original_view_select)||
        receipt.generation!=view_generation||receipt.state!=MT2FW_MT2_ROUTE_ENABLED)
         return fail(error,"Ability adjustment scoped presentation route ownership differs");
@@ -38,14 +38,14 @@ bool view_route(Memory& memory,std::string& error){
     constexpr std::array<unsigned char,6> jump{0xff,0x25,0,0,0,0};
     if(!std::equal(prefix.begin(),prefix.end(),trampoline.begin())||
        !std::equal(receipt.pristine,receipt.pristine+copied,trampoline.begin())||
-       !std::equal(jump.begin(),jump.end(),trampoline.begin()+copied)||resume!=state.image+0x689100+copied)
+       !std::equal(jump.begin(),jump.end(),trampoline.begin()+copied)||resume!=state.image+0x690310+copied)
         return fail(error,"Ability adjustment scoped presentation original instruction boundary differs");
     return true;
 }
 bool read_proposal(Memory& memory,uintptr_t view,ability_adjustment_view::State& out,std::string& error){
     out={};out.view=view;uintptr_t ap=0,outer=0,actual=0,editor=0;
     if(!character_rename::window(memory,0,actual,editor,outer,error)||actual!=view||
-       !field(memory,view,0,ap,error)||ap!=state.image+0x1736770||
+       !field(memory,view,0,ap,error)||ap!=state.image+0x173cb10||
        !field(memory,view,0x460,out.selected,error)||!field(memory,view,0x470,out.prototype,error)||
        !field(memory,view,0x478,out.cost,error)||!field(memory,view,0x47c,out.index,error)||
        !field(memory,view,0x480,out.delta,error))return fail(error,error.empty()?"Ability adjustment exact current CharacterInfo proposal View differs":error);
@@ -60,7 +60,7 @@ uint32_t write_proposal(const ability_adjustment_view::State& value)noexcept{
     }__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 uint32_t invoke_adjustment(uintptr_t view,bool& returned)noexcept{
-    __try{reinterpret_cast<void(*)(void*)>(state.image+0x689310)(reinterpret_cast<void*>(view));returned=true;return 0;}
+    __try{reinterpret_cast<void(*)(void*)>(state.image+0x690520)(reinterpret_cast<void*>(view));returned=true;return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 struct AdjustmentCalls {

@@ -84,10 +84,10 @@ bool initialize(const hud_time::Config& config,std::string& error) {
     if(initialized){error="hud_time_runtime_already_initialized";return false;}
     const hud_time::WriterServices services{nullptr,authority,hud_time::process_store_item_state,hud_time::process_call_clock};
     if(!writer.initialize(config,hud_time::process_read_services(),services,error))return false;
-    if(!hooks::create_hook(reinterpret_cast<void*>(config.image+0x81ec20),reinterpret_cast<void*>(&show),reinterpret_cast<void**>(&original_show))) {
+    if(!hooks::create_hook(reinterpret_cast<void*>(config.image+0x827210),reinterpret_cast<void*>(&show),reinterpret_cast<void**>(&original_show))) {
         error="hud_time_WindowShow_hook_creation_failed";return false;
     }
-    show_target=config.image+0x81ec20;show_thread=config.game_thread;
+    show_target=config.image+0x827210;show_thread=config.game_thread;
     show_hook_created=true;initialized=true;return true;
 }
 bool verify_window_show_hook(uintptr_t target,std::string& error) {

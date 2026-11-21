@@ -74,7 +74,7 @@ bool prepared_present=false;
 uint64_t prepared_bytes=0;
 std::string prepared_sha;
 DWORD exact_uid(uint64_t uid,uintptr_t& out){
-    __try{out=reinterpret_cast<uintptr_t(*)(uint64_t)>(image+0x47ce20)(uid);return 0;}
+    __try{out=reinterpret_cast<uintptr_t(*)(uint64_t)>(image+0x481f60)(uid);return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 
@@ -120,7 +120,7 @@ bool context(uintptr_t actual, std::string& error) {
     observer().bound_context = actual; return true;
 }
 DWORD contains_call(uintptr_t ctx, uintptr_t object, int32_t& id, bool& present) {
-    __try { present = reinterpret_cast<bool(*)(void*, const void*, int32_t*)>(image + 0x89e690)(
+    __try { present = reinterpret_cast<bool(*)(void*, const void*, int32_t*)>(image + 0x8a77b0)(
         reinterpret_cast<void*>(ctx), reinterpret_cast<void*>(object), &id); return 0; }
     __except(EXCEPTION_EXECUTE_HANDLER) { return GetExceptionCode(); }
 }
@@ -134,14 +134,14 @@ bool contains(uintptr_t ctx, uintptr_t object, int32_t& id, std::string& error) 
 }
 #ifndef MT2MP_MONSTER_SAVED_RUNTIME_TEST
 DWORD lookup_call(uintptr_t ctx, int32_t id, uintptr_t& out) {
-    __try { out = reinterpret_cast<uintptr_t(*)(void*, int32_t)>(image + 0x89e0f0)(reinterpret_cast<void*>(ctx), id); return 0; }
+    __try { out = reinterpret_cast<uintptr_t(*)(void*, int32_t)>(image + 0x8a7210)(reinterpret_cast<void*>(ctx), id); return 0; }
     __except(EXCEPTION_EXECUTE_HANDLER) { return GetExceptionCode(); }
 }
 #endif
 bool live_reader(uintptr_t reader, uintptr_t ctx, std::string& error) {
     uintptr_t mode = 0, actual = 0;
     if (!opened::validate_reader(reinterpret_cast<void*>(reader), observer().generation, error) ||
-        !q::at(memory, image, 0x13df320, mode, error) || !q::typed(memory, image, mode, 0x16e6730, error) ||
+        !q::at(memory, image, 0x13eb320, mode, error) || !q::typed(memory, image, mode, 0x16ecad0, error) ||
         !q::at(memory, mode, 0xd8, actual, error)) return false;
     return actual == ctx || q::fail(error, "Monster LoadContext is not active Mode context");
 }
@@ -162,7 +162,7 @@ bool seal_world(const opened::CurrentWorld& world, bool, std::string& error) {
         return reject(error, observer().failure.empty() ? "Monster snapshot lacks complete property returns/context" : observer().failure);
     const auto map = reinterpret_cast<uintptr_t>(world.map), root = map + 0x1c0;
     q::Bounds regions;
-    if (!q::typed(memory, image, map, 0x1742860, error) || !q::typed(memory, image, map + 0x230, 0x16f04e0, error) ||
+    if (!q::typed(memory, image, map, 0x1748c00, error) || !q::typed(memory, image, map + 0x230, 0x16f6880, error) ||
         !q::bounds(memory, map + 0x230, 4096, regions, error)) return reject(error, error);
     std::map<uintptr_t, q::SavedPool> ready;
     std::set<std::string> keys;

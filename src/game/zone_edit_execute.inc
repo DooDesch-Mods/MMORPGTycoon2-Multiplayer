@@ -22,7 +22,7 @@ struct LocalSelection {
         }
         if(!group_reader::selection(memory,za::state.image,manager,raw,filtered,error))return false;
         if(raw!=desired){
-            const duplicate_calls::Array array{za::state.image+0x1748c50,desired.data(),int32_t(desired.size()),int32_t(desired.size())};
+            const duplicate_calls::Array array{za::state.image+0x174eff0,desired.data(),int32_t(desired.size()),int32_t(desired.size())};
             if(!za::native_ok(duplicate_calls::select(za::state.image,manager,array),"local selection restore",error)||
                !group_reader::selection(memory,za::state.image,manager,raw,filtered,error))return false;
         }
@@ -97,7 +97,7 @@ bool run_stroke(Memory& memory,Operation& operation,uintptr_t window,const monst
             operation.attempted=true;
             okay=za::native_ok(zone_edit_calls::paint(brush,za::state.paint,stamp.position.data(),&shape),"edit AddPaint",error);
         }
-        const auto destroyed=made?za::unary(reinterpret_cast<za::Unary>(za::state.image+0xf15a0),&shape):0;
+        const auto destroyed=made?za::unary(reinterpret_cast<za::Unary>(za::state.image+0xf2610),&shape):0;
         if(destroyed){error+="; Zone shape cleanup exception="+std::to_string(destroyed);return false;}
         if(!okay)return fail(error,error.empty()?"Zone private original shape differs":error);
     }

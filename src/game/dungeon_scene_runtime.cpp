@@ -11,7 +11,7 @@
 namespace mt2mp::game::dungeon_scene_runtime {
 namespace {
 namespace host=mt2mp::build_actions::private_native::host;
-constexpr const char* game_sha="bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6";
+constexpr const char* game_sha="7efd8ee7b97f78362e7a2f8116b327fa6b756bdce23114b68143c4c9d2dd50eb";
 bool fail(std::string& error,const char* cause){error=cause;return false;}
 uint32_t native_cast(host::DynamicCast call,uintptr_t object,uintptr_t source,uintptr_t target,uintptr_t& result)noexcept{
     __try{result=reinterpret_cast<uintptr_t>(call(reinterpret_cast<void*>(object),reinterpret_cast<const void*>(source),
@@ -35,7 +35,7 @@ bool cursor_scene(std::string& scene,std::string& error)try{
         return memory.copy(object+offset,&value,sizeof value,cause);
     };
     uintptr_t manager=0,ap=0,current=0;
-    if(!at(image,0x13df440,manager,error)||!at(manager,0,ap,error)||ap!=image+0x1702b00||!at(manager,0x60,current,error))
+    if(!at(image,0x13eb440,manager,error)||!at(manager,0,ap,error)||ap!=image+0x1708ea0||!at(manager,0x60,current,error))
         return fail(error,error.empty()?"Dungeon cursor scene current ShardManager addresspoint/active Shard differs":error.c_str());
     const auto typed=[&](uintptr_t object,uintptr_t source,uintptr_t target,std::string& cause){
         uintptr_t result=0;const auto seh=native_cast(api.cast,object,image+source,image+target,result);
@@ -50,7 +50,7 @@ bool cursor_scene(std::string& scene,std::string& error)try{
     if(!reader.current(after,false,error)||!host::same_world(before.origin,after.origin)||after.root!=before.root||
        !action_session::selected_session().current(final_context,error)||final_context!=context||
        !typed_action_runtime::network_binding(context.snapshot_uuid,final_binding,error)||final_binding!=binding||
-       !at(image,0x13df440,final_manager,error)||final_manager!=manager||!at(manager,0x60,final_shard,error)||final_shard!=current)
+       !at(image,0x13eb440,final_manager,error)||final_manager!=manager||!at(manager,0x60,final_shard,error)||final_shard!=current)
         return fail(error,error.empty()?"Dungeon cursor scene current world/active Shard changed during sample":error.c_str());
     scene=std::move(actual.key);return true;
 }catch(const std::exception& exception){scene.clear();error=std::string("Dungeon cursor scene boundary: ")+exception.what();return false;}

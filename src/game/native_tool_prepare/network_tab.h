@@ -13,7 +13,7 @@ inline bool same_owner(const Pin& a,const Pin& b){
 }
 template<class M>bool verify(M& m,uintptr_t image,std::string& e){
     std::array<unsigned char,tutorial_network_tab::press_code.size()> actual{};
-    return m.copy(image+0x57c950,actual.data(),actual.size(),e)&&
+    return m.copy(image+0x583000,actual.data(),actual.size(),e)&&
         (actual==tutorial_network_tab::press_code||fail(e,"Network original Tab::Press body differs"));
 }
 struct Status {bool ready=false;std::string cause;};

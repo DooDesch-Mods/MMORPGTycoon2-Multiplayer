@@ -39,27 +39,27 @@ bool panes_match(const Snapshot& s,std::string& e){
 }
 bool read_snapshot(Memory& m,uintptr_t image,uintptr_t state,uintptr_t mode,Snapshot& s,std::string& e){
     s={};uintptr_t singleton=0;
-    if(!at(m,state,0x1d0,s.marketing,e)||!at(m,image,0x13df2c0,singleton,e)||singleton!=s.marketing||!ap(m,image,s.marketing,0x16dfa60,e))return fail(e,e.empty()?"Marketing GameState owner differs":e.c_str());
-    if(!at(m,mode,0x128,s.hud,e)||!at(m,image,0x13df8b0,singleton,e)||singleton!=s.hud||!ap(m,image,s.hud,0x1742750,e))return fail(e,e.empty()?"Marketing HUD owner differs":e.c_str());
-    if(!at(m,s.hud,0xb8,s.window,e)||!ap(m,image,s.window,0x16fa4d0,e)||!ap(m,image,s.window+0x508,0x16e1770,e)||
-       !at(m,image,0x13df9a0,s.clock,e)||!s.clock)return fail(e,e.empty()?"Marketing current Window/Clock missing":e.c_str());
+    if(!at(m,state,0x1d0,s.marketing,e)||!at(m,image,0x13eb2c0,singleton,e)||singleton!=s.marketing||!ap(m,image,s.marketing,0x16e5e00,e))return fail(e,e.empty()?"Marketing GameState owner differs":e.c_str());
+    if(!at(m,mode,0x128,s.hud,e)||!at(m,image,0x13eb8b0,singleton,e)||singleton!=s.hud||!ap(m,image,s.hud,0x1748af0,e))return fail(e,e.empty()?"Marketing HUD owner differs":e.c_str());
+    if(!at(m,s.hud,0xb8,s.window,e)||!ap(m,image,s.window,0x1700870,e)||!ap(m,image,s.window+0x508,0x16e7b10,e)||
+       !at(m,image,0x13eb9a0,s.clock,e)||!s.clock)return fail(e,e.empty()?"Marketing current Window/Clock missing":e.c_str());
     if(!array(m,s.marketing,0x40,s.awards,e)||!array(m,s.marketing,0x70,s.campaigns,e)||!array(m,s.window,0x510,s.views,e)||!array(m,s.window,0x300,s.panes,e)||
        !at(m,s.window,0x138,s.width,e)||!at(m,s.window,0x13c,s.height,e))return false;
     s.values={{"awards",Json::array()},{"campaigns",Json::array()}};s.bindings=Json::array();
     int32_t positive=0,negative=0;if(!at(m,s.marketing,0x98,positive,e)||!at(m,s.marketing,0x9c,negative,e))return false;
     s.values["positiveBuzz"]=positive;s.values["negativeBuzz"]=negative;
     for(auto p:s.awards){std::string name,source;int32_t day=0,impressions=0,conversions=0;uint8_t good=2;
-        if(!ap(m,image,p,0x1749880,e)||!locstring(m,p+0x28,name,e)||!locstring(m,p+0x60,source,e)||!at(m,p,0x98,day,e)||
+        if(!ap(m,image,p,0x174fc20,e)||!locstring(m,p+0x28,name,e)||!locstring(m,p+0x60,source,e)||!at(m,p,0x98,day,e)||
            !at(m,p,0x9c,impressions,e)||!at(m,p,0xa0,conversions,e)||!at(m,p,0xa4,good,e)||good>1)return fail(e,e.empty()?"Marketing Award bool invalid":e.c_str());
         s.values["awards"].push_back({{"name",name},{"source",source},{"day",day},{"impressions",impressions},{"conversions",conversions},{"isGood",good!=0}});
     }
     for(auto p:s.campaigns){std::string name;std::array<int32_t,6> v{};uint8_t active=2;
-        if(!ap(m,image,p,0x16e3d50,e)||!locstring(m,p+0x18,name,e)||!m.read(p+0x50,v.data(),sizeof v,e)||!at(m,p,0x68,active,e)||active>1)return fail(e,e.empty()?"Marketing Campaign active bool invalid":e.c_str());
+        if(!ap(m,image,p,0x16ea0f0,e)||!locstring(m,p+0x18,name,e)||!m.read(p+0x50,v.data(),sizeof v,e)||!at(m,p,0x68,active,e)||active>1)return fail(e,e.empty()?"Marketing Campaign active bool invalid":e.c_str());
         s.values["campaigns"].push_back({{"customName",name},{"type",v[0]},{"startedOn",v[1]},{"duration",v[2]},
             {"impressions",v[3]},{"conversions",v[4]},{"hype",v[5]},{"active",active}});
     }
     for(auto p:s.views){uintptr_t a=0,c=0,parent=0,window=0;
-        if(!ap(m,image,p,0x16dd8a0,e)||!at(m,p,0x320,a,e)||!at(m,p,0x328,c,e)||!at(m,p,0x278,parent,e)||!at(m,p,0x280,window,e))return false;
+        if(!ap(m,image,p,0x16e3c40,e)||!at(m,p,0x320,a,e)||!at(m,p,0x328,c,e)||!at(m,p,0x278,parent,e)||!at(m,p,0x280,window,e))return false;
         s.bindings.push_back({{"view",p},{"award",a},{"campaign",c},{"parent",parent},{"window",window}});
     }e.clear();return true;
 }

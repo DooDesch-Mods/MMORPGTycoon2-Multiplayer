@@ -32,11 +32,11 @@ inline Json read(bool shared=false,bool initial=false){
     require(!initial||shared,"Initial held witness requires shared canonical identities");
     uintptr_t image=0;uint32_t thread=0;std::string sha,error;
     require(native::read_resolver_receipt(image,thread,sha,error),error);
-    require(sha=="bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6"&&thread==GetCurrentThreadId(),
+    require(sha=="7efd8ee7b97f78362e7a2f8116b327fa6b756bdce23114b68143c4c9d2dd50eb"&&thread==GetCurrentThreadId(),
         "Held save observation pinned executable or thread differs");
-    Memory memory;const auto game=memory.at<uintptr_t>(image,0x13df8f0);
-    const auto map=memory.at<uintptr_t>(image,0x13df8c0);
-    const auto random=memory.at<uintptr_t>(image,0x164b250);
+    Memory memory;const auto game=memory.at<uintptr_t>(image,0x13eb8f0);
+    const auto map=memory.at<uintptr_t>(image,0x13eb8c0);
+    const auto random=memory.at<uintptr_t>(image,0x1650830);
     native::SimulationState sim;require(native::read_simulation_state(sim,error),error);
     if(!initial)require(sim.clock.paused&&sim.clock.time_scale==0,"Held save observation requires paused native Clock");
     int32_t saves=-1;const bool saves_read=native::read_saves_in_progress(saves,error);

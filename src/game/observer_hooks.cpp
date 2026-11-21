@@ -16,7 +16,7 @@ using VoidFn=void(*)(void*,float);using FloatFn=float(*)(void*,float);
 VoidFn display_original=nullptr,network_original=nullptr,finish_original=nullptr;
 FloatFn drain_original=nullptr,charge_original=nullptr;
 uintptr_t hook_image=0;bool attempted=false,installed=false,prepared=false;std::string install_cause;
-uintptr_t caller(void* address)noexcept{const auto p=uintptr_t(address);return p>=hook_image&&p-hook_image<30986240?p-hook_image:0;}
+uintptr_t caller(void* address)noexcept{const auto p=uintptr_t(address);return p>=hook_image&&p-hook_image<30597120?p-hook_image:0;}
 int propagate(Ticket ticket,DWORD code)noexcept{leave(ticket,false,code);return EXCEPTION_CONTINUE_SEARCH;}
 void invoke_void(Leaf leaf,VoidFn original,void* object,float argument,uintptr_t origin){
     const auto ticket=enter(leaf,object,origin,argument);

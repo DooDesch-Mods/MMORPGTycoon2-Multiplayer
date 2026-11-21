@@ -16,11 +16,11 @@ bool startingpoint_clock(std::string& e){
     return clock.time_scale==0&&std::isfinite(clock.pause_scale)&&clock.pause_scale>=0||fail(e,"startingpoint Client requires actual selected Clock0 and finite nonnegative pause scale");
 }
 DWORD startingpoint_deploy(uintptr_t project){
-    __try{reinterpret_cast<Call>(image+0x262f70)(reinterpret_cast<void*>(project));return 0;}
+    __try{reinterpret_cast<Call>(image+0x266070)(reinterpret_cast<void*>(project));return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 DWORD startingpoint_destroy(uintptr_t project){
-    __try{reinterpret_cast<Call>(image+0x261980)(reinterpret_cast<void*>(project));return 0;}
+    __try{reinterpret_cast<Call>(image+0x264a80)(reinterpret_cast<void*>(project));return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 struct StartingpointCalls {
@@ -56,9 +56,9 @@ struct StartingpointCalls {
         uintptr_t actual_image=0;uint32_t thread=0;std::string sha;
         if(!native::read_resolver_receipt(actual_image,thread,sha,e))return false;
         if(actual_image!=image||thread!=GetCurrentThreadId()||thread!=mainthread||
-           sha!="bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6")
+           sha!="7efd8ee7b97f78362e7a2f8116b327fa6b756bdce23114b68143c4c9d2dd50eb")
             return fail(e,"startingpoint actual EXE/Mainthread receipt differs");
-        if(!verify_commit_entry(image+0x25fb10,e)||!startingpoint_code(e)||!read(before,e))return false;
+        if(!verify_commit_entry(image+0x262c10,e)||!startingpoint_code(e)||!read(before,e))return false;
         if(!before.row||*before.row!=expected||!before.record||
            (creating?before.project!=0:(!before.project||!expected.project_present)))
             return fail(e,"startingpoint native project/record changed before adoption");
@@ -71,8 +71,8 @@ struct StartingpointCalls {
             if(economy_before.world!=reinterpret_cast<uintptr_t>(before.origin.world)||economy_before.selected!=0)
                 return fail(e,"startingpoint creation Economy world/Clock0 differs");
         }
-        uintptr_t destructor=0;if(!at(image+0x16e48c0,8,destructor,e))return false;
-        if(destructor!=image+0x261980)return fail(e,"startingpoint DevProject deleting destructor differs");
+        uintptr_t destructor=0;if(!at(image+0x16eac60,8,destructor,e))return false;
+        if(destructor!=image+0x264a80)return fail(e,"startingpoint DevProject deleting destructor differs");
         if(deploying){
             if(key=="bridges"&&(!research_release::read(before.release,release_before,e)||!research_release::admissible(release_before,before.tech,e)))return false;
             if(!before.admitted)return fail(e,"startingpoint adoption preflight rejected: "+before.admission.dump());
@@ -186,7 +186,7 @@ struct StartingpointCalls {
     }
 };
 void commit_current(void* lounge){
-    bool project_handled=false;const bool project_allowed=general_project_runtime::original_route(0x25fb10,lounge,0,project_handled);
+    bool project_handled=false;const bool project_allowed=general_project_runtime::original_route(0x262c10,lounge,0,project_handled);
     if(project_handled){if(project_allowed)original_commit(lounge);return;}
     if(typed_action_runtime::controller_status().value("ordered",false)){
         std::string cause;
@@ -215,7 +215,7 @@ void commit_current(void* lounge){
     try{
         action_session::Context context;
         if(action_session::selected_session().current(context,cause)&&context.role==action_session::Role::Host&&
-           verify_commit_entry(image+0x25fb10,cause)&&tutorial_development::read_research(research?"bridges":"startingpoint",before,diagnostic,cause,true)&&
+           verify_commit_entry(image+0x262c10,cause)&&tutorial_development::read_research(research?"bridges":"startingpoint",before,diagnostic,cause,true)&&
            before.lounge==reinterpret_cast<uintptr_t>(lounge)&&before.project&&before.row&&before.row->project_present&&!before.row->deployed){
             (research?research_commit_receipt:commit_receipt)={before.origin,before.tech,before.record,std::nullopt,{}};observe=true;
         }

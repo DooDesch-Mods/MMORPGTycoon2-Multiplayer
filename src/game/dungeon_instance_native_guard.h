@@ -43,7 +43,7 @@ inline constexpr std::array<size_t,3> float_offsets{0x1c,0x24,0x70};
 inline constexpr std::array<size_t,4> flag_offsets{0x20,0x28,0x74,0x75};
 template<class Read>bool update(Read& at,uintptr_t image,uintptr_t instance,Update& out,std::string& error){
     out={};out.instance=instance;uintptr_t ap=0;
-    if(!at(instance,0,ap,error)||ap!=image+0x1719450||!at(instance,0x18,out.index,error)||
+    if(!at(instance,0,ap,error)||ap!=image+0x171f7f0||!at(instance,0x18,out.index,error)||
        !at(instance,0x30,out.dungeon,error)||!at(instance,0x38,out.shard,error)||!at(instance,0x40,out.region,error))
         return life::fail(error,error.empty()?"Update actual Instance owner unreadable":error);
     if(out.index<0||!out.dungeon||!out.shard||!out.region)return life::fail(error,"Update actual Instance owner invalid");
@@ -65,9 +65,9 @@ template<class Read,class Store>bool restore_update(Read& at,Store& store,uintpt
     return (final.index==before.index&&final.dungeon==before.dungeon&&final.shard==before.shard&&final.region==before.region&&
         final.floats==before.floats&&final.flags==before.flags)||life::fail(error,"Update scalar guard readback differs");
 }
-inline bool suppress_force(bool client,bool action,bool replay,uintptr_t caller){return client&&!action&&!replay&&caller==0xb78b5;}
+inline bool suppress_force(bool client,bool action,bool replay,uintptr_t caller){return client&&!action&&!replay&&caller==0xb85b5;}
 inline bool suppress_dip(bool replay_make,uintptr_t caller,uintptr_t manager,uintptr_t expected_manager){
-    return replay_make&&caller==0xa795f&&manager==expected_manager;
+    return replay_make&&caller==0xa865f&&manager==expected_manager;
 }
 inline bool camera_restore(uintptr_t before,uintptr_t after,uintptr_t born_shard,bool suppressed,bool& restore,std::string& error){
     restore=false;if(after==before)return true;

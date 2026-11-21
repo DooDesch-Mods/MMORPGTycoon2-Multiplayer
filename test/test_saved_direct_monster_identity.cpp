@@ -19,11 +19,11 @@ constexpr uintptr_t image=0x140000000,manager=0x200000,buffer=0x300000,first=0x4
 constexpr uint64_t first_uid=0x100000007,second_uid=0x200000007;
 const std::string action="11111111-1111-4111-8111-111111111111",digest(64,'a'),older(64,'b');
 void observer(){
-    Memory m;std::string e;const auto prop=image+0x13bf500;
-    m.put(prop,image+0x170bf10);m.put(prop+0x38,uint64_t(0x38));m.put(manager,image+0x1714100);
-    m.put(manager+0x38,image+0x16e8b60);m.put(manager+0x40,buffer);m.put(manager+0x48,int32_t(2));m.put(manager+0x4c,int32_t(2));
+    Memory m;std::string e;const auto prop=image+0x13cb500;
+    m.put(prop,image+0x17122b0);m.put(prop+0x38,uint64_t(0x38));m.put(manager,image+0x171a4a0);
+    m.put(manager+0x38,image+0x16eef00);m.put(manager+0x40,buffer);m.put(manager+0x48,int32_t(2));m.put(manager+0x4c,int32_t(2));
     m.put(buffer,first);m.put(buffer+8,second);
-    for(const auto object:{first,second}){m.put(object,image+0x16c0770);m.put(object+8,context);}
+    for(const auto object:{first,second}){m.put(object,image+0x16c6b10);m.put(object+8,context);}
     m.put(first+0x18,first_uid);m.put(second+0x18,second_uid);
     auto links=[](uintptr_t p,int32_t& id,std::string&){id=p==first?17:0;return true;};
     saved::SaveFrame frame;saved::Pool out;

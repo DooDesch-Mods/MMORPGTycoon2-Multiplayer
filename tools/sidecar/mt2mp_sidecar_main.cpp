@@ -111,7 +111,7 @@ int server(uint16_t port, const std::string& token, uint64_t session) {
         peers.erase(std::remove_if(peers.begin(), peers.end(), [](const auto& peer) { return peer.dead; }), peers.end());
     }
 }
-int bridge(uint16_t relay_port, uint16_t control_port) {
+int bridge(uint16_t relay_port, uint16_t control_port, unsigned long local_timeout_ms) {
     SOCKET upstream = socket(AF_INET, SOCK_STREAM, 0);
     sockaddr_in address{}; address.sin_family = AF_INET; address.sin_port = htons(relay_port); address.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
     if (upstream == INVALID_SOCKET || connect(upstream, reinterpret_cast<sockaddr*>(&address), sizeof(address))) { fprintf(stderr, "error: connect relay=%u WSA=%d\n", relay_port, WSAGetLastError()); return 4; }
@@ -121,14 +121,14 @@ int bridge(uint16_t relay_port, uint16_t control_port) {
     if (listener == INVALID_SOCKET) { closesocket(upstream); return 5; }
     printf("info: CONTROL_READY port=%u\n", control_port);
     SOCKET local = INVALID_SOCKET;
-    auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(15);
+    auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(local_timeout_ms);
     while (local == INVALID_SOCKET && std::chrono::steady_clock::now() < deadline) {
         fd_set read; FD_ZERO(&read); FD_SET(listener, &read); timeval wait{0, 50000};
         if (select(0, &read, nullptr, nullptr, &wait) == SOCKET_ERROR) break;
         if (FD_ISSET(listener, &read)) local = accept(listener, nullptr, nullptr);
     }
     closesocket(listener);
-    if (local == INVALID_SOCKET) { fprintf(stderr, "error: local DLL connect timeout required=15s\n"); closesocket(upstream); return 6; }
+    if (local == INVALID_SOCKET) { fprintf(stderr, "error: local DLL connect timeout required=%lums\n", local_timeout_ms); closesocket(upstream); return 6; }
     if (ioctlsocket(local, FIONBIO, &value)) { fprintf(stderr, "error: local nonblocking WSA=%d\n", WSAGetLastError()); closesocket(local); closesocket(upstream); return 6; }
     Peer dll{local}, relay{upstream};
     while (!dll.dead && !relay.dead) {
@@ -155,7 +155,7 @@ int main(int argc, char** argv) {
     setvbuf(stdout, nullptr, _IONBF, 0);
     WSADATA data; int error = WSAStartup(MAKEWORD(2, 2), &data);
     if (error) { fprintf(stderr, "error: WSAStartup=%d\n", error); return 1; }
-    std::string mode = "client", token; uint16_t relay = 47010, control = 47001; uint64_t session = 0;
+    std::string mode = "client", token; uint16_t relay = 47010, control = 47001; uint64_t session = 0; unsigned long local_timeout_ms = 15000;
     for (int i = 1; i < argc; ++i) {
         std::string argument = argv[i];
         if (i + 1 >= argc) { fprintf(stderr, "error: missing argument value %s\n", argument.c_str()); return 7; }
@@ -168,9 +168,13 @@ int main(int argc, char** argv) {
         } else if (argument == "--token") token = value;
         else if (argument == "--session") session = _strtoui64(value.c_str(), nullptr, 10);
         else if (argument == "--relay-host" && value == "127.0.0.1") {}
+        else if (argument == "--local-connect-timeout-ms") {
+            local_timeout_ms = strtoul(value.c_str(), nullptr, 10);
+            if (!local_timeout_ms) { fprintf(stderr, "error: --local-connect-timeout-ms must be a positive integer\n"); return 7; }
+        }
         else { fprintf(stderr, "error: unsupported argument %s\n", argument.c_str()); return 7; }
     }
     if (mode == "server" && (token.size() != 32 || !session)) { fprintf(stderr, "error: server requires session and 32-byte token\n"); return 7; }
-    int result = mode == "server" ? server(relay, token, session) : mode == "client" ? bridge(relay, control) : 7;
+    int result = mode == "server" ? server(relay, token, session) : mode == "client" ? bridge(relay, control, local_timeout_ms) : 7;
     WSACleanup(); return result;
 }

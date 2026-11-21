@@ -65,7 +65,7 @@ void spinner_dispatch(size_t index,void* receiver,int32_t integer,float number,u
         controls::Binding binding;bool ours=false;std::string error;
         if(!controls::bind(runtime->memory,runtime->image,widget,controls::Widget::Spinner,binding,ours,error)){reject(error);return;}
         if(!ours){const auto exception=widget_call(original,receiver,integer,number,nullptr,false,kind);if(exception)reject("District unrelated original spinner SEH="+std::to_string(exception));return;}
-        const bool refresh=index==0&&caller==runtime->image+0x7c3485;
+        const bool refresh=index==0&&caller==runtime->image+0x7cb625;
         if(!widget_input(*runtime,binding,controls::Widget::Spinner,original,receiver,integer,number,nullptr,false,kind,refresh,error))reject(error);
     }catch(const std::exception& exception){reject(std::string("District native spinner: ")+exception.what());}
 }
@@ -82,7 +82,7 @@ void color_entry(void* receiver,const void* desired,bool notify){
         if(!controls::bind(runtime->memory,runtime->image,uintptr_t(receiver),controls::Widget::Color,binding,ours,error)){reject(error);return;}
         if(!ours){color_original(receiver,desired,notify);return;}
         const auto caller=uintptr_t(_ReturnAddress())-runtime->image;
-        const bool refresh=caller!=0x833fa0&&caller!=0x83a268&&caller!=0x83a345;
+        const bool refresh=caller!=0x83c630&&caller!=0x8428f8&&caller!=0x8429d5;
         if(!widget_input(*runtime,binding,controls::Widget::Color,reinterpret_cast<void*>(color_original),receiver,0,0,desired,notify,2,refresh,error))reject(error);
     }catch(const std::exception& exception){reject(std::string("District native color: ")+exception.what());}
 }

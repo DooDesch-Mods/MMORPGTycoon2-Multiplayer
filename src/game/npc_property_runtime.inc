@@ -66,12 +66,12 @@ bool property_capture(uintptr_t object,action::NpcPropertyIntent intent,std::str
 }
 void property_rename_entry(void* object,const PropertyString* value){
     const auto caller=uintptr_t(_ReturnAddress());
-    if(state.replaying||!net::session_wire::connected()||caller!=state.image+0x628dea){
+    if(state.replaying||!net::session_wire::connected()||caller!=state.image+0x62fb1a){
         if(property_rename)property_rename(object,value);return;}
     try{
         Memory memory;uintptr_t ap=0;std::string error;
         if(!field(memory,uintptr_t(object),0,ap,error)){rejected(error);return;}
-        if(ap!=state.image+0x1742980){bool handled=false;
+        if(ap!=state.image+0x1748d20){bool handled=false;
             if(!ui_move_runtime::prop_text::capture_rename(uintptr_t(object),value,handled,error)){rejected(error);return;}
             if(!handled&&property_rename)property_rename(object,value);return;}
         PropertyString text;
@@ -84,7 +84,7 @@ void property_rename_entry(void* object,const PropertyString* value){
 }
 bool property_online_entry(void* object,int32_t online){
     const auto caller=uintptr_t(_ReturnAddress());
-    const bool player=caller==state.image+0x759e92||caller==state.image+0x75a141||caller==state.image+0x75a169;
+    const bool player=caller==state.image+0x761912||caller==state.image+0x761bc1||caller==state.image+0x761be9;
     if(state.replaying||!net::session_wire::connected()||!player)return property_online&&property_online(object,online);
     try{action::NpcPropertyIntent intent;intent.kind=action::NpcPropertyKind::OnlineState;intent.online=online;
         std::string error;if(!property_capture(uintptr_t(object),intent,error)){rejected(error);return false;}return true;
@@ -102,14 +102,14 @@ uint32_t property_call(const action::NpcPropertyIntent& intent,uintptr_t object,
     }__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 bool property_level_request(uintptr_t caller,std::string_view command,action::NpcPropertyIntent& intent,std::string& error){
-    if(caller==state.image+0x759ceb&&command=="Raise Level")intent.kind=action::NpcPropertyKind::RaiseLevel;
-    else if(caller==state.image+0x75a0f8&&command=="Lower Level")intent.kind=action::NpcPropertyKind::LowerLevel;
+    if(caller==state.image+0x76176b&&command=="Raise Level")intent.kind=action::NpcPropertyKind::RaiseLevel;
+    else if(caller==state.image+0x761b78&&command=="Lower Level")intent.kind=action::NpcPropertyKind::LowerLevel;
     else return fail(error,"NPC level command caller/text differs");
     intent.name.clear();intent.online=0;return true;
 }
 bool property_command_entry(void* object,const PropertyString* value){
     const auto caller=uintptr_t(_ReturnAddress());
-    const bool player=caller==state.image+0x759ceb||caller==state.image+0x75a0f8;
+    const bool player=caller==state.image+0x76176b||caller==state.image+0x761b78;
     if(state.replaying||!net::session_wire::connected()||!player)return property_command&&property_command(object,value);
     try{
         Memory memory;PropertyString text;std::array<char,11> bytes{};std::string error;
@@ -140,16 +140,16 @@ bool property_enable(std::string& error){
     const auto failure=[&](const char* operation,MH_STATUS status){
         property_install_cause=std::string(operation)+" status="+std::to_string(status)+" "+
             mt2mp::hooks::framework::process_backend().error();return fail(error,property_install_cause);};
-    const auto rename=MH_CreateHook(reinterpret_cast<void*>(state.image+0x4cf710),
+    const auto rename=MH_CreateHook(reinterpret_cast<void*>(state.image+0x4d5490),
         reinterpret_cast<void*>(&property_rename_entry),reinterpret_cast<void**>(&property_rename));
     if(rename!=MH_OK||!property_rename)return failure("NPC Rename hook create",rename);
-    const auto online=MH_CreateHook(reinterpret_cast<void*>(state.image+0x3c4800),
+    const auto online=MH_CreateHook(reinterpret_cast<void*>(state.image+0x3c9310),
         reinterpret_cast<void*>(&property_online_entry),reinterpret_cast<void**>(&property_online));
     if(online!=MH_OK||!property_online)return failure("NPC online hook create",online);
-    const auto command=MH_CreateHook(reinterpret_cast<void*>(state.image+0x3c4c10),
+    const auto command=MH_CreateHook(reinterpret_cast<void*>(state.image+0x3c9720),
         reinterpret_cast<void*>(&property_command_entry),reinterpret_cast<void**>(&property_command));
     if(command!=MH_OK||!property_command)return failure("NPC level command hook create",command);
-    const uintptr_t targets[]{state.image+0x4cf710,state.image+0x3c4800,state.image+0x3c4c10};
+    const uintptr_t targets[]{state.image+0x4d5490,state.image+0x3c9310,state.image+0x3c9720};
     if(!mt2mp::hooks::enable_prepared_targets(targets,"NPC property hooks",error)){
         property_install_cause=error;return false;}
     property_installed=true;return true;
@@ -190,7 +190,7 @@ action::Outcome property_perform(const action::Binding& binding,const action::Re
         return fail(error,"NPC property value is unchanged"),action::Outcome::RejectedNoEffect;
     std::array<float,4> expected_tint=before.tint;
     if(intent.kind==action::NpcPropertyKind::OnlineState&&intent.online!=2){uintptr_t color=0;
-        if(!field(memory,state.image,intent.online==1?0x164c5e0:0x164c5c0,color,error)||
+        if(!field(memory,state.image,intent.online==1?0x1651bc0:0x1651ba0,color,error)||
            !field(memory,color,0,expected_tint,error))return action::Outcome::RejectedNoEffect;
         for(float v:expected_tint)if(!std::isfinite(v))return fail(error,"NPC native online color invalid"),action::Outcome::RejectedNoEffect;}
     if(authority){

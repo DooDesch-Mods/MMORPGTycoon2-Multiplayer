@@ -17,9 +17,9 @@
 #endif
 namespace mt2mp::game::native_time_input {
 namespace {
-constexpr const char* hash="bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6";
+constexpr const char* hash="7efd8ee7b97f78362e7a2f8116b327fa6b756bdce23114b68143c4c9d2dd50eb";
 constexpr std::array<uint32_t,5> axes{21,7,8,9,10},scans{44,58,59,60,61},codes{32,0x4000003a,0x4000003b,0x4000003c,0x4000003d};
-constexpr std::array<uintptr_t,5> origins{0,0x4a2abe,0x4a2b05,0x4a2b4c,0x4a2b97};
+constexpr std::array<uintptr_t,5> origins{0,0x4a7fae,0x4a7ff5,0x4a803c,0x4a8087};
 bool reject(std::string& e,const std::string& cause){e=cause;return false;}
 bool token_valid(const std::string& s){if(s.size()!=36)return false;for(size_t i=0;i<s.size();++i){if(i==8||i==13||i==18||i==23){if(s[i]!='-')return false;}else if(!((s[i]>='0'&&s[i]<='9')||(s[i]>='a'&&s[i]<='f')))return false;}return true;}
 bool same(const Request&a,const Request&b){return a.token==b.token&&a.key==b.key&&a.epoch==b.epoch&&a.revision==b.revision&&a.expected_sequence==b.expected_sequence;}
@@ -47,11 +47,11 @@ struct Adapter::Impl {
     }
     bool roots(std::array<uintptr_t,6>& v,std::string& e){
         uintptr_t other=0;int32_t state=0;uint8_t quitting=0;
-        if(!get(config.image+0x13df8f0,v[0],e)||!vt(v[0],0x1743740,e)||!get(config.image+0x13df320,v[1],e)||!vt(v[1],0x16e6730,e)||!get(v[0]+0x28,other,e))return false;
+        if(!get(config.image+0x13eb8f0,v[0],e)||!vt(v[0],0x1749ae0,e)||!get(config.image+0x13eb320,v[1],e)||!vt(v[1],0x16ecad0,e)||!get(v[0]+0x28,other,e))return false;
         if(other!=v[1])return reject(e,"time_input_active_mode_mismatch");
         if(!get(v[1]+0x2c4,state,e)||!get(v[1]+0x304,quitting,e)||!get(v[1]+0x58,v[2],e))return false;
         if(state!=4||quitting||!v[2])return reject(e,"time_input_active_world_required");
-        if(!get(config.image+0x13df990,v[3],e)||!vt(v[3],0x1749430,e)||!get(config.image+0x13df8b0,v[4],e)||!vt(v[4],0x1742750,e)||!get(v[1]+0x128,other,e))return false;
+        if(!get(config.image+0x13eb990,v[3],e)||!vt(v[3],0x174f7d0,e)||!get(config.image+0x13eb8b0,v[4],e)||!vt(v[4],0x1748af0,e)||!get(v[1]+0x128,other,e))return false;
         if(other!=v[4])return reject(e,"time_input_hud_owner_mismatch");
         return get(v[4]+0x60,v[5],e);
     }
@@ -71,11 +71,11 @@ struct Adapter::Impl {
         uint8_t panel=0,a6=0,a8=0;if(!get(r[5]+0x45f,panel,e)||!get(r[3]+0xa6,a6,e)||!get(r[3]+0xa8,a8,e))return false;
         out.panel_visible=panel==1;out.input_clear=a6==0&&a8==0;
         if(!out.panel_visible)return reject(e,"time_input_clock_panel_hidden");if(!out.input_clear)return reject(e,"time_input_native_input_blocked");
-        Array input;if(!array(r[3]+0x48,0x17461c0,0x70,input,e))return false;out.axis_count=uint32_t(input.count);
+        Array input;if(!array(r[3]+0x48,0x174c560,0x70,input,e))return false;out.axis_count=uint32_t(input.count);
         for(size_t k=0;k<5;++k){out.bindings[k].axis=axes[k];out.bindings[k].scancode=scans[k];}
         for(int32_t i=0;i<input.count;++i){
             const auto axis=input.data+size_t(i)*0x70;Array controls;float value=0;uint8_t customized=0;
-            if(!array(axis+0x40,0x1746310,0x14,controls,e)||!get(axis+0x5c,value,e)||!get(axis+0x62,customized,e))return false;
+            if(!array(axis+0x40,0x174c6b0,0x14,controls,e)||!get(axis+0x5c,value,e)||!get(axis+0x62,customized,e))return false;
             if(!std::isfinite(value)||customized>1)return reject(e,"time_input_axis_value_invalid");
             for(size_t k=0;k<5;++k)if(uint32_t(i)==axes[k]){out.bindings[k].customized=customized!=0;out.bindings[k].axis_value=value;}
             for(int32_t j=0;j<controls.count;++j){
@@ -123,7 +123,7 @@ Adapter::Adapter():impl_(std::make_unique<Impl>()){}Adapter::~Adapter()=default;
 bool Adapter::initialize(const Config& c,const Services& s,std::string& e){auto& x=*impl_;std::lock_guard lock(x.mutex);Impl::Busy busy(x);if(!busy.entered)return reject(e,"time_input_reentrant");if(x.attempted)return reject(e,"time_input_initialize_already_attempted");x.attempted=true;
     try{if(!s.read||!s.context||!s.push||!s.thread_id||!s.timestamp_ns||!c.image||c.image>UINTPTR_MAX-0x1800000||!c.game_thread||c.executable_sha256!=hash)return reject(e,"time_input_config_build_guard");if(s.thread_id(s.user)!=c.game_thread)return reject(e,"time_input_wrong_thread");x.config=c;x.services=s;
         struct Guard{uintptr_t rva;const char* bytes;size_t size;};
-        const Guard guards[]={{0x9e7f20,"\x41\x57\x41\x56\x41\x55\x41\x54\x55\x57\x56\x53",12},{0x9e8120,"\x41\x57\x41\x56",4},{0x9e6e00,"\x48\x83\xec\x28\x48\x83\xc1\x48",8},{0x62ec50,"\x48\x8b\x41\x60\x0f\xb6\x80\x5f\x04\x00\x00\xc3",12}};
+        const Guard guards[]={{0x9f2320,"\x41\x57\x41\x56\x41\x55\x41\x54\x55\x57\x56\x53",12},{0x9f2520,"\x41\x57\x41\x56",4},{0x9f1200,"\x48\x83\xec\x28\x48\x83\xc1\x48",8},{0x635a70,"\x48\x8b\x41\x60\x0f\xb6\x80\x5f\x04\x00\x00\xc3",12}};
         for(const auto& g:guards){std::array<char,16> bytes{};if(!s.read(s.user,c.image+g.rva,bytes.data(),g.size,e))return false;if(std::memcmp(bytes.data(),g.bytes,g.size))return reject(e,"time_input_prologue_mismatch rva="+std::to_string(g.rva));}x.initialized=true;return true;
     }catch(const std::exception& ex){return reject(e,ex.what());}catch(...){return reject(e,"time_input_initialize_exception");}}
 bool Adapter::read(Readback& out,std::string& e){auto& x=*impl_;std::lock_guard lock(x.mutex);Impl::Busy busy(x);if(!busy.entered)return reject(e,"time_input_reentrant");try{return x.thread(e)&&x.scan(out,e);}catch(const std::exception& ex){return reject(e,ex.what());}catch(...){return reject(e,"time_input_read_exception");}}
@@ -147,11 +147,11 @@ bool Adapter::observe_poll(const Event& event,uint64_t frame,std::string& e){aut
     if(!edge.queued||edge.poll_forwarded||frame<=edge.queued_frame||(!event.down&&!r.down.poll_forwarded)){e="time_input_duplicate_unqueued_or_reordered_event";return x.fail_active(e);}edge.poll_forwarded=true;edge.poll_frame=frame;return true;
     }catch(const std::exception& ex){e=ex.what();return x.fail_active(e);}catch(...){e="time_input_poll_exception";return x.fail_active(e);}}
 bool Adapter::observe_leaf(uintptr_t caller,Key intent,bool matched,bool queued,uint64_t frame,std::string& e){auto& x=*impl_;std::lock_guard lock(x.mutex);Impl::Busy busy(x);if(!busy.entered)return reject(e,"time_input_reentrant");try{if(!x.thread(e))return false;if(x.active.empty())return true;auto& r=x.memo.at(x.active);if(terminal(r.phase))return reject(e,"time_input_terminal_receipt");if(!x.lease_ok(e))return x.fail_active(e);
-    ++r.captured_count;r.caller_rva=caller;const auto key=size_t(r.request.key);const bool origin=key==0?(caller==0x4a2a77||caller==0x4a2d93):caller==origins[key];
+    ++r.captured_count;r.caller_rva=caller;const auto key=size_t(r.request.key);const bool origin=key==0?(caller==0x4a7f67||caller==0x4a8283):caller==origins[key];
     if(r.captured_count!=1||!matched||!queued||!origin||intent!=r.request.key||!r.down.poll_forwarded||frame<r.down.poll_frame){e="time_input_native_leaf_correlation_failed";return x.fail_active(e);}r.native_route_observed=true;r.phase=Phase::Observed;return true;
     }catch(const std::exception& ex){e=ex.what();return x.fail_active(e);}catch(...){e="time_input_leaf_exception";return x.fail_active(e);}}
 bool Adapter::observe_frame(uint64_t frame,std::string& e){auto& x=*impl_;std::lock_guard lock(x.mutex);Impl::Busy busy(x);if(!busy.entered)return reject(e,"time_input_reentrant");try{if(!x.thread(e))return false;if(x.active.empty())return true;auto& r=x.memo.at(x.active);if(terminal(r.phase))return reject(e,"time_input_terminal_receipt");if(!x.lease_ok(e))return x.fail_active(e);
-    Impl::Array a;if(!x.array(x.lease[3]+0x48,0x17461c0,0x70,a,e))return x.fail_active(e);
+    Impl::Array a;if(!x.array(x.lease[3]+0x48,0x174c560,0x70,a,e))return x.fail_active(e);
     if(a.data!=x.axis_data||a.count!=x.axis_count){e="time_input_axes_changed_during_request";return x.fail_active(e);}
     const auto axis=a.data+size_t(axes[size_t(r.request.key)])*0x70;uint8_t pressed=0,released=0;
     if(!x.get(axis+0x60,pressed,e)||!x.get(axis+0x61,released,e))return x.fail_active(e);

@@ -18,7 +18,7 @@ bool capture_original_save(uintptr_t expected_mode,const std::string& filename,u
     if(target!=expected_target)return fail(error,"original Save immutable target changed");
     ClockState clock;if(!read_clock(clock,error))return false;
     if(!clock.paused||clock.time_scale!=0)return fail(error,"original Save requires the prepared paused Clock");
-    const auto exception=call_owned_save(reinterpret_cast<void*>(expected_mode),filename.c_str(),kind==3?0x4a0580:kind==1?0x4a0490:0x4a1b40,option,error);
+    const auto exception=call_owned_save(reinterpret_cast<void*>(expected_mode),filename.c_str(),kind==3?0x4a5a70:kind==1?0x4a5980:0x4a7030,option,error);
     if(exception)return fail(error,"original Save failed: native exception="+std::to_string(exception)+(error.empty()?std::string{}:" cause="+error));
     int saves=-1;if(!read_at(reinterpret_cast<void*>(expected_mode),0x30c,saves)||saves<0||saves>1||(kind==2&&saves!=0))
         return fail(error,"original Save returned with invalid native count actual="+std::to_string(saves)+" kind="+std::to_string(kind)+"; no replay");
@@ -31,7 +31,7 @@ bool request_original_save(const std::string& filename,bool blocking,std::string
     auto* mode=singleton(mode_slot);int saves=-1;
     if(!in_game()||!read_at(mode,0x30c,saves)||saves!=0)return fail(error,"owned native Save probe requires active idle Mode");
     const auto command=std::string(blocking?"ImmediateAutosave \"":"Autosave \"")+filename+"\"";
-    const auto exception=call_string(0x4a2f90,mode,command.c_str());
+    const auto exception=call_string(0x4a8480,mode,command.c_str());
     if(exception)return fail(error,"original Save command failed: native exception="+std::to_string(exception)+"; no replay");
     error.clear();return true;
 }
@@ -40,17 +40,17 @@ namespace {
 initial_release::CallReceipt periodic_save_input(uintptr_t module,void* window){
     initial_release::Record record{};initial_release::CallReceipt out{};
     __try {
-        reinterpret_cast<initial_release::RecordCtor>(module+0x967370)(&record,"Save");out.constructed=true;
-        out.label_confirmed=reinterpret_cast<initial_release::RecordEquals>(module+0x1113d80)(&record,"Save");
+        reinterpret_cast<initial_release::RecordCtor>(module+0x970590)(&record,"Save");out.constructed=true;
+        out.label_confirmed=reinterpret_cast<initial_release::RecordEquals>(module+0x111f720)(&record,"Save");
         if(out.label_confirmed){
             out.attempted=true;
-            out.accepted=reinterpret_cast<initial_release::UiCommand>(module+0x65f6c0)(window,&record);
+            out.accepted=reinterpret_cast<initial_release::UiCommand>(module+0x666730)(window,&record);
             out.returned=true;
         }
     } __except(EXCEPTION_EXECUTE_HANDLER){out.seh_code=GetExceptionCode();}
     if(out.constructed){
         out.cleanup_attempted=true;
-        __try {reinterpret_cast<initial_release::RecordDtor>(module+0x9676a0)(&record);out.cleanup_confirmed=true;}
+        __try {reinterpret_cast<initial_release::RecordDtor>(module+0x9708c0)(&record);out.cleanup_confirmed=true;}
         __except(EXCEPTION_EXECUTE_HANDLER){out.cleanup_exception=GetExceptionCode();}
     }
     return out;
@@ -58,11 +58,11 @@ initial_release::CallReceipt periodic_save_input(uintptr_t module,void* window){
 bool periodic_save_code(uintptr_t module,std::string& error){
     struct Pin {uintptr_t rva;size_t bytes;const char* hash;};
     static constexpr Pin pins[]={
-        {0x967370,416,"2a6e4111f91e2c3cecb2aa35b99ed8d71f22a75f8300694f7d9ba6b086c01daa"},
-        {0x9676a0,160,"33000088d5ae9e353738b283b76f13a641243aa996c7952714c57d6a07cc170f"},
-        {0x1113d80,272,"dee54a7232d3aef27b73436213be00e802ba3cb997d4fb09a5f41f38468fafcc"},
-        {0x65f6c0,256,"05107f590dde263e89f590318c98cbf9a969c64f8fadd1e105a7922041aa79e5"},
-        {0x65f590,304,"c3f350e4a5b7521616bb6d973d01dae240538519d7401ff7449de4c4cfcbf44c"},
+        {0x970590,416,"708dc9f67619c74b41ea34856237e98209b298b0cc72613a4cf3b729999a5976"},
+        {0x9708c0,160,"182327238cd9e4972b16d4d21ec53c523fce5ef393eda38318e12cc9eb727642"},
+        {0x111f720,272,"646ae2ceb1adbb4b88d9e72b93f1c5cb83b4eda2a7e81c23c411c2aec65ee3d2"},
+        {0x666730,256,"20dc65efdd83a81fd1706701125f17f73bcd4cbfd798e3ce238aa2d136fe1134"},
+        {0x666600,304,"6ef581716ba4035dfcba328afabe8c29d13fa6597f30539a2762ae0bd9ef915a"},
     };
     for(const auto& pin:pins){
         const auto entry=module+pin.rva;
@@ -79,7 +79,7 @@ bool request_original_periodic_save(std::string& error){
     auto* mode=singleton(mode_slot);int saves=-1;
     if(!in_game()||!read_at(mode,0x30c,saves)||saves!=0)return fail(error,"owned periodic Save probe requires active idle Mode");
     void* window=nullptr;
-    if(!read_at(mode,0x90,window)||!has_vtable(window,0x1712560))
+    if(!read_at(mode,0x90,window)||!has_vtable(window,0x1718900))
         return fail(error,"periodic Save Mode-owned AutosaveWindow unavailable or class differs");
     for(const size_t offset:{size_t{0x4f8},size_t{0x508},size_t{0x510}}){
         void* pane=nullptr;
@@ -99,7 +99,7 @@ bool request_original_periodic_save(std::string& error){
             " cleanup_exception="+std::to_string(receipt.cleanup_exception)+"; no replay");
     void* current=nullptr;int state=-1;
     if(!in_game()||singleton(mode_slot)!=mode||!read_at(mode,0x90,current)||current!=window||
-       !has_vtable(window,0x1712560)||!read_at(window,0x4e8,state)||state!=1)
+       !has_vtable(window,0x1718900)||!read_at(window,0x4e8,state)||state!=1)
         return fail(error,"periodic Save original UI command returned with changed owner or non-saving window; no replay");
     error.clear();return true;
 }
@@ -113,7 +113,7 @@ uint32_t periodic_countdown_show(uintptr_t entry,void* window){
 bool request_original_periodic_countdown(std::string& error){
     if(!check_thread(error))return false;
     auto* mode=singleton(mode_slot);int saves=-1;void* window=nullptr;
-    if(!in_game()||!read_at(mode,0x30c,saves)||saves!=0||!read_at(mode,0x90,window)||!has_vtable(window,0x1712560))
+    if(!in_game()||!read_at(mode,0x30c,saves)||saves!=0||!read_at(mode,0x90,window)||!has_vtable(window,0x1718900))
         return fail(error,"periodic countdown requires current idle Mode-owned AutosaveWindow");
     uint8_t visible=0,locked=0;
     if(!read_at(window,0x45f,visible)||!read_at(window,0x4ec,locked)||visible||locked)
@@ -121,9 +121,9 @@ bool request_original_periodic_countdown(std::string& error){
     const auto module=image.load();
     struct Pin {uintptr_t rva;size_t bytes;const char* hash;};
     static constexpr Pin pins[]={
-        {0x81ec20,64,"6017edee8911e17d4541a597fa2ff4240b5652a187d885a5d9ef24b56ce25f57"},
-        {0x65fa60,544,"572d1de21a8e165d7adfab777252f7f47ee483d529a87e15ca47a3483297ee4e"},
-        {0x81e4e0,1856,"de12dc1850699c368d22c5df83fe6b2d37836d1ab26f78e019f22deb9162b371"},
+        {0x827210,64,"6017edee8911e17d4541a597fa2ff4240b5652a187d885a5d9ef24b56ce25f57"},
+        {0x666ad0,544,"fc7b567443274b7ee28a34a902a3cf70ba93a04d53bc2c53792d8c3c0bf085c4"},
+        {0x826ad0,1856,"3aa31017dd104e5012d34bf7c86e93b516e46ab6bbc9079caaa7b8ee09eba1ef"},
     };
     for(const auto& pin:pins){std::string cause;const auto entry=module+pin.rva;
         if(!readable(reinterpret_cast<void*>(entry),pin.bytes)||!hooks::framework::verify_original_hash(entry,reinterpret_cast<void*>(entry),pin.bytes,pin.hash,cause))
@@ -131,7 +131,7 @@ bool request_original_periodic_countdown(std::string& error){
     }
     uintptr_t table=0,show=0,on_show=0,update=0;
     if(!read_at(window,0,table)||!read_at(reinterpret_cast<void*>(table),0x1d0,show)||!read_at(reinterpret_cast<void*>(table),0xb0,on_show)||
-       !read_at(reinterpret_cast<void*>(table),0xd8,update)||show!=module+0x81ec20||on_show!=module+0x65fa60||update!=module+0x65fc80)
+       !read_at(reinterpret_cast<void*>(table),0xd8,update)||show!=module+0x827210||on_show!=module+0x666ad0||update!=module+0x666cf0)
         return fail(error,"periodic countdown original Window virtual entries differ");
     const auto exception=periodic_countdown_show(show,window);
     if(exception)return fail(error,"periodic countdown original Show failed exception="+std::to_string(exception)+"; no replay");

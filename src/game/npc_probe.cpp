@@ -207,7 +207,7 @@ namespace mt2mp::game::npc_probe {
 namespace {
 namespace host=build_actions::private_native::host;
 using json=nlohmann::json;
-constexpr const char* exe_sha="bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6";
+constexpr const char* exe_sha="7efd8ee7b97f78362e7a2f8116b327fa6b756bdce23114b68143c4c9d2dd50eb";
 
 bool fail(std::string& error,const std::string& reason){error=reason;return false;}
 class Memory final:public npc_census::Memory,public action_session::ui_capture::Memory {
@@ -259,12 +259,12 @@ bool tools(Memory& memory,uintptr_t image,std::map<std::string,Tool>& result,std
     result={{"QuestGiver",{}},{"Guard",{}},{"ClassTrainer",{}}};
     uintptr_t player=0,inventory=0,cursor=0,ap=0;
     npc_census::InventoryHeader header;
-    if(!field(memory,image,0x13df9f0,player,error)||
-       !field(memory,player,0,ap,error)||ap!=image+0x17873b0||
+    if(!field(memory,image,0x13eb9f0,player,error)||
+       !field(memory,player,0,ap,error)||ap!=image+0x178d750||
        !field(memory,player,0x1d0,inventory,error)||
-       !field(memory,inventory,0,ap,error)||ap!=image+0x16df0f0||
-       !field(memory,image,0x13df9d0,cursor,error)||
-       !field(memory,cursor,0,ap,error)||ap!=image+0x1786dd0||
+       !field(memory,inventory,0,ap,error)||ap!=image+0x16e5490||
+       !field(memory,image,0x13eb9d0,cursor,error)||
+       !field(memory,cursor,0,ap,error)||ap!=image+0x178d170||
        !npc_census::read_inventory_header(memory,inventory,header,error))
         return fail(error,error.empty()?"NPC native player, inventory or cursor class differs":error);
     std::set<uintptr_t> seen_items;
@@ -273,17 +273,17 @@ bool tools(Memory& memory,uintptr_t image,std::map<std::string,Tool>& result,std
         if(!field(memory,header.items,size_t(i)*8,item,error))return false;
         if(!item)continue;
         if(!seen_items.insert(item).second||
-           !field(memory,item,0,ap,error)||ap!=image+0x17437f0||
+           !field(memory,item,0,ap,error)||ap!=image+0x1749b90||
            !field(memory,item,0x68,type,error)||!type||
            !field(memory,item,0x70,weak,error)||!weak||
            !field(memory,weak,0,target,error)||
            !field(memory,type,0x40,owned,error)||target!=type+0x38||owned!=weak||
            !field(memory,type,0,ap,error))
             return fail(error,error.empty()?"NPC native inventory item or weak owner differs":error);
-        if(ap!=image+0x173b7b0)continue;
+        if(ap!=image+0x1741b50)continue;
         if(!field(memory,type,0x160,behaviour,error)||!behaviour||
            !field(memory,behaviour,0,ap,error))return false;
-        if(ap!=image+0x172b450)continue;
+        if(ap!=image+0x17317f0)continue;
         std::string type_name;
         int32_t npc_type=-1;
         if(!name(memory,behaviour+0x148,type_name,error)||
@@ -299,7 +299,7 @@ bool tools(Memory& memory,uintptr_t image,std::map<std::string,Tool>& result,std
         uintptr_t selected=0;
         if(!field(memory,behaviour,0x360,selected,error))return false;
         if(selected) {
-            if(!field(memory,selected,0,ap,error)||ap!=image+0x1705990||
+            if(!field(memory,selected,0,ap,error)||ap!=image+0x170bd30||
                !field(memory,selected,0x2c,found->second.selected_character_id,error))
                 return fail(error,error.empty()?"NPC selected CharacterType class or ID unreadable":error);
             found->second.selected=true;
@@ -308,7 +308,7 @@ bool tools(Memory& memory,uintptr_t image,std::map<std::string,Tool>& result,std
     npc_census::InventoryHeader after;
     uintptr_t after_player=0;
     if(!npc_census::read_inventory_header(memory,inventory,after,error)||
-       !field(memory,image,0x13df9f0,after_player,error))return false;
+       !field(memory,image,0x13eb9f0,after_player,error))return false;
     if(after!=header||after_player!=player)
         return fail(error,"NPC native inventory changed during readback");
     return true;

@@ -54,7 +54,7 @@ bool selection(void* receiver,std::int32_t index,std::uint32_t& exception) noexc
 }
 bool definition(void* value,std::uintptr_t image,const Request& request,void*& variants,std::int32_t& count,std::string& cause,std::uint32_t& exception) {
     variants=nullptr;count=0;std::uintptr_t table=0;std::uint32_t flags=0;std::int32_t capacity=0;std::string type;
-    if(!image||image>(std::numeric_limits<std::uintptr_t>::max)()-0x172ae50||!at(value,0,table,exception)||table!=image+0x172ae50)return fail(cause,"error: actual BuildingDefinition class differs");
+    if(!image||image>(std::numeric_limits<std::uintptr_t>::max)()-0x17311f0||!at(value,0,table,exception)||table!=image+0x17311f0)return fail(cause,"error: actual BuildingDefinition class differs");
     const auto base=reinterpret_cast<std::uintptr_t>(value);
     if(base>(std::numeric_limits<std::uintptr_t>::max)()-0x188)return fail(cause,"error: actual BuildingDefinition address overflows");
     if(!text(reinterpret_cast<void*>(base+0x18),type,exception)||type!=request.type)return fail(cause,"error: actual BuildingDefinition type differs");
@@ -75,7 +75,7 @@ bool definition(void* value,std::uintptr_t image,const Request& request,void*& v
     std::set<std::string> names;bool found=false;
     for(std::int32_t i=0;i<count;++i) {
         void* variant=nullptr;std::uintptr_t variant_table=0;std::string name;
-        if(!at(variants,std::size_t(i)*8,variant,exception)||!at(variant,0,variant_table,exception)||variant_table!=image+0x1718550)return fail(cause,"error: actual BuildingVariant class differs");
+        if(!at(variants,std::size_t(i)*8,variant,exception)||!at(variant,0,variant_table,exception)||variant_table!=image+0x171e8f0)return fail(cause,"error: actual BuildingVariant class differs");
         const auto p=reinterpret_cast<std::uintptr_t>(variant);
         if(p>(std::numeric_limits<std::uintptr_t>::max)()-0x38||!text(reinterpret_cast<void*>(p+0x18),name,exception))return fail(cause,"error: actual BuildingVariant identifier unreadable");
         if(!names.insert(name).second)return fail(cause,"error: actual BuildingDefinition variant is ambiguous");

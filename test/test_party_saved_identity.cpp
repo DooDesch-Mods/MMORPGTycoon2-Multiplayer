@@ -13,7 +13,7 @@ namespace {
 constexpr uintptr_t fixture_image = 0x140000000, fixture_manager = 0x20000;
 constexpr uintptr_t fixture_party = 0x30000, fixture_other = 0x40000, fixture_data = 0x50000;
 constexpr uintptr_t fixture_reader = 0x60000, fixture_writer = 0x70000, fixture_context = 0x80000;
-constexpr uintptr_t fixture_property = fixture_image + 0x13c0140;
+constexpr uintptr_t fixture_property = fixture_image + 0x13cc140;
 const std::string snapshot = "11111111-2222-3333-4444-555555555555", sha(64, 'a');
 int comparisons = 0;
 void require(bool value, const char* cause) { ++comparisons; if (!value) throw std::runtime_error(cause); }
@@ -37,17 +37,17 @@ struct Fixture {
     Memory memory;
     std::string error;
     Fixture(int32_t count = 1) {
-        memory.put(fixture_property, fixture_image + 0x170e670);
+        memory.put(fixture_property, fixture_image + 0x1714a10);
         memory.put(fixture_property + 0x38, uint64_t{0x18});
-        memory.put(fixture_manager, fixture_image + 0x17018d0);
-        memory.put(fixture_manager + 0x18, fixture_image + 0x16f0180);
+        memory.put(fixture_manager, fixture_image + 0x1707c70);
+        memory.put(fixture_manager + 0x18, fixture_image + 0x16f6520);
         memory.put(fixture_manager + 0x20, fixture_data);
         memory.put(fixture_manager + 0x28, count);
         memory.put(fixture_manager + 0x2c, int32_t{2});
         memory.put(fixture_data, fixture_party);
         memory.put(fixture_data + 8, fixture_other);
         for (const auto object : {fixture_party, fixture_other}) {
-            memory.put(object, fixture_image + 0x174a370);
+            memory.put(object, fixture_image + 0x1750710);
             memory.put(object + 8, fixture_context);
             memory.put(object + 0x18, uint64_t{0x1122334400000000} + object);
         }

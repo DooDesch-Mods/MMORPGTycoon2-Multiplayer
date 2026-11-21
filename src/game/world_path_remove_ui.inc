@@ -1,7 +1,7 @@
 namespace world_path_runtime {
 bool current_remove(region::Runtime& r,uintptr_t object,Pending& out,uint64_t& uid,std::string& error){
     uintptr_t region_pointer=0,second=0;int32_t id=-1,end=-1;
-    if(!native::ap(r.memory,object,r.image,0x1743f10,error)||
+    if(!native::ap(r.memory,object,r.image,0x174a2b0,error)||
        !region::at(r,object,0x178,region_pointer,error)||!region_pointer||
        !region::at(r,region_pointer,0x834,id,error)||!region::at(r,object,0x2f8,second,error))return false;
     end=id;if(second&&!region::at(r,second,0x834,end,error))return false;
@@ -25,8 +25,8 @@ bool current_remove(region::Runtime& r,uintptr_t object,Pending& out,uint64_t& u
 bool remove_local_binding(uintptr_t manager,uintptr_t object,action::ui_capture::LocalBinding& out,std::string& error){
     auto* r=runtime(error);uintptr_t current_manager=0;
     if(!r||!path.ready||!world_path_runtime::capture.ready||!world_path_runtime::idle(*r,error)||
-       !region::at(*r,r->image,0x13df630,current_manager,error)||current_manager!=manager||
-       !native::ap(r->memory,manager,r->image,0x17205d0,error))
+       !region::at(*r,r->image,0x13eb630,current_manager,error)||current_manager!=manager||
+       !native::ap(r->memory,manager,r->image,0x1726970,error))
         return fail(error,error.empty()?"mixed Path Remove current SelectionManager differs":error);
     world_path_runtime::Pending current;uint64_t uid=0;
     if(!world_path_runtime::current_remove(*r,object,current,uid,error))return false;
@@ -43,7 +43,7 @@ bool submit_remove(const action::ui_capture::Intent& intent,std::string& error){
     uintptr_t object=0;
     for(const auto& [uid,key]:world_path_runtime::owner.keys.keys())if(key==intent.canonical_record_key){
         // The complete current census below resolves the retained UID without dereferencing a retired pointer.
-        uintptr_t map=0;if(!region::at(*r,r->image,0x13df8c0,map,error))return false;
+        uintptr_t map=0;if(!region::at(*r,r->image,0x13eb8c0,map,error))return false;
         mixed_path_native::Census census;
         if(!mixed_path_native::read_world(r->memory,r->image,map,map+0x1c0,census,error))return false;
         for(const auto& row:census.paths)if(row.member.uid==uid){object=row.member.object;break;}

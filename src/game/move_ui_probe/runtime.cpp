@@ -44,7 +44,7 @@ template<class T>bool field(uintptr_t p,size_t offset,T& value,std::string& e){i
 bool context(Job& j,std::string& e){
     uintptr_t image=0;uint32_t actual_thread=0;std::string sha;
     if(!native::read_resolver_receipt(image,actual_thread,sha,e))return false;
-    if(actual_thread!=GetCurrentThreadId()||(thread&&thread!=actual_thread)||sha!="bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6")return fail(e,"move_ui_actual_module_mainthread_differs");
+    if(actual_thread!=GetCurrentThreadId()||(thread&&thread!=actual_thread)||sha!="7efd8ee7b97f78362e7a2f8116b327fa6b756bdce23114b68143c4c9d2dd50eb")return fail(e,"move_ui_actual_module_mainthread_differs");
     building_mixed_identity::opened_file::CurrentWorld w;if(!native_open_runtime::read_current_world(w,e))return false;
     const auto& q=j.bound.input;
     if(!w.state||!w.world||w.world_epoch!=q.epoch||w.generation!=q.generation||net::current_snapshot_id()!=q.snapshot)return fail(e,"move_ui_actual_world_session_snapshot_differs");
@@ -68,11 +68,11 @@ uint32_t command(const common::Api* api,const common::Window* window,Evidence* r
     return exception;
 }
 uint32_t cursor_call(uintptr_t image,uintptr_t behaviour,uintptr_t cursor,const std::array<float,3>* position,unsigned step,Evidence* r)noexcept{
-    __try{r->attempted_mask|=uint32_t{1}<<step;const uintptr_t rva=step==5?0x5c0200:step==6?0x5c05c0:0x5c01e0;reinterpret_cast<void(__fastcall*)(void*,void*,const float*)>(image+rva)(reinterpret_cast<void*>(behaviour),reinterpret_cast<void*>(cursor),position->data());r->returned_mask|=uint32_t{1}<<step;return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
+    __try{r->attempted_mask|=uint32_t{1}<<step;const uintptr_t rva=step==5?0x5c69a0:step==6?0x5c6d60:0x5c6980;reinterpret_cast<void(__fastcall*)(void*,void*,const float*)>(image+rva)(reinterpret_cast<void*>(behaviour),reinterpret_cast<void*>(cursor),position->data());r->returned_mask|=uint32_t{1}<<step;return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 bool active_cursor(Job& j,bool pending,std::string& e){
     uintptr_t ap=0,b=0,data=0,ghost=0,target=0;int32_t count=0,capacity=0;unsigned char flags[2]{},duplicate=1;
-    if(!field(j.context.image,0x13df9d0,j.cursor,e)||!field(j.cursor,0,ap,e)||ap!=j.context.image+0x1786dd0||!field(j.cursor,0x190,b,e)||!field(b,0,ap,e)||ap!=j.context.image+0x172f1f0||!field(b,0x460,data,e)||!field(b,0x468,count,e)||!field(b,0x46c,capacity,e)||count!=1||capacity<1||!field(data,8,ghost,e)||!field(data,0x10,target,e)||target!=j.target.object||!field(ghost,0,ap,e)||ap!=j.context.image+0x1705230||!memory.copy(b+0x400,flags,2,e)||!field(b,0x499,duplicate,e))return fail(e,e.empty()?"move_ui_actual_cursor_record_owner_differs":e);
+    if(!field(j.context.image,0x13eb9d0,j.cursor,e)||!field(j.cursor,0,ap,e)||ap!=j.context.image+0x178d170||!field(j.cursor,0x190,b,e)||!field(b,0,ap,e)||ap!=j.context.image+0x1735590||!field(b,0x460,data,e)||!field(b,0x468,count,e)||!field(b,0x46c,capacity,e)||count!=1||capacity<1||!field(data,8,ghost,e)||!field(data,0x10,target,e)||target!=j.target.object||!field(ghost,0,ap,e)||ap!=j.context.image+0x170b5d0||!memory.copy(b+0x400,flags,2,e)||!field(b,0x499,duplicate,e))return fail(e,e.empty()?"move_ui_actual_cursor_record_owner_differs":e);
     if(duplicate||flags[0]!=(pending?0:1)||flags[1]!=(pending?1:0))return fail(e,"move_ui_actual_native_placement_flags_differ required_placing="+std::to_string(pending?0:1)+" measured_placing="+std::to_string(flags[0])+" required_pending="+std::to_string(pending?1:0)+" measured_pending="+std::to_string(flags[1])+" required_duplicate=0 measured_duplicate="+std::to_string(duplicate));
     if(j.bound.armed.behaviour&&(b!=j.bound.armed.behaviour||ghost!=j.bound.armed.ghost))return fail(e,"move_ui_normal_cursor_or_ghost_changed");
     j.bound.armed.behaviour=b;j.bound.armed.record=data;j.bound.armed.ghost=ghost;

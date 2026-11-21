@@ -27,7 +27,7 @@ bool character_owners(Runtime& r,const definitions::Census& census,std::map<uint
            !q::at(r.memory,definition.object,0x13c,capacity,error))return false;
         if(count<0||count>10000||capacity<count||(count&&!data))return q::fail(error,"Boss Character Ability prototype owner-array bounds differ");
         for(int32_t slot=0;slot<count;++slot){uintptr_t prototype=0,found=0;uint64_t uid=0;
-            if(!q::at(r.memory,data,size_t(slot)*8,prototype,error)||!q::typed(r.memory,r.image,prototype,0x171c930,error)||
+            if(!q::at(r.memory,data,size_t(slot)*8,prototype,error)||!q::typed(r.memory,r.image,prototype,0x1722cd0,error)||
                !q::at(r.memory,prototype,0x18,uid,error)||!uid||!group_edit::find(r,uid,found,error)||found!=prototype||
                !owner_add(owners,prototype,definition.key+"/ability/"+std::to_string(slot),error))
                 return q::fail(error,error.empty()?"Boss Character Ability actual original full UID differs":error);
@@ -93,10 +93,10 @@ bool sample(Runtime& r,const action::Context& context,const action::Binding& bin
            !boss_placement_state::split(out.actors,born,out.value,error))return false;
     }else if(out.value.created)out.value.record_sha=retained_record;
     uintptr_t release_manager=0;
-    if(!q::at(r.memory,r.image,0x164b250,out.random,error)||!q::at(r.memory,out.random,0,out.value.random,error)||
-       !q::at(r.memory,r.image,0x13df4f0,release_manager,error)||!q::typed(r.memory,r.image,release_manager,0x1714ed0,error)||
-       !q::at(r.memory,release_manager,0x38,out.release,error)||!q::typed(r.memory,r.image,out.release,0x16c12b0,error)||
-       !q::at(r.memory,out.release,0x120,out.value.release,error)||!q::at(r.memory,r.image,0x13df220,out.business,error)||
+    if(!q::at(r.memory,r.image,0x1650830,out.random,error)||!q::at(r.memory,out.random,0,out.value.random,error)||
+       !q::at(r.memory,r.image,0x13eb4f0,release_manager,error)||!q::typed(r.memory,r.image,release_manager,0x171b270,error)||
+       !q::at(r.memory,release_manager,0x38,out.release,error)||!q::typed(r.memory,r.image,out.release,0x16c7650,error)||
+       !q::at(r.memory,out.release,0x120,out.value.release,error)||!q::at(r.memory,r.image,0x13eb220,out.business,error)||
        !ledger(out.money,error)||!witness::read_undo(r.memory.process,r.image,out.undo,error)||out.undo.active_graph)return q::fail(error,error.empty()?"Boss original Ledger/RNG/release or idle Undo owner differs":error);
     host::WorldState after;
     return (world(r,after,error)&&host::same_world(out.world.origin,after.origin)&&boss_placement_state::valid(out.value))||

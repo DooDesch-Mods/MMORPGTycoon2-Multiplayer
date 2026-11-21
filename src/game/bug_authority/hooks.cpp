@@ -56,7 +56,7 @@ bool world_collection(uintptr_t collection,std::string& error){
     auto& r=runtime();uintptr_t parent=0,shard=0,ap=0;
     building_mixed_identity::opened_file::CurrentWorld world;
     if(!native_open_runtime::read_current_world(world,error)||!field(collection,0,ap,error)||!field(collection,0x48,parent,error)||!field(parent,0x170,shard,error))return false;
-    return (ap==r.image+0x1705640&&world.world_epoch==r.binding.native_epoch&&world.generation==r.binding.native_generation&&
+    return (ap==r.image+0x170b9e0&&world.world_epoch==r.binding.native_epoch&&world.generation==r.binding.native_generation&&
         shard==reinterpret_cast<uintptr_t>(world.map)+0x1c0)||fail(error,"Bug creation receiver is outside exact current root World");
 }
 uintptr_t add_random(uintptr_t collection){
@@ -98,7 +98,7 @@ void remove_tracker(uintptr_t tracker,uintptr_t bug){
 bool property_owner(uintptr_t property,uintptr_t collection,std::string& error){
     uint64_t offset=0;uintptr_t ap=0;
     if(!field(property,0x38,offset,error)||!field(collection,0,ap,error))return false;
-    return (offset==0x18&&ap==runtime().image+0x1705640)||fail(error,"Bug original serde property/collection offset differs");
+    return (offset==0x18&&ap==runtime().image+0x170b9e0)||fail(error,"Bug original serde property/collection offset differs");
 }
 bool retain(Scope& frame,std::string& error){
     std::vector<uintptr_t> after;if(!local_members(frame.children.collection,after,error))return false;
@@ -129,22 +129,22 @@ bool save_property(uintptr_t property,uintptr_t collection,uintptr_t writer,uint
     return result;
 }
 void saved_child(uintptr_t caller,uintptr_t object,uintptr_t writer,uintptr_t context){
-    if(scope&&scope->save&&caller==0xdc19e1){
+    if(scope&&scope->save&&caller==0xdcd2f1){
         try{std::lock_guard lock(runtime().gate);std::string error;uintptr_t ap=0;
-            if(!field(object,0,ap,error)||ap!=runtime().image+0x1742200||!scope->children.child(writer,context,object,error))caught(error.empty()?"Bug original serialized child class differs":error);
+            if(!field(object,0,ap,error)||ap!=runtime().image+0x17485a0||!scope->children.child(writer,context,object,error))caught(error.empty()?"Bug original serialized child class differs":error);
         }catch(const std::exception& e){caught(std::string("Bug original serialized child witness: ")+e.what());}
         catch(...){caught("Bug original serialized child witness nonstandard exception");}
     }
 }
 void save_rtti(uintptr_t type,uintptr_t object,uintptr_t writer,uintptr_t context){
     const auto caller=reinterpret_cast<uintptr_t>(_ReturnAddress())-runtime().image;
-    if(caller==0x10ebc6e&&runtime().snapshot_armed&&runtime().snapshot_host){
+    if(caller==0x10f760e&&runtime().snapshot_armed&&runtime().snapshot_host){
         try{auto& r=runtime();std::lock_guard lock(r.gate);building_capture_identity::StreamOwner owner;bool owned=false;std::string error;int32_t link=0,job_type=0;uintptr_t developer=0;uint8_t valid=0;
             if(!building_capture_identity::stream_owner(reinterpret_cast<void*>(writer),owner,owned,error))caught(error);
             else if(owned){
                 if(!field(object,0x18,job_type,error)||!field(object,0xb8,developer,error)||!field(object,0xc4,valid,error))caught(error);
                 else if(job_type==7||(job_type==0&&!valid&&developer)){
-                    const bool present=reinterpret_cast<bool(*)(uintptr_t,uintptr_t,int32_t*)>(r.image+0x89e690)(context,object,&link);
+                    const bool present=reinterpret_cast<bool(*)(uintptr_t,uintptr_t,int32_t*)>(r.image+0x8a77b0)(context,object,&link);
                     if(owner.capture_uuid!=r.snapshot_uuid||!present||!work_saved(object,context,link,error))caught(error.empty()?"Original serialized Job linkId/owned writer differs":error);
                 }
             }
@@ -180,23 +180,23 @@ bool remove_call(uintptr_t entry,uintptr_t collection,uintptr_t bug,uint32_t& co
 }
 }
 void original_children(uintptr_t caller,void* reader,int32_t count)noexcept try{
-    if(!scope||scope->save||scope->record||caller!=0xbae563)return;
+    if(!scope||scope->save||scope->record||caller!=0xbbae23)return;
     std::lock_guard lock(runtime().gate);std::string error;
     if(scope->children.stream!=reinterpret_cast<uintptr_t>(reader)||scope->children.declared!=-1||count<0||count>1024*1024){caught("Bug original BeginChildren reader/count differs");return;}
     scope->children.declared=count;
 }catch(const std::exception& e){caught(std::string("Bug original child count: ")+e.what());}catch(...){caught("Bug original child count nonstandard exception");}
 void original_registered(uintptr_t caller,void* context,int32_t id,void* object)noexcept try{
-    if(caller==0xbaffcb&&runtime().snapshot_armed&&!runtime().snapshot_host){
+    if(caller==0xbbc88b&&runtime().snapshot_armed&&!runtime().snapshot_host){
         std::lock_guard lock(runtime().gate);std::string error;
         if(!work_saved(reinterpret_cast<uintptr_t>(object),reinterpret_cast<uintptr_t>(context),id,error))caught(error);
         return;
     }
     if(!scope||scope->save)return;
-    const bool linked=scope->record?caller==0xbae1df:caller==0xbae8b5;
-    const bool inline_child=scope->record?caller==0xbae470:caller==0xbaea15;
+    const bool linked=scope->record?caller==0xbbaa9f:caller==0xbbb175;
+    const bool inline_child=scope->record?caller==0xbbad30:caller==0xbbb2d5;
     if(!linked&&!inline_child)return;
     std::lock_guard lock(runtime().gate);std::string error;uintptr_t ap=0,actual_context=0;const auto ptr=reinterpret_cast<uintptr_t>(object);
-    if((linked?id<=0:id!=0)||!field(ptr,0,ap,error)||!field(ptr,8,actual_context,error)||ap!=runtime().image+0x1742200||actual_context!=reinterpret_cast<uintptr_t>(context)||
+    if((linked?id<=0:id!=0)||!field(ptr,0,ap,error)||!field(ptr,8,actual_context,error)||ap!=runtime().image+0x17485a0||actual_context!=reinterpret_cast<uintptr_t>(context)||
        !scope->children.child(scope->children.stream,reinterpret_cast<uintptr_t>(context),ptr,error))caught(error.empty()?"Bug original child registration class/context/link differs":error);
 }catch(const std::exception& e){caught(std::string("Bug original registration: ")+e.what());}catch(...){caught("Bug original registration nonstandard exception");}
 creation::SetAnchor anchor_original(){return original_anchor;}
@@ -204,7 +204,7 @@ bool native_remove(uintptr_t collection,uintptr_t bug,bool& attempted,std::strin
     attempted=false;
     std::vector<uintptr_t> before,after;if(!local_members(collection,before,error))return false;
     const auto found=std::find(before.begin(),before.end(),bug);if(found==before.end())return fail(error,"Selected Bug retirement lacks original collection member");before.erase(found);
-    uint32_t code=0;attempted=true;if(!remove_call(runtime().image+0x59970,collection,bug,code))return fail(error,"Original selected Bug retirement SEH="+std::to_string(code));
+    uint32_t code=0;attempted=true;if(!remove_call(runtime().image+0x59e70,collection,bug,code))return fail(error,"Original selected Bug retirement SEH="+std::to_string(code));
     if(!local_members(collection,after,error))return false;
     return (before==after&&!runtime().lifetimes.pointer(bug))||fail(error,"Selected Bug retirement order/Tracker lifetime readback differs");
 }
@@ -225,16 +225,16 @@ bool install_native(std::string& error){
         if(mt2mp::sha256(bytes)!=body.sha)return fail(error,"Bug original complete body unsupported RVA="+std::to_string(body.rva));}
     struct Install {uintptr_t rva,detour;void** original;};
     const Install entries[]={
-        {0x58da0,reinterpret_cast<uintptr_t>(&make_job),reinterpret_cast<void**>(&original_make_job)},
-        {0xc2e810,reinterpret_cast<uintptr_t>(&destroy_job),reinterpret_cast<void**>(&original_destroy_job)},
-        {0x59fb0,reinterpret_cast<uintptr_t>(&add_random),reinterpret_cast<void**>(&original_random)},
-        {0x59a00,reinterpret_cast<uintptr_t>(&add_specific),reinterpret_cast<void**>(&original_specific)},
-        {0x58740,reinterpret_cast<uintptr_t>(&set_anchor),reinterpret_cast<void**>(&original_anchor)},
-        {0x5d100,reinterpret_cast<uintptr_t>(&remove_tracker),reinterpret_cast<void**>(&original_remove)},
-        {0xdc1800,reinterpret_cast<uintptr_t>(&save_property),reinterpret_cast<void**>(&original_save)},
-        {0xdc17d0,reinterpret_cast<uintptr_t>(&load_property),reinterpret_cast<void**>(&original_load)},
-        {0x8acc80,reinterpret_cast<uintptr_t>(&save_rtti),reinterpret_cast<void**>(&original_rtti)},
-        {0xbaded0,reinterpret_cast<uintptr_t>(&load_record),reinterpret_cast<void**>(&original_record)}};
+        {0x592a0,reinterpret_cast<uintptr_t>(&make_job),reinterpret_cast<void**>(&original_make_job)},
+        {0xc3b0c0,reinterpret_cast<uintptr_t>(&destroy_job),reinterpret_cast<void**>(&original_destroy_job)},
+        {0x5a4b0,reinterpret_cast<uintptr_t>(&add_random),reinterpret_cast<void**>(&original_random)},
+        {0x59f00,reinterpret_cast<uintptr_t>(&add_specific),reinterpret_cast<void**>(&original_specific)},
+        {0x58c40,reinterpret_cast<uintptr_t>(&set_anchor),reinterpret_cast<void**>(&original_anchor)},
+        {0x5d6b0,reinterpret_cast<uintptr_t>(&remove_tracker),reinterpret_cast<void**>(&original_remove)},
+        {0xdcd110,reinterpret_cast<uintptr_t>(&save_property),reinterpret_cast<void**>(&original_save)},
+        {0xdcd0e0,reinterpret_cast<uintptr_t>(&load_property),reinterpret_cast<void**>(&original_load)},
+        {0x8b5da0,reinterpret_cast<uintptr_t>(&save_rtti),reinterpret_cast<void**>(&original_rtti)},
+        {0xbba790,reinterpret_cast<uintptr_t>(&load_record),reinterpret_cast<void**>(&original_record)}};
     for(const auto& entry:entries){const auto body=std::find_if(original_bodies.begin(),original_bodies.end(),[&](const auto& b){return b.rva==entry.rva;});
         if(body==original_bodies.end())return fail(error,"Bug hook full-body metadata absent");
         const auto target=reinterpret_cast<void*>(r.image+entry.rva);auto result=MH_CreateHook(target,reinterpret_cast<void*>(entry.detour),entry.original);

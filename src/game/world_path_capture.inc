@@ -41,11 +41,11 @@ bool original_input_admission(region::Runtime& r,std::string& error){
 bool wall_purchase(region::Runtime& r,int32_t type,float length,const void* position,
                    uintptr_t caller,std::string& error){
     if(!capture.local_wall||!capture.before)return fail(error,"Wall purchase lacks pending local capture");
-    if(caller!=r.image+0x5ec3c0&&caller!=r.image+0x5ec63b)
+    if(caller!=r.image+0x5f2b10&&caller!=r.image+0x5f2d8b)
         return fail(error,"Wall purchase call site differs from original Press");
     if(capture.captured)return fail(error,"Wall purchase captured twice");
     uintptr_t cursor=0;
-    if(!region::at(r,r.image,0x13df9d0,cursor,error))return false;
+    if(!region::at(r,r.image,0x13eb9d0,cursor,error))return false;
     wall_pass_cursor::WallSource source;
     if(!wall_pass_cursor::wall(r.memory,r.image,capture.local_wall,cursor,uintptr_t(position),
                               capture.before->mixed.native,owner.keys.keys(),source,error))return false;
@@ -66,7 +66,7 @@ uint32_t call_press(NativePress original,void* receiver,void* cursor,const void*
 }
 uint32_t cleanup(uintptr_t image,bool wall,void* receiver){
     __try{
-        reinterpret_cast<void(*)(void*)>(image+(wall?0x5e8d00:0x5c8a60))(receiver);
+        reinterpret_cast<void(*)(void*)>(image+(wall?0x5ef450:0x5cf1b0))(receiver);
         return 0;
     }__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
@@ -158,8 +158,8 @@ bool enable(region::Runtime& r,std::string& error){
     capture.attempted=true;
     struct Guard{uintptr_t rva;std::array<uint8_t,16> prefix;NativePress* original;void* entry;};
     const std::array<Guard,2> guards{{
-        {0x5ec320,{0x57,0x56,0x53,0x48,0x81,0xec,0xa0,0,0,0,0x48,0x8b,0x81,0x68,0x02,0},&capture.wall,reinterpret_cast<void*>(&wall_press_entry)},
-        {0x5c97e0,{0x80,0xb9,0xea,0x01,0,0,0,0x74,0x17,0x48,0x83,0xb9,0x88,0x01,0,0},&capture.pass,reinterpret_cast<void*>(&pass_press_entry)}}};
+        {0x5f2a70,{0x57,0x56,0x53,0x48,0x81,0xec,0xa0,0x00,0x00,0x00,0x48,0x8b,0x81,0x68,0x02,0x00},&capture.wall,reinterpret_cast<void*>(&wall_press_entry)},
+        {0x5cff30,{0x80,0xb9,0xea,0x01,0x00,0x00,0x00,0x74,0x17,0x48,0x83,0xb9,0x88,0x01,0x00,0x00},&capture.pass,reinterpret_cast<void*>(&pass_press_entry)}}};
     for(const auto& guard:guards){std::array<uint8_t,16> actual{};
         if(!r.memory.copy(r.image+guard.rva,actual.data(),actual.size(),error)||actual!=guard.prefix)
             return fail(error,"Wall/Pass original Press bytes differ RVA="+std::to_string(guard.rva));

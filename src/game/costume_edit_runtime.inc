@@ -3,8 +3,8 @@ namespace {
 using Command=a::ui_diagnostic::UiCommand;
 Command original=nullptr;uint64_t generation=0,captures=0,submitted=0,rejected=0;bool installed=false,ready=false,fault=false,replaying=false;
 uintptr_t replay_receiver=0;uint32_t original_calls=0;std::string cause,last_action;
-constexpr npc_quest_list_ui_codes::Code ui_code{0x6b51c0,4250,"aa46c765e1353ad394627575ec4b7b18b23d9e7e9ea8cda9b31da5a7880c7407",
-    {0x41,0x57,0x41,0x56,0x41,0x55,0x41,0x54,0x55,0x57,0x56,0x53,0x48,0x81,0xec,0x38,0x02,0,0,0x0f,0x11,0xb4,0x24,0xd0,0x01,0,0,0x0f,0x11,0xbc,0x24,0xe0}};
+constexpr npc_quest_list_ui_codes::Code ui_code{0x6bc4e0,4250,"6d22701c18b41f3e2fd58436b2198fc010f069154bf6bf1f59b78ef5f2adf215",
+    {0x41,0x57,0x41,0x56,0x41,0x55,0x41,0x54,0x55,0x57,0x56,0x53,0x48,0x81,0xec,0x38,0x02,0x00,0x00,0x0f,0x11,0xb4,0x24,0xd0,0x01,0x00,0x00,0x0f,0x11,0xbc,0x24,0xe0}};
 struct Sample {character_rename::Sample character;uintptr_t costume=0;std::vector<std::array<uintptr_t,3>> local; a::CostumeEditState value;};
 struct Pending {a::Binding binding;std::string snapshot;a::CostumeEditIntent intent;std::optional<a::Context> context;std::string diagnostic_token;};
 struct Operation {a::Binding binding;a::Request request;Sample before,after;a::Evidence evidence;bool attempted=false,returned=false,confirmed=false,retired=false,prepared=false,seed_attempted=false,ordered=false;uint32_t calls=0;std::string cause;};
@@ -44,10 +44,10 @@ bool read_weapon_command(Memory& memory,uintptr_t record,a::CostumeWeaponIntent&
 }
 uint32_t weapon_original(uintptr_t owner,const a::CostumeWeaponIntent& intent,uint32_t& calls,bool& returned)noexcept{
     const quest_list::QuestTitleView category{intent.category.c_str(),intent.category.size()};
-    __try{++calls;reinterpret_cast<void(*)(void*,const quest_list::QuestTitleView&)>(state.image+(intent.enabled?0x91060:0x910e0))(reinterpret_cast<void*>(owner+0x38),category);returned=true;return 0;}
+    __try{++calls;reinterpret_cast<void(*)(void*,const quest_list::QuestTitleView&)>(state.image+(intent.enabled?0x91d50:0x91dd0))(reinterpret_cast<void*>(owner+0x38),category);returned=true;return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
-uint32_t weapon_dirty(uintptr_t outer)noexcept{__try{reinterpret_cast<void(*)(void*,bool)>(state.image+0x6b1c40)(reinterpret_cast<void*>(outer),true);return 0;}
+uint32_t weapon_dirty(uintptr_t outer)noexcept{__try{reinterpret_cast<void(*)(void*,bool)>(state.image+0x6b8f60)(reinterpret_cast<void*>(outer),true);return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
 bool weapon_dirty_readback(Memory& memory,uintptr_t outer,std::string& error){
     for(size_t offset:{size_t(0x328),size_t(0x330)}){uintptr_t button=0;uint8_t disabled=1;
@@ -68,22 +68,22 @@ bool sample(Memory& memory,const a::Binding& binding,const std::string& snapshot
 }
 bool window(Memory& memory,uintptr_t& outer,uintptr_t& live,uintptr_t& draft,uintptr_t& owner,std::string& error){
     uintptr_t named=0,view=0,ap=0;const auto seh=character_rename::find_window(named);
-    if(seh||!named||!field(memory,named,0,ap,error)||ap!=state.image+0x173a7f0||!field(memory,named,0x4e8,view,error)||!field(memory,view,0,ap,error)||ap!=state.image+0x1736770||
-       !field(memory,view,0x3b0,outer,error)||!outer||!field(memory,outer,0,ap,error)||ap!=state.image+0x1722a70||!field(memory,outer,0x318,live,error)||!field(memory,outer,0x320,draft,error)||!field(memory,outer,0x340,owner,error))return fail(error,error.empty()?"Costume actual named Window/View/editor differs SEH="+std::to_string(seh):error);
-    if(draft&&(draft==live||!field(memory,draft,0,ap,error)||ap!=state.image+0x16c0210))return fail(error,error.empty()?"Costume original owned draft address point differs":error);return true;
+    if(seh||!named||!field(memory,named,0,ap,error)||ap!=state.image+0x1740b90||!field(memory,named,0x4e8,view,error)||!field(memory,view,0,ap,error)||ap!=state.image+0x173cb10||
+       !field(memory,view,0x3b0,outer,error)||!outer||!field(memory,outer,0,ap,error)||ap!=state.image+0x1728e10||!field(memory,outer,0x318,live,error)||!field(memory,outer,0x320,draft,error)||!field(memory,outer,0x340,owner,error))return fail(error,error.empty()?"Costume actual named Window/View/editor differs SEH="+std::to_string(seh):error);
+    if(draft&&(draft==live||!field(memory,draft,0,ap,error)||ap!=state.image+0x16c65b0))return fail(error,error.empty()?"Costume original owned draft address point differs":error);return true;
 }
 uint32_t setup(uintptr_t outer,uintptr_t live,uintptr_t owner)noexcept{__try{
     // Bind the native editor owner as SetupFor does, then use its owned Reload transaction.
     // Calling full SetupFor here would also unlock ArtStore entries outside this action.
     *reinterpret_cast<uintptr_t*>(outer+0x340)=owner;
-    reinterpret_cast<void(*)(void*,void*)>(state.image+0x6b4400)(reinterpret_cast<void*>(outer),reinterpret_cast<void*>(live));return 0;
+    reinterpret_cast<void(*)(void*,void*)>(state.image+0x6bb720)(reinterpret_cast<void*>(outer),reinterpret_cast<void*>(live));return 0;
 }__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
 uint32_t transform(void* object,const a::CostumePose& pose)noexcept{__try{
-    reinterpret_cast<void(*)(void*,const void*,const void*,const void*)>(state.image+0x9ff370)(object,pose.rotation.data(),pose.position.data(),pose.scale.data());return 0;
+    reinterpret_cast<void(*)(void*,const void*,const void*,const void*)>(state.image+0xa09f30)(object,pose.rotation.data(),pose.position.data(),pose.scale.data());return 0;
 }__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
 uint32_t assign(uintptr_t draft,const void* source)noexcept{__try{
-    reinterpret_cast<void*(*)(void*,const void*)>(state.image+0x29f40)(reinterpret_cast<void*>(draft),source);
-    reinterpret_cast<void(*)(void*)>(state.image+0x2d020)(reinterpret_cast<void*>(draft));return 0;
+    reinterpret_cast<void*(*)(void*,const void*)>(state.image+0x2a0e0)(reinterpret_cast<void*>(draft),source);
+    reinterpret_cast<void(*)(void*)>(state.image+0x2d1c0)(reinterpret_cast<void*>(draft));return 0;
 }__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
 bool prepare(uintptr_t draft,const a::CostumeRecord& record,std::string& error){
     costume_native_view::Borrowed input;uint32_t failure=0;auto build=[&](void* object,const a::CostumePose& pose){if(!failure)failure=transform(object,pose);};input.build(state.image,record,build);

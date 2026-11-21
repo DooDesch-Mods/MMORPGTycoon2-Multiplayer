@@ -20,6 +20,6 @@ int main()try{
         changed=other;changed.private_links[2].object=4000;check(!complete::summarize(changed,1000,owners,b,error)&&error=="original unresolved Actor external owner","Unknown original Actor reference was guessed or its cause lost");
         changed=other;changed.records[2].tokens.push_back({4,0xabcdef01,""});check(complete::summarize(changed,1000,owners,b,error)&&a.sha!=b.sha,"Additional native Actor field was reduced to a selected property subset");
     }
-    check(actors::methods[0][0]==0x10eda70&&actors::methods[1][0]==0xe4ad10&&actors::methods[2][0]==0x10ecae0&&actors::methods[3][0]==0x10f9c20,"Concrete original Boss/Monster/NPC/Toon serializer family is wrong");
+    check(actors::methods[0][0]==0x10f9410&&actors::methods[1][0]==0xe56800&&actors::methods[2][0]==0x10f8480&&actors::methods[3][0]==0x11055c0,"Concrete original Boss/Monster/NPC/Toon serializer family is wrong");
     std::cout<<checks<<" complete original four-family Actor Record/reference and exact wrapper comparisons passed\n";return 0;
 }catch(const std::exception& error){std::cerr<<error.what()<<'\n';return 1;}

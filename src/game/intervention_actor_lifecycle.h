@@ -21,10 +21,10 @@ using Batch=journal::Batch;
 using Host=journal::Host;
 using Client=journal::Client;
 inline uintptr_t call_return(Source source){switch(source){
-    case Source::BossWait:return 0x397afa;case Source::BossRespawn:return 0x3996cd;case Source::BossGenerate:return 0x398b48;case Source::BossRegenerate:return 0x398bdd;case Source::BossAdd:return 0x2395de;
-    case Source::NpcRespawn:return 0x3c98b9;case Source::NpcGenerate:return 0x3c71c2;case Source::NpcAdd:return 0x296a58;
-    case Source::MonsterRespawn:return 0x3bc43a;case Source::MonsterGenerate:return 0x3bea41;case Source::MonsterRegenerate:return 0x3bec9d;case Source::NpcDeath:return 0x3c206c;case Source::MonsterDeath:return 0x3be435;
-    case Source::NpcBaseDeath:return 0x3c200d;case Source::MonsterBaseDeath:return 0x3be1b8;
+    case Source::BossWait:return 0x39c5fa;case Source::BossRespawn:return 0x39e1cd;case Source::BossGenerate:return 0x39d648;case Source::BossRegenerate:return 0x39d6dd;case Source::BossAdd:return 0x23c44e;
+    case Source::NpcRespawn:return 0x3ce3c9;case Source::NpcGenerate:return 0x3cbcd2;case Source::NpcAdd:return 0x299e98;
+    case Source::MonsterRespawn:return 0x3c0f4a;case Source::MonsterGenerate:return 0x3c3551;case Source::MonsterRegenerate:return 0x3c37ad;case Source::NpcDeath:return 0x3c6b7c;case Source::MonsterDeath:return 0x3c2f45;
+    case Source::NpcBaseDeath:return 0x3c6b1d;case Source::MonsterBaseDeath:return 0x3c2cc8;
     // Boss uses the base Die directly through its actual native virtual slot.
     case Source::BossBaseDeath:return 0;
     default:return 0;}}

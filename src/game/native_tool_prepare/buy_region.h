@@ -6,7 +6,7 @@
 namespace mt2mp::game::native_tool_prepare::buy_region {
 inline bool fail(std::string& e,const char* cause){e=cause;return false;}
 inline constexpr std::array<unsigned char,16> deactivate_code{
-    0xc3,0x90,0x0f,0x1f,0x00,0x66,0x66,0x2e,0x0f,0x1f,0x84,0,0,0,0,0};
+    0xc3,0x90,0x0f,0x1f,0x00,0x66,0x66,0x2e,0x0f,0x1f,0x84,0x00,0x00,0x00,0x00,0x00};
 inline constexpr std::array<unsigned char,16> cancel_code{
     0xc3,0x90,0x90,0x90,0x90,0x90,0x90,0x90,0x90,0x90,0x90,0x90,0x90,0x90,0x90,0x90};
 template<class M,class T>bool at(M& m,uintptr_t p,size_t offset,T& out,std::string& e){
@@ -37,30 +37,30 @@ struct Pin {
 template<class M>bool inspect(M& m,uintptr_t image,const Pin& expected,bool after,Pin& out,std::string& e){
     out={};uintptr_t ap=0,current=0,activation=0,deactivation=0,cancellation=0;
     uint8_t mode=0,valid=0,select=0,progress=0,queue=0;
-    if(!at(m,image,0x13df9d0,out.cursor,e)||out.cursor!=expected.cursor||
-       !at(m,out.cursor,0,ap,e)||ap!=image+0x1786dd0||
+    if(!at(m,image,0x13eb9d0,out.cursor,e)||out.cursor!=expected.cursor||
+       !at(m,out.cursor,0,ap,e)||ap!=image+0x178d170||
        !at(m,out.cursor,0x190,current,e)||current!=(after?expected.desired:expected.old)||
        !at(m,out.cursor,0x198,out.desired,e)||out.desired!=expected.desired)
         return fail(e,e.empty()?"BuyRegion Cursor owner changed":e.c_str());
     out.old=expected.old;
-    if(!at(m,out.old,0,ap,e)||ap!=image+0x173c170||
-       !at(m,ap,0xa8,activation,e)||activation!=image+0x595120||
-       !at(m,ap,0xb0,deactivation,e)||deactivation!=image+0x595120||
-       !at(m,ap,0x128,cancellation,e)||cancellation!=image+0xbf63f0)
+    if(!at(m,out.old,0,ap,e)||ap!=image+0x1742510||
+       !at(m,ap,0xa8,activation,e)||activation!=image+0x59b8d0||
+       !at(m,ap,0xb0,deactivation,e)||deactivation!=image+0x59b8d0||
+       !at(m,ap,0x128,cancellation,e)||cancellation!=image+0xc02ac0)
         return fail(e,e.empty()?"BuyRegion actual virtual contract differs":e.c_str());
     if(!at(m,out.old,0x148,mode,e)||!at(m,out.old,0x158,valid,e))return false;
     // Validity can remain set after release; it is not a pending-commit flag.
     if(mode||valid>1)return fail(e,"BuyRegion requires buy mode and boolean validity");
     std::array<unsigned char,16> bytes{};
-    if(!m.copy(image+0x595120,bytes.data(),bytes.size(),e))return false;
+    if(!m.copy(image+0x59b8d0,bytes.data(),bytes.size(),e))return false;
     if(bytes!=deactivate_code)return fail(e,"BuyRegion full Activate/Deactivate body differs");
-    if(!m.copy(image+0xbf63f0,bytes.data(),bytes.size(),e))return false;
+    if(!m.copy(image+0xc02ac0,bytes.data(),bytes.size(),e))return false;
     if(bytes!=cancel_code)return fail(e,"BuyRegion full base Cancel body differs");
-    if(!at(m,out.desired,0,ap,e)||ap!=image+0x17391a0||
-       !at(m,ap,0xa8,activation,e)||activation!=image+0xbf6500||
+    if(!at(m,out.desired,0,ap,e)||ap!=image+0x173f540||
+       !at(m,ap,0xa8,activation,e)||activation!=image+0xc02bd0||
        !at(m,out.desired,0x120,select,e)||select!=1)
         return fail(e,e.empty()?"BuyRegion Default selection contract differs":e.c_str());
-    if(!at(m,image,0x13df630,out.manager,e)||!at(m,out.manager,0,ap,e)||ap!=image+0x17205d0||
+    if(!at(m,image,0x13eb630,out.manager,e)||!at(m,out.manager,0,ap,e)||ap!=image+0x1726970||
        (expected.manager&&out.manager!=expected.manager)||
        !at(m,out.manager,0xd1,progress,e)||!at(m,out.manager,0xd3,queue,e))
         return fail(e,e.empty()?"BuyRegion SelectionManager owner differs":e.c_str());
@@ -68,7 +68,7 @@ template<class M>bool inspect(M& m,uintptr_t image,const Pin& expected,bool afte
     return true;
 }
 inline bool preview_applicable(bool buy,bool prior_tool){return prior_tool&&!buy;}
-inline uintptr_t cancel_rva(bool build,bool scenery,bool buy){return buy?0xbf63f0:(scenery?0x5d0690:(build?0x591320:0x5c0900));}
+inline uintptr_t cancel_rva(bool build,bool scenery,bool buy){return buy?0xc02ac0:(scenery?0x5d6de0:(build?0x597ad0:0x5c70a0));}
 // The same mask sequence is used at the native SEH boundary and by the fixture.
 template<class J,class C>void sequence(J& j,C& calls){
     j.attempted|=1;calls.cancel();j.returned|=1;

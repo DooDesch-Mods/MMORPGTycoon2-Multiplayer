@@ -31,7 +31,7 @@ bool read_owned(Memory& m,const q::World& w,Owners&& owners,State& out,std::stri
     out={};uintptr_t buildings=0;
     if(!owners(m,w,buildings,out.manager,e)||
        !q::at(m,w.region,0x988,out.monster_manager,e)||
-       !q::typed(m,w.image,out.monster_manager,0x1714100,e))return false;
+       !q::typed(m,w.image,out.monster_manager,0x171a4a0,e))return false;
     uintptr_t owner=0;
     if(!q::at(m,out.monster_manager,0x80,owner,e))return false;
     if(owner!=w.region)return q::fail(e,"monster probe manager reciprocal region differs");
@@ -47,15 +47,15 @@ bool read_owned(Memory& m,const q::World& w,Owners&& owners,State& out,std::stri
         zone_ids.emplace(value.pointer,value.uid);out.zones.push_back(std::move(z));
     }
     q::Bounds monsters;
-    if(!q::typed(m,w.image,out.monster_manager+0x38,0x16e8b60,e)||
+    if(!q::typed(m,w.image,out.monster_manager+0x38,0x16eef00,e)||
        !q::bounds(m,out.monster_manager+0x38,4096,monsters,e)||
-       !q::at(m,w.image,0x1a30b70,out.next_monster_tag,e)||
+       !q::at(m,w.image,0x1a37b70,out.next_monster_tag,e)||
        !q::at(m,out.monster_manager,0x90,out.created_monsters,e))return false;
     std::set<uintptr_t> pointers;std::set<uint64_t> uids;
     for(int32_t i=0;i<monsters.count;++i){
         Monster row;uintptr_t root=0,region=0,proxy=0,target=0,owned=0;
         if(!q::at(m,monsters.data,size_t(i)*8,row.pointer,e)||
-           !q::typed(m,w.image,row.pointer,0x16c0770,e)||
+           !q::typed(m,w.image,row.pointer,0x16c6b10,e)||
            !q::at(m,row.pointer,0x18,row.uid,e)||!q::at(m,row.pointer,0x170,root,e)||
            !q::at(m,row.pointer,0x178,region,e)||!q::at(m,row.pointer,0x820,row.tag,e)||
            !q::at(m,row.pointer,0x824,row.status,e)||!q::at(m,row.pointer,0x838,row.rank,e)||
@@ -90,7 +90,7 @@ bool read_owned(Memory& m,const q::World& w,Owners&& owners,State& out,std::stri
     }
     if(!q::unchanged(m,out.monster_manager+0x38,4096,monsters,e))return false;
     uintptr_t random=0;
-    if(!q::at(m,w.image,0x164b250,random,e)||!q::at(m,random,0,out.global_random,e)||
+    if(!q::at(m,w.image,0x1650830,random,e)||!q::at(m,random,0,out.global_random,e)||
        !q::at(m,w.region,0x160,random,e)||!q::at(m,random,0,out.region_random,e))return false;
     e.clear();return true;
 }

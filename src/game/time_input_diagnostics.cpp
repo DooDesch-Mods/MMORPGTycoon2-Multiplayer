@@ -13,7 +13,7 @@ namespace mt2mp::game::time_input_diagnostics {
 namespace {
 namespace input=native_time_input;
 namespace wire=time_session;
-constexpr const char* exe_sha="bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6";
+constexpr const char* exe_sha="7efd8ee7b97f78362e7a2f8116b327fa6b756bdce23114b68143c4c9d2dd50eb";
 input::Adapter adapter;
 bool initialized=false;
 uint32_t bound_thread=0;

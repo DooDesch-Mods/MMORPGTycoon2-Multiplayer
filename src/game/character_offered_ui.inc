@@ -3,15 +3,15 @@ namespace {
 #include "character_offered_controls.inc"
 bool edit_code(Memory& memory,std::string& error){
     constexpr preview::Pin pins[]{
-        {0x674780,1002,"fc26de4faf43a67eff514d5f1ac974ec58657afa6f878dd24ee8fe4441920258"},
-        {0x6a0a30,19,"b7981a6905e87700da2eecf32d2d7718c21265b5d65c33c17adca7ad51289a87"},
-        {0x6a32a0,2777,"3301abb85b53c6157e63744ab106635021b857d0f5add3208708731150d21ea4"},
-        {0x6a1780,153,"b788c070ee48b5a25c3b5c7034e2afa585343d63ef447255117ec01598329367"},
-        {0x7524f0,25,"4eae098a2651c18f169f48c29e446d832192b33fb437ed351c3dc2beef061ed9"},
-        {0x756470,1133,"bdfff6320aef73296e059e2a66eb4a52d955f0859e173cfd38a71ce4d69f7597"},
-        {0x564890,269,"5ad60c05465b95aea9cfc6e4e1e8409aa35dc2d7ad44b20f0e2ada09baaa30f1"},
-        {0x81ada0,123,"b700973ea00bacf50ea6326378d4a87d21d33b3e3cffd25930840483a77df549"},
-        {0x6ab830,862,"feb57404da263f78acbd79de826111431848f84d4cb46f4402e3b13f0375f63e"}};
+        {0x67b950,1018,"b172fa254cd2ddd35dbee41d495537892c16b6096530d2511bdbbf1d3f3c0f83"},
+        {0x6a7d30,19,"b7981a6905e87700da2eecf32d2d7718c21265b5d65c33c17adca7ad51289a87"},
+        {0x6aa5a0,2809,"d34844942c557a700383a9fd5c87ce916860f94b43e2cec25413533ac0716975"},
+        {0x6a8a80,153,"f493c8d7f0543cc0faa186aa6f1800d704b0fd40a6f0d7ba857f4bdcede0f41f"},
+        {0x759f70,25,"4eae098a2651c18f169f48c29e446d832192b33fb437ed351c3dc2beef061ed9"},
+        {0x75def0,1133,"47fb232a4a7ca2784931f81311ba07ed2f9ca99aa5cbd40b287425c2154cd842"},
+        {0x56af20,269,"36ea97db677fd028838d8afb38eb001f1e57b132321a53eb2ca669b9014dfdef"},
+        {0x823390,123,"38cb0c149aa40cd270a17855d58f1bc5502f26b9f80fd30d43ee0b9852c088f4"},
+        {0x6b2b50,862,"b7789297c2c105ecda34ecdf0e76fab6e637a389d999923ea9dcd10883e4a0f5"}};
     for(const auto& pin:pins){std::vector<unsigned char> bytes(pin.bytes);
         if(!memory.copy(state.image+pin.rva,bytes.data(),bytes.size(),error)||
            !hooks::framework::verify_original_hash(state.image+pin.rva,bytes.data(),bytes.size(),pin.sha,error))
@@ -20,14 +20,14 @@ bool edit_code(Memory& memory,std::string& error){
 }
 uint32_t edit_set_page(uintptr_t tab,const char* name,size_t size)noexcept{
     __try{const quest_list::QuestTitleView value{name,size};
-        reinterpret_cast<void(*)(void*,const quest_list::QuestTitleView&)>(state.image+0x7524f0)(reinterpret_cast<void*>(tab),value);return 0;}
+        reinterpret_cast<void(*)(void*,const quest_list::QuestTitleView&)>(state.image+0x759f70)(reinterpret_cast<void*>(tab),value);return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 uint32_t edit_checkbox(uintptr_t pane)noexcept{
     // These exact native methods do not read their cursor/position arguments.
     __try{using Input=void(*)(void*,void*,const void*);
-        reinterpret_cast<Input>(state.image+0x6a0a30)(reinterpret_cast<void*>(pane),nullptr,nullptr);
-        reinterpret_cast<Input>(state.image+0x6a32a0)(reinterpret_cast<void*>(pane),nullptr,nullptr);return 0;}
+        reinterpret_cast<Input>(state.image+0x6a7d30)(reinterpret_cast<void*>(pane),nullptr,nullptr);
+        reinterpret_cast<Input>(state.image+0x6aa5a0)(reinterpret_cast<void*>(pane),nullptr,nullptr);return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 bool edit_target(Memory& memory,const json& args,uintptr_t& view,uintptr_t& outer,uintptr_t& owner,std::string& error){
@@ -49,7 +49,7 @@ bool edit_open(UiJob& job,std::string& error){
     if(!menu.collection_shown&&!execute_menu(job,before,intent,error))return false;
     if(!offered_card(memory,job.arguments,card,error))return false;
     a::ui_diagnostic::Api api;if(!a::ui_diagnostic::resolve_api(memory,state.image,exe_sha,api,error))return false;
-    api.command=reinterpret_cast<Command>(state.image+0x681090);api.destroy_label="clicked";
+    api.command=reinterpret_cast<Command>(state.image+0x6882a0);api.destroy_label="clicked";
     a::ui_diagnostic::Window control;control.window=card.card;a::ui_diagnostic::Receipt receipt;job.attempted=true;
     if(!a::ui_diagnostic::process_calls().command(api,control,receipt,error)||!receipt.ui_command_returned||!receipt.record_cleanup_confirmed||
        !window(memory,before.selected,view,editor,outer,error)||

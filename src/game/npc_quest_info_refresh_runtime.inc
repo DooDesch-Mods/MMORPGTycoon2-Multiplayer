@@ -1,6 +1,6 @@
 namespace info_refresh=npc_quest_info_refresh;
 uint32_t update_info_contents(uintptr_t window)noexcept{
-    __try{reinterpret_cast<void(*)(void*)>(state.image+0x758d90)(reinterpret_cast<void*>(window));return 0;}
+    __try{reinterpret_cast<void(*)(void*)>(state.image+0x760810)(reinterpret_cast<void*>(window));return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 struct InfoRefreshCalls {

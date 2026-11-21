@@ -61,10 +61,10 @@ template<class Read>bool array(Read& at,uintptr_t owner,size_t data_offset,Array
 }
 template<class Read>bool read_row(Read& at,uintptr_t image,uintptr_t expected_thinker,uintptr_t object,const std::array<std::map<uintptr_t,std::string>,3>& keys,LocalRow& owned,Row& value,std::string& e){
     owned={};value={};owned.object=object;uintptr_t ap=0,thinker=0;uint8_t registered=0;
-if(!at(owned.object,0,ap,e)||ap!=image+0x16fdef0||!at(owned.object,0x18,thinker,e)||thinker!=expected_thinker||!at(owned.object,0x20,value.type,e)||
-               !at(owned.object,0xd0,ap,e)||ap!=image+0x1744d10||!at(owned.object,0xe8,value.time,e)||!at(owned.object,0xf8,value.position,e)||!at(owned.object,0x104,registered,e)||registered>1)return fail(e,e.empty()?"Thought actual class/thinker/time/registration differs":e);
+if(!at(owned.object,0,ap,e)||ap!=image+0x1704290||!at(owned.object,0x18,thinker,e)||thinker!=expected_thinker||!at(owned.object,0x20,value.type,e)||
+               !at(owned.object,0xd0,ap,e)||ap!=image+0x174b0b0||!at(owned.object,0xe8,value.time,e)||!at(owned.object,0xf8,value.position,e)||!at(owned.object,0x104,registered,e)||registered>1)return fail(e,e.empty()?"Thought actual class/thinker/time/registration differs":e);
             value.registered=registered!=0;
-            constexpr std::array<size_t,3> offsets{0x28,0x60,0x98};constexpr std::array<uintptr_t,3> classes{0x17116f0,0x1711b70,0x1711ab0};
+            constexpr std::array<size_t,3> offsets{0x28,0x60,0x98};constexpr std::array<uintptr_t,3> classes{0x1717a90,0x1717f10,0x1717e50};
             for(size_t kind=0;kind<3;++kind){if(!at(owned.object,offsets[kind],ap,e)||ap!=image+classes[kind]||!at(owned.object,offsets[kind]+0x28,owned.targets[kind],e)||!at(owned.object,offsets[kind]+0x30,owned.proxies[kind],e))return fail(e,e.empty()?"Thought weak target class/header differs":e);
                 native_weak_reference::Observation weak;
                 if(!native_weak_reference::observe(at,owned.targets[kind],owned.proxies[kind],weak,e))return fail(e,"Thought weak header kind="+std::to_string(kind)+" cause="+e);
@@ -80,7 +80,7 @@ template<class Read>bool read(Read& at,uintptr_t image,const Bindings& bindings,
     for(const auto& [key,pointer]:bindings.toons)if(!pointer||!keys[2].emplace(pointer,key).second)return fail(e,"Thought canonical Toon allocation aliases two owners");
     std::map<uintptr_t,std::string> thought_keys;
     for(const auto& [key,pointer]:bindings.toons){uintptr_t ap=0;LocalToon local;local.object=pointer;Toon toon;toon.key=key;
-        if(!at(pointer,0,ap,e)||ap!=image+0x1744e90||!at(pointer,0x8c0,ap,e)||ap!=image+0x16eaae0||!array(at,pointer,0x8c8,local.array,e))return fail(e,e.empty()?"Thought owning current Toon/Array class differs":e);
+        if(!at(pointer,0,ap,e)||ap!=image+0x174b230||!at(pointer,0x8c0,ap,e)||ap!=image+0x16f0e80||!array(at,pointer,0x8c8,local.array,e))return fail(e,e.empty()?"Thought owning current Toon/Array class differs":e);
         for(int32_t i=0;i<local.array.count;++i){LocalRow owned;Row value;uintptr_t object=0;
             if(!at(local.array.data,size_t(i)*8,object,e)||!read_row(at,image,pointer,object,keys,owned,value,e))return false;
             if(!thought_keys.emplace(object,thought_key(key,size_t(i))).second)return fail(e,"Thought allocation occurs in multiple owning slots");
@@ -89,7 +89,7 @@ template<class Read>bool read(Read& at,uintptr_t image,const Bindings& bindings,
         owners.toons.push_back(std::move(local));out.toons.push_back(std::move(toon));
     }
     for(size_t kind=0;kind<2;++kind)for(const auto& [key,pointer]:bindings.targets[kind]){Array local;Links links;links.kind=int32_t(kind);links.key=key;uintptr_t ap=0;const size_t base=kind?0x580:0xce0;
-        if(!at(pointer,base,ap,e)||ap!=image+0x1717220||!array(at,pointer,base+0x20,local,e))return fail(e,e.empty()?"Thought reciprocal target link-array class differs":e);
+        if(!at(pointer,base,ap,e)||ap!=image+0x171d5c0||!array(at,pointer,base+0x20,local,e))return fail(e,e.empty()?"Thought reciprocal target link-array class differs":e);
         for(int32_t i=0;i<local.count;++i){uintptr_t thought=0;if(!at(local.data,size_t(i)*8,thought,e))return false;const auto found=thought_keys.find(thought);if(found==thought_keys.end())return fail(e,"Thought reciprocal target list contains an allocation outside complete live owning Toon arrays; no dereference");links.members.push_back(found->second);}
         owners.links.push_back(local);out.links.push_back(std::move(links));
     }

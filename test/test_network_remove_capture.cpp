@@ -53,9 +53,9 @@ void cases(){
 }
 int main()try{scene_collection_fixture::cases();
     constexpr uintptr_t image=0x10000000,stack=0x30000000;std::string e;Bytes bytes;ui::Origin origin;
-    for(auto pc:{0x42d8a4u,0x43411cu,0x74f588u}){bytes.values={{stack,image+0x2d55a8},{stack+0xa0,image+pc}};
+    for(auto pc:{0x432684u,0x438efcu,0x756f28u}){bytes.values={{stack,image+0x2d8c98},{stack+0xa0,image+pc}};
         need(ui::classify_origin(bytes,image,stack,origin,e)&&origin==ui::Origin::NetworkWindow,"actual Node/Pipe/NetworkInfoWindow return chain missed");}
-    bytes.values[stack+0xa0]=image+0x42d8a5;need(ui::classify_origin(bytes,image,stack,origin,e)&&origin==ui::Origin::Foreign,"adjacent unknown caller admitted");
+    bytes.values[stack+0xa0]=image+0x432685;need(ui::classify_origin(bytes,image,stack,origin,e)&&origin==ui::Origin::Foreign,"adjacent unknown caller admitted");
     bytes.values.erase(stack+0xa0);need(!ui::classify_origin(bytes,image,stack,origin,e),"unreadable caller silently admitted");
     for(auto source:{ui::Origin::NetworkWindow,ui::Origin::DestroyCursor,ui::Origin::SelectionWindow}){Services s;ui::Capture capture(s);uintptr_t target=20;ui::NativePropArray array{100,&target,1,1};
         need(capture.publish_disabled(&original,e)&&capture.set_enabled(true,e),e);

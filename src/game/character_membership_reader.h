@@ -6,14 +6,14 @@ namespace definitions=character_definition_identity;
 enum class Family:uint8_t {Boss,Monster,Npc,Toon};
 struct User {uintptr_t object=0,addresspoint=0;uint64_t uid=0;Family family=Family::Boss;std::string definition;bool operator==(const User&)const=default;};
 struct Users {std::vector<User> rows;std::map<std::string,std::vector<User>> by_definition;bool operator==(const Users&)const=default;};
-inline constexpr std::array<uintptr_t,4> callbacks{0x3976f0,0x3b9e20,0x3c3170,0x3e9e00};
+inline constexpr std::array<uintptr_t,4> callbacks{0x39c1f0,0x3be930,0x3c7c80,0x3ee910};
 template<class Read,class Find>
 bool users(Read& at,Find& find,uintptr_t image,const definitions::Census& census,Users& out,std::string& error){
     out={};Users next;
     for(const auto& definition:census.definitions){
         if(definition.deleted)continue;uintptr_t ap=0;definitions::Array array;
         if(!at(definition.object,0x4c0,ap,error))return false;
-        if(ap!=image+0x1747ae0)return definitions::fail(error,"Character current complete native users array class differs");
+        if(ap!=image+0x174de80)return definitions::fail(error,"Character current complete native users array class differs");
         if(!definitions::array(at,definition.object+0x4c0,array,error))return false;
         std::set<uintptr_t> pointers;std::set<uint64_t> uids;auto& rows=next.by_definition[definition.key];
         for(const auto pointer:array.members){User row;uintptr_t callback=0,registered=0;row.object=pointer;row.definition=definition.key;
@@ -33,13 +33,13 @@ bool collection_member(Read& at,uintptr_t image,const definitions::Definition& s
     record=0;uintptr_t ap=0;definitions::Array rows;
     if(selected.kind<0||selected.kind>4||!selected.owning_collection||selected.deleted)return definitions::fail(error,"Character destruction lacks a live owning Collection/kind");
     if(!at(selected.owning_collection,0,ap,error))return false;
-    if(ap!=image+0x173a6f0)return definitions::fail(error,"Character destruction owning Collection class differs");
+    if(ap!=image+0x1740a90)return definitions::fail(error,"Character destruction owning Collection class differs");
     if(!at(selected.owning_collection,0x40+size_t(selected.kind)*0x30,ap,error))return false;
-    if(ap!=image+0x16eef80)return definitions::fail(error,"Character destruction owning Collection array class differs");
+    if(ap!=image+0x16f5320)return definitions::fail(error,"Character destruction owning Collection array class differs");
     if(!definitions::array(at,selected.owning_collection+0x40+size_t(selected.kind)*0x30,rows,error))return false;
     for(const auto pointer:rows.members){int32_t kind=-1,id=-1;
         if(!at(pointer,0,ap,error)||!at(pointer,0x18,kind,error)||!at(pointer,0x1c,id,error))return false;
-        if(ap!=image+0x1740fa0)return definitions::fail(error,"Character owning Collection member Record class differs");
+        if(ap!=image+0x1747340)return definitions::fail(error,"Character owning Collection member Record class differs");
         if(kind==selected.kind&&id==selected.id){if(record)return definitions::fail(error,"Character owning Collection repeats its target global ID");record=pointer;}
     }
     return definitions::unchanged(at,rows,error)&&(record||definitions::fail(error,"Character global ID is absent from its owning Collection"));

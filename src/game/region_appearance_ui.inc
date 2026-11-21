@@ -15,17 +15,17 @@ bool appearance_ui_intent(const action::RegionPropertyIntent& intent,std::string
     return true;
 }
 uint32_t appearance_ui_color(uintptr_t image,uintptr_t picker,const std::array<float,4>& color){
-    __try{reinterpret_cast<void(*)(void*,const void*)>(image+0x836e00)(reinterpret_cast<void*>(picker),color.data());return 0;}
+    __try{reinterpret_cast<void(*)(void*,const void*)>(image+0x83f490)(reinterpret_cast<void*>(picker),color.data());return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 uint32_t appearance_ui_combo(uintptr_t image,uintptr_t combo,const NativeString& value){
-    __try{reinterpret_cast<void(*)(void*,const void*,bool)>(image+0x6ab830)(reinterpret_cast<void*>(combo),&value,false);return 0;}
+    __try{reinterpret_cast<void(*)(void*,const void*,bool)>(image+0x6b2b50)(reinterpret_cast<void*>(combo),&value,false);return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 uint32_t appearance_ui_command(uintptr_t image,uintptr_t window,const char* label,void* record,UiReceipt& receipt){
     __try{
-        reinterpret_cast<void(*)(void*,const char*)>(image+0x967370)(record,label);receipt.constructed=true;
-        receipt.called=true;receipt.accepted=reinterpret_cast<UICommand>(image+0x797850)(reinterpret_cast<void*>(window),record);
+        reinterpret_cast<void(*)(void*,const char*)>(image+0x970590)(record,label);receipt.constructed=true;
+        receipt.called=true;receipt.accepted=reinterpret_cast<UICommand>(image+0x79fa30)(reinterpret_cast<void*>(window),record);
         receipt.returned=true;return 0;
     }__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
@@ -33,7 +33,7 @@ bool appearance_ui_controls(Runtime& r,uintptr_t window,const action::RegionProp
     const auto which=size_t(uint8_t(intent.kind)-uint8_t(action::RegionPropertyKind::Tint));
     auto set_color=[&](size_t offset,const std::array<float,4>& color){
         for(float value:color)if(!std::isfinite(value))return fail(e,"Region original picker input is nonfinite after native light conversion");
-        uintptr_t picker=0;if(!appearance_control(r,window,offset,0x16fae80,picker,e))return false;
+        uintptr_t picker=0;if(!appearance_control(r,window,offset,0x1701220,picker,e))return false;
         const auto seh=appearance_ui_color(r.image,picker,color);
         if(seh)return fail(e,"Region original ColorPicker SetColor failed SEH="+std::to_string(seh));
         std::array<float,4> actual{};if(!appearance_color(r,window,offset,actual,e))return false;
@@ -45,8 +45,8 @@ bool appearance_ui_controls(Runtime& r,uintptr_t window,const action::RegionProp
         if(!set_color(0x5d8,bottom)||!set_color(0x5d0,middle)||!set_color(0x5c8,top))return false;
     }else if(which==4){
         uintptr_t combo=0;std::string selected;
-        if(!appearance_control(r,window,0x5e8,0x16d9b30,combo,e)||
-           !text(r,r.image+0x1a307e0+size_t(intent.appearance_value[0])*0x20,selected,e))return false;
+        if(!appearance_control(r,window,0x5e8,0x16dfed0,combo,e)||
+           !text(r,r.image+0x1a377e0+size_t(intent.appearance_value[0])*0x20,selected,e))return false;
         NativeString value{selected.data(),selected.size(),{}};int32_t converted=-1;bool valid=false;
         const auto conversion=appearance_fx(r.image,uintptr_t(&value),converted,valid);
         if(conversion||!valid||converted!=int32_t(intent.appearance_value[0]))return fail(e,"Region native particle catalog conversion differs SEH="+std::to_string(conversion));
@@ -56,7 +56,7 @@ bool appearance_ui_controls(Runtime& r,uintptr_t window,const action::RegionProp
     }else{
         std::array<float,4> color{};std::copy_n(intent.appearance_value.begin(),4,color.begin());
         if(which==1||which==2){uintptr_t slider=0;int32_t position=0;float scale=0;
-            if(!appearance_control(r,window,which==1?0x5b0:0x5b8,0x1787a30,slider,e)||!at(r,slider,0x4d0,position,e))return false;
+            if(!appearance_control(r,window,which==1?0x5b0:0x5b8,0x178ddd0,slider,e)||!at(r,slider,0x4d0,position,e))return false;
             const auto seh=appearance_slider(r.image,slider,position,scale);
             if(seh||!std::isfinite(scale)||scale==0||color[3]!=1)return fail(e,"Region original light slider cannot represent requested color SEH="+std::to_string(seh));
             for(size_t i=0;i<3;++i)color[i]/=scale;
@@ -78,10 +78,10 @@ bool appearance_ui(Runtime& r,const std::string& token,const action::RegionPrope
     action::RegionAppearance prior;if(!appearance_read_native(r,view.region,prior,e))return false;before.appearance=prior;
     if(action::appearance_matches(intent,prior))return fail(e,"Region appearance UI request is unchanged");
     uintptr_t widget=0,ap=0,owner=0;
-    if(!at(r,view.region,0x370,widget,e)||!at(r,widget,0,ap,e)||ap!=r.image+0x17024b0||
+    if(!at(r,view.region,0x370,widget,e)||!at(r,widget,0,ap,e)||ap!=r.image+0x1708850||
        !at(r,widget,0x178,owner,e)||owner!=view.region)return fail(e,e.empty()?"Region appearance UI RegionWidget owner differs":e);
     constexpr std::array<unsigned char,7> color_code{0x57,0x56,0x53,0x48,0x83,0xec,0x50};std::array<unsigned char,7> code{};
-    if(!r.memory.copy(r.image+0x836e00,code.data(),code.size(),e)||code!=color_code)return fail(e,e.empty()?"Region original ColorPicker SetColor bytes differ":e);
+    if(!r.memory.copy(r.image+0x83f490,code.data(),code.size(),e)||code!=color_code)return fail(e,e.empty()?"Region original ColorPicker SetColor bytes differ":e);
     properties.ui_attempts.insert(token);out["attempted"]=true;
     const auto captured=properties.captured;
     const auto selection=select_ui(r.image,view.world.selection,widget);out["selection_exception"]=selection;

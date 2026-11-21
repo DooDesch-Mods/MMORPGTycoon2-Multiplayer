@@ -14,14 +14,14 @@ template<class T>bool field(Memory& m,uintptr_t p,size_t offset,T& out,std::stri
 }
 bool ap(Memory& m,uintptr_t object,uintptr_t expected,std::string& cause){uintptr_t value=0;return field(m,object,0,value,cause)&&(value==expected||fail(cause,"release actual object class differs"));}
 bool sample(Memory& m,const Binding& b,State& out,std::string& cause){
-    if(!b.image||b.image>UINTPTR_MAX-0x1787930||!b.window||!b.manager||!b.release||!b.software||!b.server||!b.map||
+    if(!b.image||b.image>UINTPTR_MAX-0x178dcd0||!b.window||!b.manager||!b.release||!b.software||!b.server||!b.map||
        !b.epoch||!b.generation||!b.thread||b.snapshot_uuid.empty())return fail(cause,"release actual world binding absent");
     uintptr_t manager=0,software=0,server=0,map=0,release=0;
-    if(!field(m,b.image,0x13df4f0,manager,cause)||manager!=b.manager||!field(m,b.image,0x13df500,software,cause)||software!=b.software||
-       !field(m,b.image,0x13df430,server,cause)||server!=b.server||!field(m,b.image,0x13df8c0,map,cause)||map!=b.map||
+    if(!field(m,b.image,0x13eb4f0,manager,cause)||manager!=b.manager||!field(m,b.image,0x13eb500,software,cause)||software!=b.software||
+       !field(m,b.image,0x13eb430,server,cause)||server!=b.server||!field(m,b.image,0x13eb8c0,map,cause)||map!=b.map||
        !field(m,b.manager,0x38,release,cause)||release!=b.release){if(cause.empty())cause="release actual singleton/current release changed";return false;}
-    if(!ap(m,b.window,b.image+0x171fe80,cause)||!ap(m,b.manager,b.image+0x1714ed0,cause)||!ap(m,b.release,b.image+0x16c12b0,cause)||
-       !ap(m,b.software,b.image+0x1715450,cause)||!ap(m,b.server,b.image+0x1702a40,cause)||!ap(m,b.map,b.image+0x1742860,cause))return false;
+    if(!ap(m,b.window,b.image+0x1726220,cause)||!ap(m,b.manager,b.image+0x171b270,cause)||!ap(m,b.release,b.image+0x16c7650,cause)||
+       !ap(m,b.software,b.image+0x171b7f0,cause)||!ap(m,b.server,b.image+0x1708de0,cause)||!ap(m,b.map,b.image+0x1748c00,cause))return false;
     if(!field(m,b.software,0x88,out.version,cause)||!field(m,b.release,0x50,out.planned,cause)||
        !field(m,b.release,0x60,out.release_type,cause)||!field(m,b.release,0x158,out.changes,cause)||
        !field(m,b.manager,0x98,out.changelogs,cause)||!field(m,b.server,0x18,out.server_current,cause)||
@@ -52,20 +52,20 @@ bool functional_starting_region(Memory& m,const Binding& b,std::string& cause){
     // Bound diagnostic text without changing which native candidates are examined.
     auto note=[&](const std::string& why){if(rejected<8)details+="; "+why;++rejected;};
     uintptr_t control=0,character=0,regions=0;int32_t count=0;
-    if(!field(m,b.image,0x13df9f0,control,cause))return false;
+    if(!field(m,b.image,0x13eb9f0,control,cause))return false;
     if(control&&(!field(m,control,0x148,character,cause)||character)){
         if(cause.empty())cause="release original release_status_controllingcharacter";return false;}
     if(!field(m,b.map,0x2c0,regions,cause)||!field(m,b.map,0x2c8,count,cause))return false;
     if(count<0||count>4096||(!regions&&count))return fail(cause,"release actual Region array bounds invalid");
     for(int32_t i=0;i<count;++i){uintptr_t region=0,manager=0,buildings=0;int32_t type=0,size=0;
-        if(!field(m,regions,size_t(i)*8,region,cause)||!ap(m,region,b.image+0x1787930,cause)||!field(m,region,0x854,type,cause))return false;
+        if(!field(m,regions,size_t(i)*8,region,cause)||!ap(m,region,b.image+0x178dcd0,cause)||!field(m,region,0x854,type,cause))return false;
         const auto region_label="region_index="+std::to_string(i);
         if(type!=1){++non_starting_regions;continue;}
-        if(!field(m,region,0x950,manager,cause)||!ap(m,manager,b.image+0x17183c0,cause)||!field(m,manager,0x410,buildings,cause)||!field(m,manager,0x418,size,cause))return false;
+        if(!field(m,region,0x950,manager,cause)||!ap(m,manager,b.image+0x171e760,cause)||!field(m,manager,0x410,buildings,cause)||!field(m,manager,0x418,size,cause))return false;
         if(size<0||size>16384||(!buildings&&size))return fail(cause,"release actual Building array bounds invalid");
         if(!size)note(region_label+" building_count actual=0 required>0");
         for(int32_t j=0;j<size;++j){uintptr_t building=0;int32_t state=0;uint8_t active=0,connected=0,other_route=0;
-            if(!field(m,buildings,size_t(j)*8,building,cause)||!ap(m,building,b.image+0x16d93c0,cause)||!field(m,building,0x7a8,state,cause))return false;
+            if(!field(m,buildings,size_t(j)*8,building,cause)||!ap(m,building,b.image+0x16df760,cause)||!field(m,building,0x7a8,state,cause))return false;
             const auto label=region_label+" building_index="+std::to_string(j);
             if(state!=2){note(label+" state actual="+std::to_string(state)+" required=2");continue;}
             if(!field(m,building,0xa8e,active,cause))return false;if(!active){note(label+" active actual=0 required=nonzero");continue;}
@@ -101,12 +101,12 @@ bool settled_open(const State& s,std::string& cause){
     if(s.map_state!=7)return fail(cause,"release native Map is not open for subscribers");cause.clear();return true;
 }
 bool resolve_unpatched(Memory& memory,uintptr_t image,std::string_view sha,Api& out,std::string& cause){
-    out={};cause.clear();if(!image||image>UINTPTR_MAX-0x1742860||sha!=bytes::exe_sha256)return fail(cause,"release exact executable identity differs");
+    out={};cause.clear();if(!image||image>UINTPTR_MAX-0x1748c00||sha!=bytes::exe_sha256)return fail(cause,"release exact executable identity differs");
     for(const auto& g:bytes::guards){std::vector<uint8_t> actual(g.size);if(!memory.copy(image+g.rva,actual.data(),actual.size(),cause)){
         if(cause.empty())cause="release full code guard read failed without cause";return false;}
         if(std::memcmp(actual.data(),g.data,g.size)){cause="release full code guard differs rva="+std::to_string(g.rva);return false;}}
-    out={reinterpret_cast<RecordCtor>(image+0x967370),reinterpret_cast<RecordDtor>(image+0x9676a0),
-         reinterpret_cast<RecordEquals>(image+0x1113d80),reinterpret_cast<UiCommand>(image+0x79baa0)};return true;
+    out={reinterpret_cast<RecordCtor>(image+0x970590),reinterpret_cast<RecordDtor>(image+0x9708c0),
+         reinterpret_cast<RecordEquals>(image+0x111f720),reinterpret_cast<UiCommand>(image+0x7a3ca0)};return true;
 }
 bool execute(const Request& request,Root& root,Memory& memory,Calls& calls,Receipt& receipt,std::string& cause){
     receipt={};cause.clear();auto failed=[&](const char* stage){if(cause.empty())cause=std::string("release failed without cause stage=")+stage;

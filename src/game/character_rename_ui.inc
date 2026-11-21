@@ -50,7 +50,7 @@ bool offered_rename_button(Memory& memory,const OrderedView& view,uintptr_t& but
            !npc_quest_records::read_string(memory,pane,0x1b0,"Character Rename content id",name,error))return false;
         result["rename_control_tree"].push_back({{"pane",pane},{"type_rva",ap-state.image},{"id",name},{"parent",parent},{"window",owner},
             {"shown",shown},{"container",content.container},{"array_offset",content.offset},{"parent_is_container",parent==content.container}});
-        if(ap==state.image+0x16e3ec0){std::string command;
+        if(ap==state.image+0x16ea260){std::string command;
             if(!npc_quest_records::read_string(memory,pane,0x388,"Character Rename ButtonPane command",command,error))return false;
             if(command=="MessageTo Parent BeginRename"){
                 uintptr_t bound=0;uint8_t disabled=1,held=1,pressed=1,clickable=0;
@@ -62,8 +62,8 @@ bool offered_rename_button(Memory& memory,const OrderedView& view,uintptr_t& but
                 button=pane;
             }
         }
-        if(gather==state.image+0xc35730)continue;
-        if(gather!=state.image+0x8167c0)return fail(error,"Character Rename GatherAllContents differs pane="+std::to_string(pane)+" type_rva="+std::to_string(ap-state.image)+" gather_rva="+std::to_string(gather-state.image));
+        if(gather==state.image+0xc41fe0)continue;
+        if(gather!=state.image+0x81ed30)return fail(error,"Character Rename GatherAllContents differs pane="+std::to_string(pane)+" type_rva="+std::to_string(ap-state.image)+" gather_rva="+std::to_string(gather-state.image));
         for(const auto offset:{size_t(0x2c8),size_t(0x2f8)}){std::vector<uintptr_t> children;
             if(!open_array(memory,pane,offset,children,error))return false;
             // GatherAllContents enumerates content; AddPane does not establish live ancestry until Layout.

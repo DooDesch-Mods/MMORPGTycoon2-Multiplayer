@@ -23,7 +23,7 @@ bool source_idle(Runtime& r,action::Binding& binding,std::string& e){
 bool pending(){return bool(captured);}
 bool capture_purchase(uintptr_t behaviour,uintptr_t caller,bool& handled,std::string& e){
     handled=false;auto* r=published.load(std::memory_order_acquire);
-    if(!r||!r->ready||caller!=r->image+0x5c2a20||r->thread!=GetCurrentThreadId()||!net::session_wire::connected())return true;
+    if(!r||!r->ready||caller!=r->image+0x5c91c0||r->thread!=GetCurrentThreadId()||!net::session_wire::connected())return true;
     bool group=false;if(!group_object_move_reader::target(r->memory,r->image,behaviour,group,e))return false;
     if(!group)return true;handled=true;action::Binding binding;
     if(!source_idle(*r,binding,e)){reject(e);return false;}

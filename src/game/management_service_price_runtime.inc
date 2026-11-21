@@ -1,6 +1,6 @@
 namespace price_graph=management_service_graph;
 uint32_t price_graph_lock_call(uintptr_t image,uintptr_t manager,bool unlock)noexcept{
-    __try{reinterpret_cast<void(*)(void*)>(image+(unlock?0xa0b140:0xa0b120))(reinterpret_cast<void*>(manager));return 0;}
+    __try{reinterpret_cast<void(*)(void*)>(image+(unlock?0xa15d00:0xa15ce0))(reinterpret_cast<void*>(manager));return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 struct PriceGraphLock {
@@ -24,15 +24,15 @@ bool read_price_graph(Runtime& r,const a::Context& context,const a::Binding& bin
     if(!native_open_runtime::read_current_world(world,error)||world.uuid!=context.snapshot_uuid||world.world_epoch!=binding.native_epoch||world.generation!=binding.native_generation)return fail(error,error.empty()?"Service price NativeOpen world differs":error);
     const uintptr_t map=uintptr_t(world.map);if(!map||map>UINTPTR_MAX-0x2b8)return fail(error,"Service price Map extent invalid");const uintptr_t root=map+0x1c0;
     uintptr_t shard=0,manager=0,random=0;int32_t shard_type=-1,initial_extra=0;std::array<uint64_t,4> initial_random{};
-    if(!ap(r,map,0x1742860,error)||!ap(r,root,0x174ad20,error)||!at(r,root,0x48,shard_type,error)||shard_type!=0||
+    if(!ap(r,map,0x1748c00,error)||!ap(r,root,0x17510c0,error)||!at(r,root,0x48,shard_type,error)||shard_type!=0||
        !at(r,local.service_building,0x170,shard,error)||shard!=root||!at(r,map,0x2b0,manager,error)||!manager||
-       !at(r,r.image,0x164b250,random,error)||!random||!at(r,random,0,initial_random,error)||!at(r,random,0x20,initial_extra,error))return fail(error,error.empty()?"Service price root owner/manager/RNG invalid":error);
+       !at(r,r.image,0x1650830,random,error)||!random||!at(r,random,0,initial_random,error)||!at(r,random,0x20,initial_extra,error))return fail(error,error.empty()?"Service price root owner/manager/RNG invalid":error);
     auto read=[&](uintptr_t p,size_t off,auto& value,std::string& cause){return at(r,p,off,value,cause);};
     region_saved_identity::Index regions;if(!region_saved_identity::capture(r.image,map,root,regions,read,error))return false;
     OwnerKeys region_keys;for(const auto& [id,pointer]:regions.saved)if(!region_keys.emplace(pointer,"world/region:"+std::to_string(id)).second)return fail(error,"Service price Region pointer duplicated");
     std::vector<remove_diagnostics::LocalTarget> targets;if(!remove_diagnostics::identity_targets(targets,error))return false;
     OwnerKeys building_keys;std::map<std::string,price_graph::BuildingSource> buildings;
-    for(const auto& target:targets){uintptr_t klass=0,owner=0,region=0;if(!at(r,target.object,0,klass,error))return false;if(klass!=r.image+0x16d93c0)continue;
+    for(const auto& target:targets){uintptr_t klass=0,owner=0,region=0;if(!at(r,target.object,0,klass,error))return false;if(klass!=r.image+0x16df760)continue;
         if(!at(r,target.object,0x170,owner,error)||!at(r,target.object,0x178,region,error))return false;
         if(owner!=root)continue;if(!region_keys.contains(region))return fail(error,"Service price source Building root/Region owner differs");
         if(!building_keys.emplace(target.object,target.record_key).second||!buildings.emplace(target.record_key,price_graph::BuildingSource{target.object,owner,region,target.uid,target.record_key}).second)return fail(error,"Service price source Building identity duplicated");}

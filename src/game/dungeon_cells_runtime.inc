@@ -69,7 +69,7 @@ bool idle(a::Binding& binding,const std::string& snapshot,std::string& error){
 bool capture_hit(Memory& memory,void* receiver,void* cursor,dungeon_cells_capture::Stroke& out,int32_t& cell,bool& hit,std::string& error){
     out={};cell=-1;hit=false;uintptr_t registered=0,ap=0,collision=0,marker=0;uint32_t flags=0;int32_t mode=0;
     const auto seh=dungeon_palette::find_tile(registered);
-    if(seh||registered!=uintptr_t(receiver)||!field(memory,registered,0,ap,error)||ap!=state.image+0x173ea20||
+    if(seh||registered!=uintptr_t(receiver)||!field(memory,registered,0,ap,error)||ap!=state.image+0x1744dc0||
        !field(memory,registered,0x148,mode,error)||!field(memory,registered,0x348,marker,error)||marker)
         return fail(error,error.empty()?"Dungeon cell capture registered Tile, original mode or unedited receiver differs SEH="+std::to_string(seh):error);
     if(mode==0)return true;if(mode!=1&&mode!=2)return fail(error,"Dungeon cell normal Tile mode is neither Paint nor Close");

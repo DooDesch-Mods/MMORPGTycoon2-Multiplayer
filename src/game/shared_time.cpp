@@ -15,25 +15,25 @@
 
 namespace mt2mp::game::shared_time {
 namespace {
-constexpr char hash[]="bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6";
+constexpr char hash[]="7efd8ee7b97f78362e7a2f8116b327fa6b756bdce23114b68143c4c9d2dd50eb";
 constexpr std::array<float,4> scales{0,1,3,9};
 constexpr std::array<const char*,4> names{"@Time Pause","@Time Normal","@Time Fast","@Time Fastest"};
 bool scale_valid(float s) { return std::find(scales.begin(),scales.end(),s)!=scales.end(); }
 bool failure(std::string& error,const std::string& reason) { error=reason; return false; }
 struct Guard { uintptr_t rva; const char* bytes; size_t size; };
 constexpr Guard guards[]{
-    {0x20e6d0,"\x41\x54\x55\x57\x56\x53\x48\x81\xec\x90\x00\x00\x00\x48\x89\xcb",16},
-    {0x20e8d0,"\x48\x8b\x05\xc9\x10\x1d\x01\x48\x85\xc0\x74\x25\xf3\x0f\x10\x40",16},
-    {0x207820,"\x53\x48\x83\xec\x20\x48\x89\xcb\x48\x8b\x49\x70\x48\x85\xc9\x74",16},
-    {0xd2fc0,"\x41\x56\x41\x55\x41\x54\x55\x57\x56\x53\x48\x83\xec\x30\x0f\x11",16},
-    {0x206df0,"\x56\x53\x48\x83\xec\x28\x48\x63\xda\x48\x89\xce\x85\xdb\x78\x05",16},
-    {0x580957,"\xe8\xc4\x6e\xc8\xff",5},
-    {0x4a2a72,"\xe8\x49\x06\xc3\xff",5},
-    {0x4a2d8e,"\xe8\x2d\x03\xc3\xff",5},
-    {0x4a2ab9,"\xe8\x02\x06\xc3\xff",5},
-    {0x4a2b00,"\xe8\xbb\x05\xc3\xff",5},
-    {0x4a2b47,"\xe8\x74\x05\xc3\xff",5},
-    {0x4a2b92,"\xe8\x29\x05\xc3\xff",5},
+    {0x2112c0,"\x41\x54\x55\x57\x56\x53\x48\x81\xec\x90\x00\x00\x00\x48\x89\xcb",16},
+    {0x211510,"\x48\x8b\x05\x89\xa4\x1d\x01\x48\x85\xc0\x74\x25\xf3\x0f\x10\x40",16},
+    {0x20a2b0,"\x53\x48\x83\xec\x20\x48\x89\xcb\x48\x8b\x49\x70\x48\x85\xc9\x74",16},
+    {0xd3ff0,"\x41\x56\x41\x55\x41\x54\x55\x57\x56\x53\x48\x83\xec\x30\x0f\x11",16},
+    {0x209880,"\x56\x53\x48\x83\xec\x28\x48\x63\xda\x48\x89\xce\x85\xdb\x78\x05",16},
+    {0x587117,"\xe8\x94\x31\xc8\xff",5},
+    {0x4a7f62,"\xe8\x89\xc1\xc2\xff",5},
+    {0x4a827e,"\xe8\x6d\xbe\xc2\xff",5},
+    {0x4a7fa9,"\xe8\x42\xc1\xc2\xff",5},
+    {0x4a7ff0,"\xe8\xfb\xc0\xc2\xff",5},
+    {0x4a8037,"\xe8\xb4\xc0\xc2\xff",5},
+    {0x4a8082,"\xe8\x69\xc0\xc2\xff",5},
 };
 }
 bool Bridge::bytes(uintptr_t p,void* output,size_t n,std::string& e) const {
@@ -83,14 +83,14 @@ bool Bridge::live(uintptr_t& world,uintptr_t& player,uintptr_t& inventory,std::s
     if (!context.epoch || context.epoch!=epoch_) return failure(e,"world_epoch_mismatch");
     uintptr_t game=0, mode=0, active=0, clock=0;
     int32_t state=-1; uint8_t quitting=1; float scale=-1;
-    if (!at(config_.image,0x13df8f0,game,e) || !vtable(game,0x1743740,"game",e) ||
-        !at(config_.image,0x13df320,mode,e) || !vtable(mode,0x16e6730,"mode",e) ||
+    if (!at(config_.image,0x13eb8f0,game,e) || !vtable(game,0x1749ae0,"game",e) ||
+        !at(config_.image,0x13eb320,mode,e) || !vtable(mode,0x16ecad0,"mode",e) ||
         !at(game,0x28,active,e)) return false;
     if (active!=mode) return failure(e,"active_mode_mismatch");
     if (!at(mode,0x2c4,state,e) || !at(mode,0x304,quitting,e) || !at(mode,0x58,world,e)) return false;
     if (state!=4 || quitting || !world) return failure(e,"active_world_state4_required actual_state="+
         std::to_string(state)+" quitting="+std::to_string(quitting)+" world_present="+std::to_string(world!=0));
-    if (!at(config_.image,0x13df9a0,clock,e) || !vtable(clock,0x17499d0,"clock",e) || !at(clock,0x58,scale,e)) return false;
+    if (!at(config_.image,0x13eb9a0,clock,e) || !vtable(clock,0x174fd70,"clock",e) || !at(clock,0x58,scale,e)) return false;
     if (context.client && scale!=0) return failure(e,"client_native_clock_not_paused actual="+std::to_string(scale)+" required=0");
     if (context.host) {
         float pause=0;
@@ -100,8 +100,8 @@ bool Bridge::live(uintptr_t& world,uintptr_t& player,uintptr_t& inventory,std::s
         observed_scale_=scale; observed_pause_=pause;
     }
     observed_host_=context.host;
-    if (!at(config_.image,0x13df9f0,player,e) || !vtable(player,0x17873b0,"player",e) ||
-        !at(player,0x1d0,inventory,e) || !vtable(inventory,0x16df0f0,"inventory",e)) return false;
+    if (!at(config_.image,0x13eb9f0,player,e) || !vtable(player,0x178d750,"player",e) ||
+        !at(player,0x1d0,inventory,e) || !vtable(inventory,0x16e5490,"inventory",e)) return false;
     if (bound_ && (world!=world_ || player!=player_ || inventory!=inventory_))
         return failure(e,"bound_world_or_actor_changed");
     return true;
@@ -119,11 +119,11 @@ bool Bridge::scan(std::array<Handle,4>& result,bool require_bound,std::string& e
         uintptr_t item=0,type=0,proxy=0,target=0,table=0;
         if (!at(array,size_t(slot)*8,item,e)) return false;
         if (!item) continue;
-        if (!vtable(item,0x17437f0,"inventory_item",e) || !at(item,0x68,type,e) || !at(item,0x70,proxy,e)) return false;
+        if (!vtable(item,0x1749b90,"inventory_item",e) || !at(item,0x68,type,e) || !at(item,0x70,proxy,e)) return false;
         if (!type || !proxy || !at(proxy,0,target,e) || !target)
             return failure(e,"item_type_weak_reference_not_live: "+e);
         if (!at(type,0,table,e)) return false;
-        if (table!=config_.image+0x1723f50) continue;
+        if (table!=config_.image+0x172a2f0) continue;
         float scale=0; uintptr_t name=0; uint64_t length=0; int32_t state=0;
         if (!at(type,0x15c,scale,e) || !at(type,0x48,name,e) || !at(type,0x50,length,e) || !at(item,0x38,state,e)) return false;
         const auto found=std::find(scales.begin(),scales.end(),scale);
@@ -276,12 +276,12 @@ HookResult Bridge::on_activate(void* type,void* item,uintptr_t pc) {
     const size_t index=size_t(found-handles_.begin());
     Request q{epoch_,0,revision_,static_cast<Intent>(index),Origin::Keyboard};
     const uintptr_t caller=pc>=config_.image?pc-config_.image:UINTPTR_MAX;
-    if (caller==0x58095c) q.origin=Origin::Mouse;
-    else if (caller==0x4a2a77 || caller==0x4a2d93) {
-        if (index!=(caller==0x4a2a77?0u:1u)) return reject(r,"toggle_caller_item_mismatch");
+    if (caller==0x58711c) q.origin=Origin::Mouse;
+    else if (caller==0x4a7f67 || caller==0x4a8283) {
+        if (index!=(caller==0x4a7f67?0u:1u)) return reject(r,"toggle_caller_item_mismatch");
         q.intent=Intent::TogglePauseNormal;
     } else {
-        constexpr std::array<uintptr_t,4> direct{0x4a2abe,0x4a2b05,0x4a2b4c,0x4a2b97};
+        constexpr std::array<uintptr_t,4> direct{0x4a7fae,0x4a7ff5,0x4a803c,0x4a8087};
         if (direct[index]!=caller) return reject(r,"unknown_or_mismatched_time_activation_origin");
     }
     ++counters_.captured;

@@ -9,7 +9,7 @@ struct Bytes {
     std::map<uintptr_t,unsigned char> storage;
     template<class T>void put(uintptr_t address,const T& value){const auto* data=reinterpret_cast<const unsigned char*>(&value);for(size_t n=0;n<sizeof value;++n)storage[address+n]=data[n];}
     template<class T>bool at(uintptr_t address,size_t offset,T& value,std::string& error){auto* data=reinterpret_cast<unsigned char*>(&value);for(size_t n=0;n<sizeof value;++n){const auto found=storage.find(address+offset+n);if(found==storage.end()){error="Gizmo fixture native byte unavailable";return false;}data[n]=found->second;}return true;}
-    Bytes(){put(fixture_object,fixture_image+0x1749ab0);put(fixture_object+0x18,uint64_t(0x100000077));
+    Bytes(){put(fixture_object,fixture_image+0x174fe50);put(fixture_object+0x18,uint64_t(0x100000077));
         put(fixture_object+0x170,fixture_shard);put(fixture_object+0x178,fixture_region);put(fixture_object+0x250,uint8_t(1));put(fixture_object+0x254,int32_t(2));
         put(fixture_object+0x328,int32_t(1));put(fixture_object+0x2d0,uint8_t(0));put(fixture_object+0x2d8,uintptr_t(0));
         put(fixture_object+0x2e0,fixture_actor);put(fixture_object+0x300,uintptr_t(0x27000000));put(fixture_object+0x278,fixture_definition);put(fixture_definition+0xa0,uint32_t(2));

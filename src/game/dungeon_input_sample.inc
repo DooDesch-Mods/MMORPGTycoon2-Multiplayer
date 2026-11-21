@@ -68,8 +68,8 @@ bool sample(Memory& memory,const a::Binding& binding,const std::string& snapshot
         out.value.edits.emplace();
         if(dungeon_gizmo_control::mixed(*intent.controls)){
             out.value.scenery_edits.emplace();out.value.scenery_release.emplace();uintptr_t manager=0,release=0,ap=0;
-            if(!field(memory,state.image,0x13df4f0,manager,error)||!field(memory,manager,0,ap,error)||ap!=state.image+0x1714ed0||
-               !field(memory,manager,0x38,release,error)||!field(memory,release,0,ap,error)||ap!=state.image+0x16c12b0||
+            if(!field(memory,state.image,0x13eb4f0,manager,error)||!field(memory,manager,0,ap,error)||ap!=state.image+0x171b270||
+               !field(memory,manager,0x38,release,error)||!field(memory,release,0,ap,error)||ap!=state.image+0x16c7650||
                !field(memory,release,0x120,*out.value.scenery_release,error))return fail(error,error.empty()?"Scene Scenery current Release owner/counter unavailable":error);
         }
         for(size_t i=0;i<intent.controls->rows.size();++i){const auto& control=intent.controls->rows[i];

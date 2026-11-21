@@ -1,18 +1,18 @@
 namespace {
 bool toon_camera_owner(uintptr_t toon,uintptr_t caller,uintptr_t root,bool& owned,std::string& error){
     owned=false;
-    if(caller!=weapon_image+0x2ffea1&&caller!=weapon_image+0x300064){error.clear();return true;}
+    if(caller!=weapon_image+0x3037f1&&caller!=weapon_image+0x3039b4){error.clear();return true;}
     uintptr_t ap=0,shard=0,subscriber=0,reverse=0,region=0,manager=0;
     const auto read=[&](uintptr_t base,size_t offset,auto& out){return toon_weapon_visual::visual_read(weapon_memory,base,offset,out,error);};
     if(!read(toon,0,ap))return false;
-    if(ap!=weapon_image+0x1744e90){error.clear();return true;}
+    if(ap!=weapon_image+0x174b230){error.clear();return true;}
     if(!read(toon,0x170,shard))return false;
     if(shard!=root){error.clear();return true;}
     int32_t id=-1;
-    if(!read(toon,0x940,subscriber)||!subscriber||!read(subscriber,0,ap)||ap!=weapon_image+0x16e75f0||
+    if(!read(toon,0x940,subscriber)||!subscriber||!read(subscriber,0,ap)||ap!=weapon_image+0x16ed990||
        !read(subscriber,0x80,reverse)||reverse!=toon||!read(subscriber,0x20,id)||id<0||
-       !read(toon,0x178,region)||!region||!read(region,0,ap)||ap!=weapon_image+0x1787930||
-       !read(region,0x9c0,manager)||!manager||!read(manager,0,ap)||ap!=weapon_image+0x16fde30){
+       !read(toon,0x178,region)||!region||!read(region,0,ap)||ap!=weapon_image+0x178dcd0||
+       !read(region,0x9c0,manager)||!manager||!read(manager,0,ap)||ap!=weapon_image+0x17041d0){
         if(error.empty())error="Toon camera reciprocal Subscriber or Region manager differs";return false;
     }
     owned=true;error.clear();return true;
@@ -44,7 +44,7 @@ bool toon_motion_sample(uintptr_t toon,ToonMotionSample& out,std::string& error)
     const auto read=[&](size_t offset,auto& value){return toon_weapon_visual::visual_read(weapon_memory,toon,offset,value,error);};
     if(!read(0xad4,out.backlog)||!read(0x2b0,out.deadline)||!read(0x270,out.scale)||
        !read(0x1c0,out.branch)||!read(0x808,out.distance)||!read(0x809,out.nearby)||!read(0x269,out.flag269)||
-       !read(0x26a,out.flag26a)||!toon_weapon_visual::visual_read(weapon_memory,weapon_image,0x1a323a0,out.force,error))return false;
+       !read(0x26a,out.flag26a)||!toon_weapon_visual::visual_read(weapon_memory,weapon_image,0x1a393a0,out.force,error))return false;
     for(size_t i=0;i<out.pose.size();++i)if(!read(0x100+i*4,out.pose[i]))return false;
     constexpr std::array<size_t,8> offsets{0x750,0x778,0x7a0,0x754,0x77c,0x7a4,0x7ec,0x7f0};
     for(size_t i=0;i<offsets.size();++i)if(!read(offsets[i],out.attributes[i]))return false;
@@ -65,14 +65,14 @@ void toon_motion_observe(uintptr_t toon,float dt,uintptr_t caller,bool returned)
         }
         uintptr_t ap=0,subscriber=0,reverse=0;int32_t id=-1;std::string error;
         const auto read=[&](uintptr_t base,size_t offset,auto& value){return toon_weapon_visual::visual_read(weapon_memory,base,offset,value,error);};
-        if(!read(toon,0,ap)||ap!=weapon_image+0x1744e90||!read(toon,0x940,subscriber)||!subscriber||
+        if(!read(toon,0,ap)||ap!=weapon_image+0x174b230||!read(toon,0x940,subscriber)||!subscriber||
            !read(subscriber,0x20,id)||id!=46)return;
         if(toon_motion_pending){if(toon_motion_error.empty())toon_motion_error="Toon motion nested target entry";return;}
-        if(caller!=weapon_image+0x2ffea1&&caller!=weapon_image+0x300064){
+        if(caller!=weapon_image+0x3037f1&&caller!=weapon_image+0x3039b4){
             if(toon_motion_error.empty())toon_motion_error="Toon motion original manager caller differs";return;
         }
         MT2FW_MT2_StepReceipt step{};
-        if(!read(subscriber,0,ap)||ap!=weapon_image+0x16e75f0||!read(subscriber,0x80,reverse)||reverse!=toon||
+        if(!read(subscriber,0,ap)||ap!=weapon_image+0x16ed990||!read(subscriber,0x80,reverse)||reverse!=toon||
            !runtime->ordered_steps->diagnostic_read(step,error)){
             if(toon_motion_error.empty())toon_motion_error="Toon motion owner or step read: "+error;return;
         }
@@ -82,8 +82,8 @@ void toon_motion_observe(uintptr_t toon,float dt,uintptr_t caller,bool returned)
         if(!native_open_runtime::read_current_world(world,error)||world.uuid!=runtime->controller.bound_context_view().snapshot_uuid||
            step.session!=runtime->controller.bound_context_view().session||world.world_epoch!=binding.native_epoch||world.generation!=binding.native_generation||
            !read(toon,0x170,shard)||shard!=uintptr_t(world.map)+0x1c0||!read(toon,0x178,region)||
-           !read(region,0,ap)||ap!=weapon_image+0x1787930||!read(region,0x9c0,manager)||
-           !read(manager,0,ap)||ap!=weapon_image+0x16fde30){
+           !read(region,0,ap)||ap!=weapon_image+0x178dcd0||!read(region,0x9c0,manager)||
+           !read(manager,0,ap)||ap!=weapon_image+0x17041d0){
             if(toon_motion_error.empty())toon_motion_error="Toon motion world or manager guard: "+error;return;
         }
         if(toon_motion_count==toon_motion_rows.size()){toon_motion_overflow=true;return;}
@@ -115,7 +115,7 @@ bool toon_time_owner(uintptr_t toon,toon_time_fence::Owner& owner,bool& owned,st
     uintptr_t ap=0,reverse=0,shard=0;
     const auto read=[&](uintptr_t base,size_t offset,auto& out){return toon_weapon_visual::visual_read(weapon_memory,base,offset,out,error);};
     if(!read(toon,0,ap))return false;
-    if(ap!=weapon_image+0x1744e90){owned=false;return true;}
+    if(ap!=weapon_image+0x174b230){owned=false;return true;}
     if(runtime->controller.status_view().locked||runtime->live_state->locked()||
        live_host_state::economic_fence().locked()||!runtime->live_error.empty()){
         error="Toon time Client authority locked: "+runtime->live_error+" fence="+live_host_state::economic_fence().cause();return false;
@@ -138,7 +138,7 @@ bool toon_time_owner(uintptr_t toon,toon_time_fence::Owner& owner,bool& owned,st
     {live_host_state::apply_timing::Scope measured(live_host_state::apply_timing::Part::ToonOwnerClock);
         if(!native::read_clock(clock,error))return false;}
     if(clock.time_scale!=0)return rejected("Toon time Client actual simulation Clock is not zero");
-    if(!read(toon,0x940,owner.subscriber)||!read(owner.subscriber,0,ap)||ap!=weapon_image+0x16e75f0||
+    if(!read(toon,0x940,owner.subscriber)||!read(owner.subscriber,0,ap)||ap!=weapon_image+0x16ed990||
        !read(owner.subscriber,0x80,reverse)||reverse!=toon||!read(owner.subscriber,0x20,owner.subscriber_id)||owner.subscriber_id<0)
         return rejected("Toon time reciprocal Subscriber/Toon identity differs");
     if(!read(toon,0x170,shard)||shard!=uintptr_t(world.map)+0x1c0)

@@ -9,13 +9,13 @@ template<class Read,class Find>
 bool window(Read& at,Find& find,uintptr_t image,uintptr_t object,Window& out,std::string& error){
     out={};Window value;value.object=object;uintptr_t ap=0,weak_ap=0;
     if(!at(object,0,ap,error)||!at(object,0x4e8,weak_ap,error)||!at(object,0x4f0,value.target,error)||!at(object,0x4f8,value.proxy,error)||!at(object,0x568,value.grid,error))return false;
-    if(ap!=image+0x1719c80||weak_ap!=image+0x16f9ee0){error="Gizmo actual named Window/weak class differs";return false;}
+    if(ap!=image+0x1720020||weak_ap!=image+0x1700280){error="Gizmo actual named Window/weak class differs";return false;}
     if(!value.target){if(value.proxy){error="Gizmo empty native Window retains a weak proxy";return false;}out=value;return true;}
     if(!value.proxy){error="Gizmo native Window target has no weak proxy";return false;}
     uintptr_t reverse=0,owner=0,actual=0;
     if(!at(value.target,0,ap,error)||!at(value.target,0x18,value.uid,error)||!at(value.target,0x28,reverse,error)||
        !at(value.proxy,0,owner,error))return false;
-    if(ap!=image+0x1749ab0||!value.uid||reverse!=value.proxy||owner!=value.target+0x20){error="Gizmo native Window weak/full UID reciprocity differs";return false;}
+    if(ap!=image+0x174fe50||!value.uid||reverse!=value.proxy||owner!=value.target+0x20){error="Gizmo native Window weak/full UID reciprocity differs";return false;}
     if(!find(value.uid,actual,error))return false;if(actual!=value.target){error="Gizmo Window full UID registry resolves another actor";return false;}
     out=value;return true;
 }
@@ -23,7 +23,7 @@ template<class Read>bool grid(Read& at,uintptr_t image,const Window& window,std:
     uintptr_t ap=0,parent=0;int32_t rows=0;
     if(!window.grid){error="Gizmo native content Grid is absent";return false;}
     if(!at(window.grid,0,ap,error)||!at(window.grid,0x280,parent,error)||!at(window.grid,0x3c8,rows,error))return false;
-    if(ap!=image+0x16dade0||parent!=window.object||rows!=5){error="Gizmo original five-row content Grid/parent differs";return false;}return true;
+    if(ap!=image+0x16e1180||parent!=window.object||rows!=5){error="Gizmo original five-row content Grid/parent differs";return false;}return true;
 }
 template<class Read>bool value(Read& at,uintptr_t record,int32_t& number,std::string& error){
     uintptr_t tokens=0;int32_t count=0,capacity=0,type=0;

@@ -39,7 +39,7 @@ bool network_unchanged(NetworkJob& j,std::string& e){
 uint32_t network_press(NetworkJob& j,const nt::Pin& pin)noexcept {
     const std::array<float,2> position{};
     __try {
-        reinterpret_cast<void(*)(void*,void*,const void*)>(j.base.image+0x57c950)(
+        reinterpret_cast<void(*)(void*,void*,const void*)>(j.base.image+0x583000)(
             reinterpret_cast<void*>(pin.tab),reinterpret_cast<void*>(pin.cursor),&position);
         return 0;
     }__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
@@ -71,7 +71,7 @@ bool prepare_network_tab(const json& args,json& out,std::string& e)try {
     if(!network_pin(initial,pin,e))return false;
     uintptr_t current=0,desired=0,ap=0;
     if(!field(pin.cursor,0x190,current,e)||!field(pin.cursor,0x198,desired,e)||current!=desired||
-       !field(desired,0,ap,e)||ap!=initial.base.image+0x17391a0)
+       !field(desired,0,ap,e)||ap!=initial.base.image+0x173f540)
         return fail(e,e.empty()?"Network tab preparation requires actual idle Default cursor":e);
     initial.base.cursor=pin.cursor;initial.base.old=current;initial.base.desired=desired;
     if(!observe(initial.base,e))return false;

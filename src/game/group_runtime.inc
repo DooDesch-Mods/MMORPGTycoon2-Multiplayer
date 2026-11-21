@@ -19,7 +19,7 @@ struct Operation {action::Binding binding;action::Request request;Sample before,
 std::optional<Pending> captured;std::map<std::string,Operation> operations;uint64_t captures=0,submitted=0,rejections=0;
 void reject(const std::string& e){++rejections;if(cause!=e){cause=e;LOG_ERROR("[GroupEdit] {}",e);}}
 uint32_t lookup(uintptr_t image,uint64_t uid,uintptr_t& out){
-    __try{out=reinterpret_cast<uintptr_t(*)(uint64_t)>(image+0x47ce20)(uid);return 0;}
+    __try{out=reinterpret_cast<uintptr_t(*)(uint64_t)>(image+0x481f60)(uid);return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 bool find(Runtime& r,uint64_t uid,uintptr_t& out,std::string& e){const auto code=lookup(r.image,uid,out);
@@ -43,7 +43,7 @@ bool sample(Runtime& r,const action::Binding& binding,const std::vector<uintptr_
         return canonical_group(binding,out.world,uid,derived,key,why);};
     return group_reader::read(r.memory,r.image,out.world.root,out.world.selection,extra,bind,owner,lookup_uid,bind_group,out.local,batch_error);};
     if(!remove_diagnostics::with_local_target_batch(out.world.selection,read_groups,e)||
-       !q::at(r.memory,r.image,0x164b250,out.random_owner,e)||!q::at(r.memory,out.random_owner,0,out.local.state.random,e)||
+       !q::at(r.memory,r.image,0x1650830,out.random_owner,e)||!q::at(r.memory,out.random_owner,0,out.local.state.random,e)||
        !ledger(out.money,e)||!witness::read_undo(r.memory.process,r.image,out.undo,e))return false;
     for(const auto& row:out.local.state.groups){std::string name;
         if(!prop_text::text(r,out.local.handles.at(row.key).object+0x38,name,e))return false;
@@ -128,21 +128,21 @@ json group_source_difference(const Sample& before,const Sample& after){
 uint32_t command(Command fn,uintptr_t receiver){__try{fn(reinterpret_cast<void*>(receiver));return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
 struct Array {uintptr_t ap=0;const uintptr_t* data=nullptr;int32_t count=0,capacity=0;};
 uint32_t select_call(uintptr_t image,uintptr_t receiver,const Array& array){
-    __try{reinterpret_cast<void(*)(void*,const Array*)>(image+0x2d5910)(reinterpret_cast<void*>(receiver),&array);return 0;}
+    __try{reinterpret_cast<void(*)(void*,const Array*)>(image+0x2d9000)(reinterpret_cast<void*>(receiver),&array);return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 uint32_t filter_call(uintptr_t image,uintptr_t receiver,const std::array<uint8_t,9>& filter){
-    __try{reinterpret_cast<void(*)(void*,const void*)>(image+0x2d58f0)(reinterpret_cast<void*>(receiver),filter.data());return 0;}
+    __try{reinterpret_cast<void(*)(void*,const void*)>(image+0x2d8fe0)(reinterpret_cast<void*>(receiver),filter.data());return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 uint32_t create_call(uintptr_t image,uintptr_t manager,uintptr_t root,uintptr_t region,uintptr_t& out){
-    __try{out=reinterpret_cast<uintptr_t(*)(void*)>(image+0x278bb0)(reinterpret_cast<void*>(manager));
-        if(out){reinterpret_cast<void(*)(void*,void*)>(image+0x4cf6e0)(reinterpret_cast<void*>(out),reinterpret_cast<void*>(root));
-            reinterpret_cast<void(*)(void*,void*)>(image+0x4d0140)(reinterpret_cast<void*>(out),reinterpret_cast<void*>(region));}return 0;}
+    __try{out=reinterpret_cast<uintptr_t(*)(void*)>(image+0x27be60)(reinterpret_cast<void*>(manager));
+        if(out){reinterpret_cast<void(*)(void*,void*)>(image+0x4d5460)(reinterpret_cast<void*>(out),reinterpret_cast<void*>(root));
+            reinterpret_cast<void(*)(void*,void*)>(image+0x4d5ec0)(reinterpret_cast<void*>(out),reinterpret_cast<void*>(region));}return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 uint32_t delete_empty_call(uintptr_t image,uintptr_t object){
-    __try{reinterpret_cast<void(*)(void*)>(image+0x4cf170)(reinterpret_cast<void*>(object));return 0;}
+    __try{reinterpret_cast<void(*)(void*)>(image+0x4d4ef0)(reinterpret_cast<void*>(object));return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 struct Port {
@@ -151,9 +151,9 @@ struct Port {
     bool filter_changed=false;
     bool ready(const group_reader::Local& before,std::string& e){
         uintptr_t cursor=0,behaviour=0,shards=0;uint8_t allowed=0;
-        if(!q::at(r.memory,r.image,0x13df9d0,cursor,e)||!q::typed(r.memory,r.image,cursor,0x1786dd0,e)||
+        if(!q::at(r.memory,r.image,0x13eb9d0,cursor,e)||!q::typed(r.memory,r.image,cursor,0x178d170,e)||
            !q::at(r.memory,cursor,0x190,behaviour,e)||!q::at(r.memory,behaviour,0x120,allowed,e)||
-           !q::at(r.memory,before.selection,0xc8,old_filter,e)||!q::at(r.memory,r.image,0x13df440,shards,e)||!q::at(r.memory,shards,0x60,camera_shard,e))return false;
+           !q::at(r.memory,before.selection,0xc8,old_filter,e)||!q::at(r.memory,r.image,0x13eb440,shards,e)||!q::at(r.memory,shards,0x60,camera_shard,e))return false;
         if(allowed!=1||std::any_of(old_filter.begin(),old_filter.end(),[](auto v){return v>1;}))return q::fail(e,"Group original local Selection admission/filter not ready");
         for(auto p:before.raw){group_reader::Handle h{p};uintptr_t actual=0;
             if(!q::at(r.memory,p,0x18,h.uid,e)||!h.uid||!find(r,h.uid,actual,e)||actual!=p)return q::fail(e,e.empty()?"Group saved local Selection full UID differs":e);old_selection.push_back(h);}
@@ -166,7 +166,7 @@ struct Port {
         if(out.object&&!q::at(r.memory,out.object,0x18,out.uid,e))return false;
         if(code||!out.object||!out.uid)return q::fail(e,"Group original creation/root binding failed SEH="+std::to_string(code));
         uintptr_t root=0,actual_region=0,found=0;int32_t count=-1;
-        if(!q::typed(r.memory,r.image,out.object,0x1749de0,e)||!q::at(r.memory,out.object,0x170,root,e)||
+        if(!q::typed(r.memory,r.image,out.object,0x1750180,e)||!q::at(r.memory,out.object,0x170,root,e)||
            !q::at(r.memory,out.object,0x178,actual_region,e)||!q::at(r.memory,out.object,0x220,count,e)||!find(r,out.uid,found,e))return false;
         if(root!=initial.world.root||actual_region!=region||count!=0||found!=out.object)return q::fail(e,"Group new empty full UID/root/Region differs");
         return group_identities.birth(group_scope(binding,initial.world),out.uid,plan.target,e);
@@ -174,7 +174,7 @@ struct Port {
     bool select(const std::vector<uintptr_t>& targets,std::string& e){
         std::array<uint8_t,9> all;all.fill(1);filter_changed=true;const auto code=filter_call(r.image,initial.world.selection,all);
         if(code)return q::fail(e,"Group original all-category selection filter failed SEH="+std::to_string(code));
-        const Array array{r.image+0x1748c50,targets.data(),int32_t(targets.size()),int32_t(targets.size())};
+        const Array array{r.image+0x174eff0,targets.data(),int32_t(targets.size()),int32_t(targets.size())};
         const auto fault=select_call(r.image,initial.world.selection,array);
         std::vector<uintptr_t> raw,filtered;
         if(fault)return q::fail(e,"Group original SetSelection failed SEH="+std::to_string(fault));
@@ -213,7 +213,7 @@ struct Port {
     }
     bool cleanup_empty(const group_reader::Handle& h,std::string& e){
         uintptr_t found=0;int32_t count=-1;
-        if(!h.uid||!find(r,h.uid,found,e)||found!=h.object||!q::typed(r.memory,r.image,h.object,0x1749de0,e)||!q::at(r.memory,h.object,0x220,count,e))return false;
+        if(!h.uid||!find(r,h.uid,found,e)||found!=h.object||!q::typed(r.memory,r.image,h.object,0x1750180,e)||!q::at(r.memory,h.object,0x220,count,e))return false;
         if(count)return q::fail(e,"Group failed preparation is no longer empty; cleanup not attempted");
         const auto code=delete_empty_call(r.image,h.object);if(code)return q::fail(e,"Group empty preparation destructor failed SEH="+std::to_string(code));
         if(!find(r,h.uid,found,e)||found)return q::fail(e,"Group empty preparation full UID remains");
@@ -235,12 +235,12 @@ struct Port {
             if(!plan.target.empty()){const auto next=value.handles.find(plan.target);if(next==value.handles.end())return q::fail(e,"Group replacement selection target unavailable");add(next->second.object);}
             else{const auto& g=*std::find_if(before.state.groups.begin(),before.state.groups.end(),[&](const auto& row){return row.key==old->first;});for(const auto& member:g.members)add(value.handles.at(member.key).object);}
         }
-        const Array array{r.image+0x1748c50,desired.data(),int32_t(desired.size()),int32_t(desired.size())};
+        const Array array{r.image+0x174eff0,desired.data(),int32_t(desired.size()),int32_t(desired.size())};
         const auto code=select_call(r.image,before.selection,array);if(code)return q::fail(e,"Group local Selection restoration failed SEH="+std::to_string(code));
         if(filter_changed){const auto fault=filter_call(r.image,before.selection,old_filter);if(fault)return q::fail(e,"Group local filter restoration failed SEH="+std::to_string(fault));}
         std::vector<uintptr_t> raw,filtered;std::array<uint8_t,9> filter;uintptr_t shards=0,shard=0;
         if(!group_reader::selection(r.memory,r.image,before.selection,raw,filtered,e)||!q::at(r.memory,before.selection,0xc8,filter,e)||
-           !q::at(r.memory,r.image,0x13df440,shards,e)||!q::at(r.memory,shards,0x60,shard,e))return false;
+           !q::at(r.memory,r.image,0x13eb440,shards,e)||!q::at(r.memory,shards,0x60,shard,e))return false;
         return (raw==desired&&filter==old_filter&&shard==camera_shard)||q::fail(e,"Group restored local Selection/filter/current Shard differs");
     }
 };
@@ -260,13 +260,13 @@ bool capture(Runtime& r,uintptr_t receiver,uintptr_t single,action::GroupKind ki
     captured=Pending{binding,snapshot,std::move(intent),std::move(before),std::move(diagnostic)};++captures;return true;
 }
 void group_entry(void* receiver){auto* r=published.load(std::memory_order_acquire);
-    if(!r||!net::session_wire::connected()||uintptr_t(_ReturnAddress())!=r->image+0x74bf65){original_group(receiver);return;}
+    if(!r||!net::session_wire::connected()||uintptr_t(_ReturnAddress())!=r->image+0x753905){original_group(receiver);return;}
     try{std::string e;if(!capture(*r,uintptr_t(receiver),0,action::GroupKind::Group,e))reject(e);}catch(const std::exception& x){reject(std::string("Group capture: ")+x.what());}}
 void ungroup_entry(void* receiver){auto* r=published.load(std::memory_order_acquire);
-    if(!r||!net::session_wire::connected()||uintptr_t(_ReturnAddress())!=r->image+0x74bf85){original_ungroup(receiver);return;}
+    if(!r||!net::session_wire::connected()||uintptr_t(_ReturnAddress())!=r->image+0x753925){original_ungroup(receiver);return;}
     try{std::string e;if(!capture(*r,uintptr_t(receiver),0,action::GroupKind::Ungroup,e))reject(e);}catch(const std::exception& x){reject(std::string("Ungroup capture: ")+x.what());}}
 void single_entry(void* receiver,void* target){auto* r=published.load(std::memory_order_acquire);
-    if(!r||!net::session_wire::connected()||uintptr_t(_ReturnAddress())!=r->image+0x718fc8){original_single(receiver,target);return;}
+    if(!r||!net::session_wire::connected()||uintptr_t(_ReturnAddress())!=r->image+0x720558){original_single(receiver,target);return;}
     try{std::string e;if(!capture(*r,uintptr_t(receiver),uintptr_t(target),action::GroupKind::Ungroup,e))reject(e);}catch(const std::exception& x){reject(std::string("Group InfoWindow capture: ")+x.what());}}
 }
 #include "group_enable.inc"

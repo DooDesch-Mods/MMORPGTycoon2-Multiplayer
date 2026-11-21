@@ -21,8 +21,8 @@ struct Fake:Services {
         Bug fresh;fresh.pointer=0x60000;fresh.runtime_id=127;fresh.value.type=value.type;fresh.value.created=1;fresh.value.reproducibility=0.1f;
         if(fault=="ctor")fresh.job=0x999;
         state.all.push_back(fresh.pointer);state.bugs.push_back(fresh);
-        const bool ok=callback(fresh.pointer,l.parent,l.image+(fault=="caller"?0x59a80:0x59a7f),error);
-        if(fault=="double_callback")callback(fresh.pointer,l.parent,l.image+0x59a7f,error);
+        const bool ok=callback(fresh.pointer,l.parent,l.image+(fault=="caller"?0x59a80:0x59f7f),error);
+        if(fault=="double_callback")callback(fresh.pointer,l.parent,l.image+0x59f7f,error);
         if(fault!="no_insert")state.collection.push_back(fresh.pointer);
         if(fault=="old_mutation")state.bugs.front().value.toons++;
         out=fault=="wrong_return"?0x60008:fresh.pointer;
@@ -48,8 +48,8 @@ struct Memory {
 };
 void memory_tests(){
     const auto l=lease();Memory m;
-    m.put(l.parent+0xbd8,l.collection);m.put(l.collection,l.image+0x1705640);m.put(l.collection+0x18,l.image+0x16ef1c0);
-    m.put(l.collection+0x48,l.parent);m.put(l.image+0x13df2e0,l.tracker);
+    m.put(l.parent+0xbd8,l.collection);m.put(l.collection,l.image+0x170b9e0);m.put(l.collection+0x18,l.image+0x16f5560);
+    m.put(l.collection+0x48,l.parent);m.put(l.image+0x13eb2e0,l.tracker);
     for(auto at:{l.collection+0x20,l.tracker+0x18,l.tracker+0x40}){m.put(at,uintptr_t(0));m.put(at+8,int32_t(0));m.put(at+12,int32_t(4));}
     auto read=[&](uintptr_t at,void* out,size_t count,std::string& error){return m.get(at,out,count,error);};
     Snapshot out;std::string error;
@@ -65,7 +65,7 @@ void memory_tests(){
     m.put(l.collection+0x48,l.parent);
     const uintptr_t bug=0x60000,data=0x70000,buckets=0x80000,node=0x81000;
     for(size_t i=0;i<0x58;++i)m.put(bug+i,uint8_t(0));
-    m.put(bug,l.image+0x1742200);m.put(bug+0x50,l.parent);m.put(bug+0x40,int32_t(8));
+    m.put(bug,l.image+0x17485a0);m.put(bug+0x50,l.parent);m.put(bug+0x40,int32_t(8));
     m.put(data,bug);m.put(l.collection+0x20,data);m.put(l.collection+0x28,int32_t(1));
     m.put(l.tracker+0x18,data);m.put(l.tracker+0x20,int32_t(1));
     m.put(l.tracker,buckets);m.put(l.tracker+8,int32_t(2));m.put(l.tracker+12,int32_t(31));

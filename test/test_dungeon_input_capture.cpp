@@ -19,8 +19,8 @@ struct Memory {
         if(found==strings.end()){error="controlled native text missing";return false;}value=found->second;return true;}
 };
 Memory fixture(bool key){
-    Memory memory;memory.put(image+0x13df9d0,cursor);memory.put(cursor,image+0x1786dd0);memory.put(cursor+0x190,receiver);
-    memory.put(receiver,image+(key?0x173d330:0x173e870));const auto source=key?ghost+0x100:receiver+0x388;
+    Memory memory;memory.put(image+0x13eb9d0,cursor);memory.put(cursor,image+0x178d170);memory.put(cursor+0x190,receiver);
+    memory.put(receiver,image+(key?0x17436d0:0x1744c10));const auto source=key?ghost+0x100:receiver+0x388;
     memory.put(source,std::array<float,4>{0,0,0,1});memory.put(source+0x10,std::array<float,3>{10,20,30});memory.put(source+0x1c,std::array<float,3>{1,1,1});
     memory.put(position,std::array<float,3>{10,20,30});
     if(key){memory.put(receiver+0x6e0,uint8_t(0));memory.put(receiver+0x6e1,uint8_t(1));memory.put(receiver+0x740,ghost);
@@ -33,7 +33,7 @@ bool read(Memory& memory,bool key,d::Purchase& out,std::string& error,uintptr_t 
     auto at=[&](uintptr_t p,size_t offset,auto& value,std::string& cause){return memory.at(p,offset,value,cause);};
     auto copy=[&](uintptr_t p,void* output,size_t count,std::string& cause){return memory.copy(p,output,count,cause);};
     auto text=[&](uintptr_t p,size_t offset,std::string& value,std::string& cause){return memory.text(p,offset,value,cause);};
-    return d::purchase(image,caller?caller:image+(key?0x5a636a:0x5a34b2),type?type:(key?receiver+0x168:data+0x40),position,at,copy,text,out,error);
+    return d::purchase(image,caller?caller:image+(key?0x5acb1a:0x5a9c62),type?type:(key?receiver+0x168:data+0x40),position,at,copy,text,out,error);
 }
 void run(){std::string error;d::Purchase out;
     auto memory=fixture(false);expect(read(memory,false,out,error)&&out.receiver==receiver&&out.source==receiver+0x388&&
@@ -43,20 +43,20 @@ void run(){std::string error;d::Purchase out;
     memory=fixture(false);memory.put(receiver+0x468,int32_t(-1));expect(!read(memory,false,out,error),"missing selected Door row rejected");
     memory=fixture(false);memory.put(receiver+0x184,int32_t(1));expect(!read(memory,false,out,error),"invalid native ListData capacity rejected");
     memory=fixture(false);memory.put(receiver+0x3f4,uint8_t(0));expect(!read(memory,false,out,error),"illegal original Door preview cannot submit");
-    memory=fixture(false);memory.put(receiver,image+0x173d330);expect(!read(memory,false,out,error),"foreign active cursor class rejected");
+    memory=fixture(false);memory.put(receiver,image+0x17436d0);expect(!read(memory,false,out,error),"foreign active cursor class rejected");
     memory=fixture(false);memory.bytes.erase(cursor+0x190);expect(!read(memory,false,out,error)&&error.starts_with("controlled native read failed"),"original read cause preserved");
     memory=fixture(false);memory.put(position,std::array<float,3>{11,20,30});expect(!read(memory,false,out,error),"Purchase argument must match actual cached transform");
     memory=fixture(true);expect(read(memory,true,out,error)&&out.clear_placement&&out.source==ghost+0x100&&
         out.intent.tool==mt2mp::action_session::DungeonInputTool::Key&&out.intent.type=="native-key","actual Key completed placement binds original Clear path");
-    memory=fixture(true);memory.put(receiver,image+0x1732980);
-    expect(read(memory,true,out,error,image+0x5b7f9a)&&out.treasure&&out.clear_placement&&
+    memory=fixture(true);memory.put(receiver,image+0x1738d20);
+    expect(read(memory,true,out,error,image+0x5be73a)&&out.treasure&&out.clear_placement&&
         out.intent.tool==mt2mp::action_session::DungeonInputTool::Treasure&&out.source==ghost+0x100,
         "actual Treasure Update binds selected original resource and completed PlacementLogic");
-    memory.put(cursor+0x190,ghost);expect(!read(memory,true,out,error,image+0x5b7f9a),"Treasure foreign active receiver rejected");
-    memory=fixture(true);memory.put(receiver,image+0x1732980);memory.put(receiver+0x6e1,uint8_t(0));
-    expect(!read(memory,true,out,error,image+0x5b7f9a),"Treasure incomplete placement rejected before Purchase");
-    memory=fixture(true);memory.put(receiver,image+0x1732980);
-    expect(!read(memory,true,out,error,image+0x5a636a),"Treasure receiver cannot use Key caller admission");
+    memory.put(cursor+0x190,ghost);expect(!read(memory,true,out,error,image+0x5be73a),"Treasure foreign active receiver rejected");
+    memory=fixture(true);memory.put(receiver,image+0x1738d20);memory.put(receiver+0x6e1,uint8_t(0));
+    expect(!read(memory,true,out,error,image+0x5be73a),"Treasure incomplete placement rejected before Purchase");
+    memory=fixture(true);memory.put(receiver,image+0x1738d20);
+    expect(!read(memory,true,out,error,image+0x5acb1a),"Treasure receiver cannot use Key caller admission");
     memory=fixture(true);
     memory.put(receiver+0x6e0,uint8_t(1));expect(!read(memory,true,out,error),"ongoing Key placement cannot call original Clear assertion path");
     memory=fixture(true);memory.put(receiver+0x6e1,uint8_t(0));expect(!read(memory,true,out,error),"absent completed Key placement cannot submit");

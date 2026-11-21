@@ -5,7 +5,7 @@
 
 namespace mt2mp::game::management_service_graph {
 // These are the address points written by the native constructors, not vtable symbol bases.
-inline constexpr uintptr_t manager_islands_ap=0x1704bf0,manager_member_ap=0x1749040,spatial_hash_ap=0x17471e0,spatial_cell_ap=0x1748fe0;
+inline constexpr uintptr_t manager_islands_ap=0x170af90,manager_member_ap=0x174f3e0,spatial_hash_ap=0x174d580,spatial_cell_ap=0x174f380;
 using OwnerKeys=std::map<uintptr_t,std::string>;
 inline bool owner_key(const OwnerKeys& keys,uintptr_t pointer,std::string& out,std::string& e){
     out.clear();if(!pointer)return true;const auto found=keys.find(pointer);
@@ -22,11 +22,11 @@ template<class Read>bool discover_sources(Read& at,uintptr_t image,uintptr_t man
     std::set<uintptr_t> seen_islands;std::set<std::string> seen;size_t total=0;
     for(int32_t i=0;i<islands.count;++i){uintptr_t island=0;if(!at(islands.data,size_t(i)*8,island,e))return false;
         if(!island||island>UINTPTR_MAX-0x100||!seen_islands.insert(island).second)return fail(e,"Service graph discovery Island owner invalid");
-        if(!at(island,0xe0,ap,e))return false;if(ap!=image+0x17477e0)return fail(e,"Service graph discovery link array class differs");
+        if(!at(island,0xe0,ap,e))return false;if(ap!=image+0x174db80)return fail(e,"Service graph discovery link array class differs");
         ArrayDescriptor links;if(!array_descriptor(at,island,0xe0,links,e))return false;
         if(!array_span(links.data,links.count,links.capacity,0x38,limit)||size_t(links.count)>limit-total)return fail(e,"Service graph discovery link descriptor invalid");total+=size_t(links.count);
         for(int32_t j=0;j<links.count;++j){const auto link=links.data+size_t(j)*0x38;uintptr_t source=0;
-            if(!at(link,0,ap,e))return false;if(ap!=image+0x17477b0)return fail(e,"Service graph discovery link class differs");
+            if(!at(link,0,ap,e))return false;if(ap!=image+0x174db50)return fail(e,"Service graph discovery link class differs");
             if(!at(link,0x18,source,e))return false;if(source){std::string key;if(!owner_key(buildings,source,key,e))return false;if(seen.insert(key).second)out.push_back(std::move(key));}}
         ArrayDescriptor after;uintptr_t final_island=0;if(!array_descriptor(at,island,0xe0,after,e)||!at(islands.data,size_t(i)*8,final_island,e))return false;
         if(after!=links||final_island!=island)return fail(e,"Service graph discovery descriptors changed");
@@ -62,12 +62,12 @@ template<class Read>bool read_graph(Read& at,uintptr_t image,uintptr_t manager,c
     for(const auto island:pointers){Island row;uintptr_t region=0;
         if(!at(island,0xf8,region,e))return false;if(!region)return fail(e,"Service graph island region absent");if(!owner_key(regions,region,row.region,e))return false;
         if(!read_shape(at,image,island,row.shape,units,e)||!read_shape(at,image,island+0x70,row.contracted,units,e))return false;
-        if(!at(island,0xe0,ap,e)||ap!=image+0x17477e0)return fail(e,"Service graph Island link array class differs");
+        if(!at(island,0xe0,ap,e)||ap!=image+0x174db80)return fail(e,"Service graph Island link array class differs");
         ArrayDescriptor links;if(!array_descriptor(at,island,0xe0,links,e))return false;
         if(!array_span(links.data,links.count,links.capacity,0x38,limit)||size_t(links.count)>limit-units)return fail(e,"Service graph Island link descriptor invalid");
         units+=size_t(links.count);
         for(int32_t n=0;n<links.count;++n){const uintptr_t link=links.data+size_t(n)*0x38;Link value;uintptr_t building=0,path=0,gizmo=0;
-            if(!at(link,0,ap,e))return false;if(ap!=image+0x17477b0)return fail(e,"Service graph link class differs");
+            if(!at(link,0,ap,e))return false;if(ap!=image+0x174db50)return fail(e,"Service graph link class differs");
             if(!at(link,0x18,building,e)||!at(link,0x20,path,e)||!at(link,0x28,gizmo,e)||!at(link,0x30,value.state,e)||!at(link,0x34,value.native_flag,e))return false;
             if(!owner_key(buildings,building,value.building,e)||!owner_key(paths,path,value.path,e)||!owner_key(gizmos,gizmo,value.gizmo,e))return false;
             if(!value.building.empty()&&used_services.insert(value.building).second){const auto found=services.find(value.building);

@@ -9,7 +9,7 @@ inline bool fail(std::string& error,const std::string& cause){error=cause;return
 template<class Read>bool read(Read& at,uintptr_t image,uintptr_t object,Value& value,std::string& error){
     uintptr_t primary=0,secondary=0;
     if(!at(object,0,primary,error)||!at(object,0x18,secondary,error)||!at(object,8,value.data,error)||!at(object,0x10,value.extent,error))return false;
-    if(primary!=image+0x16f0720||secondary!=image+0x16f0788)return fail(error,"GM original Ticket ObjectArray primary/secondary class differs");
+    if(primary!=image+0x16f6ac0||secondary!=image+0x16f6b28)return fail(error,"GM original Ticket ObjectArray primary/secondary class differs");
     const auto count=int32_t(uint32_t(value.extent)),capacity=int32_t(uint32_t(value.extent>>32));
     if(count<0||count>4096||capacity<count||capacity>65536||(!value.data&&capacity)||value.data>UINTPTR_MAX-size_t(capacity)*8)return fail(error,"GM original Ticket ObjectArray storage extent differs");
     return true;

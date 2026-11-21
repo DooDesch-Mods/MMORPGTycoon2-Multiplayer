@@ -14,9 +14,9 @@ inline bool type(placement_ui_probe::Memory& memory,uintptr_t image,uintptr_t p,
 }
 inline bool scenarios(placement_ui_probe::Memory& memory,uintptr_t image,uintptr_t state,std::vector<uintptr_t>& out,std::string& e){
     out.clear();uintptr_t log=0,singleton=0,data=0;int32_t count=0,capacity=0;
-    if(!at(memory,state,0x1e8,log,e)||!at(memory,image,0x13df330,singleton,e))return false;
+    if(!at(memory,state,0x1e8,log,e)||!at(memory,image,0x13eb330,singleton,e))return false;
     if(log!=singleton)return wire::fail(e,"VIP Host current ScenarioLog differs");
-    if(!type(memory,image,log,0x16fd7b0,e))return false;
+    if(!type(memory,image,log,0x1703b50,e))return false;
     if(!at(memory,log,0x20,data,e)||!at(memory,log,0x28,count,e)||!at(memory,log,0x2c,capacity,e))return false;
     if(count<0||count>64||capacity<count||capacity>64||(count&&!data)||data>UINTPTR_MAX-size_t(count)*8)
         return wire::fail(e,"VIP Host ScenarioLog bounds differ required=0..64");
@@ -25,19 +25,19 @@ inline bool scenarios(placement_ui_probe::Memory& memory,uintptr_t image,uintptr
         if(!at(memory,data,size_t(i)*8,instance,e))return false;
         if(!instance||!unique.insert(instance).second)return wire::fail(e,"VIP Host ScenarioLog contains null/duplicate owner");
         if(!at(memory,instance,0,ap,e))return false;
-        if(ap==image+0x1730e90)out.push_back(instance);
+        if(ap==image+0x1737230)out.push_back(instance);
     }
     return true;
 }
 inline bool sample(placement_ui_probe::Memory& memory,uintptr_t image,uintptr_t receiver,HostSample& out,std::string& e){
     out={};out.scenario=receiver;uint8_t arrived=0,shown=0;uintptr_t method=0;
-    if(!type(memory,image,receiver,0x1730e90,e)||!at(memory,image+0x1730e90,0xa0,method,e))return false;
-    if(method!=image+0x4f85b0)return wire::fail(e,"VIP Host virtual Update entry differs");
+    if(!type(memory,image,receiver,0x1737230,e)||!at(memory,image+0x1737230,0xa0,method,e))return false;
+    if(method!=image+0x4fe550)return wire::fail(e,"VIP Host virtual Update entry differs");
     if(!at(memory,receiver,0x98,arrived,e)||!at(memory,receiver,0xa0,out.alert,e))return false;
     if(arrived>1)return wire::fail(e,"VIP Host arrival flag is not boolean");
     if(!arrived||!out.alert)return true;
     int32_t kind=0,extra=0;uintptr_t selector=0;
-    if(!type(memory,image,out.alert,0x1749770,e)||!at(memory,out.alert,0x18,kind,e))return false;
+    if(!type(memory,image,out.alert,0x174fb10,e)||!at(memory,out.alert,0x18,kind,e))return false;
     if(kind!=8)return true;
     if(!at(memory,out.alert,0x138,shown,e)||!at(memory,out.alert,0x130,selector,e))return false;
     if(shown>1)return wire::fail(e,"VIP Host shown flag is not boolean");
@@ -48,10 +48,10 @@ inline bool sample(placement_ui_probe::Memory& memory,uintptr_t image,uintptr_t 
     if(!at(memory,out.proxy,0,target,e))return false;
     if(!target)return true;
     if(out.toon>UINTPTR_MAX-0x28||target!=out.toon+0x20)return wire::fail(e,"VIP Host alert Toon Weak target differs");
-    if(!at(memory,out.proxy,8,refs,e)||!type(memory,image,out.toon,0x1744e90,e)||!at(memory,out.toon,0x28,owned_proxy,e))return false;
+    if(!at(memory,out.proxy,8,refs,e)||!type(memory,image,out.toon,0x174b230,e)||!at(memory,out.toon,0x28,owned_proxy,e))return false;
     if(refs<=0||owned_proxy!=out.proxy)return wire::fail(e,"VIP Host alert Toon Proxy ownership differs");
     if(!at(memory,out.alert,0xf0,extra,e)||!at(memory,receiver,0x68,subscriber,e)||
-       !type(memory,image,subscriber,0x16e75f0,e)||!at(memory,subscriber,0x20,out.subscriber,e)||
+       !type(memory,image,subscriber,0x16ed990,e)||!at(memory,subscriber,0x20,out.subscriber,e)||
        !at(memory,subscriber,0x80,actual_toon,e)||!at(memory,out.toon,0x940,backlink,e))return false;
     if(extra||out.subscriber<0||actual_toon!=out.toon||backlink!=subscriber)
         return wire::fail(e,"VIP Host arrival immutable Subscriber/Toon binding differs");

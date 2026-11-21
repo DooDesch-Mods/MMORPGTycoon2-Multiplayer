@@ -13,7 +13,7 @@ inline std::string widest(const std::string& type,const std::string& separator){
 struct Text {uintptr_t data=0;uint64_t size=0;std::array<uint64_t,2> storage{};bool operator==(const Text&)const=default;};
 static_assert(sizeof(Text)==32);
 template<class Read>bool separator(Read& read,uintptr_t image,std::string& out,std::string& error){
-    out.clear();Text first,second;const auto address=image+0x1c4eaa0;
+    out.clear();Text first,second;const auto address=image+0x1c55aa0;
     if(!read(address,&first,sizeof first,error))return false;
     if(first.size>8192||(!first.data&&first.size)){error="Gizmo native integer separator string bounds differ";return false;}
     std::string value(size_t(first.size),'\0'),again(size_t(first.size),'\0');

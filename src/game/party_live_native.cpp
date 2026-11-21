@@ -18,7 +18,7 @@ namespace mt2mp::game::party_live_native {
 namespace {
 namespace local=subscriber_lifecycle;
 namespace decode=local::first_append;
-constexpr const char* executable="bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6";
+constexpr const char* executable="7efd8ee7b97f78362e7a2f8116b327fa6b756bdce23114b68143c4c9d2dd50eb";
 bool fail(std::string& error,const std::string& cause){error=cause;return false;}
 bool same_target(const party_live::Record& a,const party_live::Record& b){
     return a.key==b.key&&a.sha==b.sha&&a.shard==b.shard&&a.region==b.region&&a.manager_region==b.manager_region&&
@@ -106,7 +106,7 @@ bool members(uintptr_t image,uintptr_t party,std::vector<uintptr_t>& out,std::st
     if(!dungeon_party_census::array(memory,image,party+0x530,party_live_codes::member_array_ap,array,error))return false;
     std::set<uintptr_t> seen;std::vector<uintptr_t> ready;
     for(const auto row:array.members){uintptr_t toon=0;uint64_t uid=0;
-        if(!typed(image,row,party_live_codes::member_ap,error)||!field(row,0x18,toon,error)||!typed(image,toon,0x1744e90,error)||
+        if(!typed(image,row,party_live_codes::member_ap,error)||!field(row,0x18,toon,error)||!typed(image,toon,0x174b230,error)||
            !identity(image,toon,uid,error))return false;
         if(!seen.insert(toon).second)return fail(error,"Party original member array repeats a Toon");
         ready.push_back(toon);
@@ -118,8 +118,8 @@ bool members(uintptr_t image,uintptr_t party,std::vector<uintptr_t>& out,std::st
 }
 bool scheduler(uintptr_t image,const party_live::Raw& current,bool held,std::string& error){
     uintptr_t tasks=0,ticks=0,updates=0,tasks_owned=0,ticks_owned=0,updates_owned=0;
-    if(!field(image,0x13df340,tasks,error)||!field(image,0x13df350,ticks,error)||!field(image,0x13df4a0,updates,error)||
-       !typed(image,tasks,0x16fdaf0,error)||!typed(image,ticks,0x16fdc40,error)||!typed(image,updates,0x1709650,error)||
+    if(!field(image,0x13eb340,tasks,error)||!field(image,0x13eb350,ticks,error)||!field(image,0x13eb4a0,updates,error)||
+       !typed(image,tasks,0x1703e90,error)||!typed(image,ticks,0x1703fe0,error)||!typed(image,updates,0x170f9f0,error)||
        !field(uintptr_t(current.world.game),0x68,tasks_owned,error)||!field(uintptr_t(current.world.game),0x150,ticks_owned,error)||
        !field(uintptr_t(current.world.game),0x70,updates_owned,error))return false;
     if(tasks!=tasks_owned||ticks!=ticks_owned||updates!=updates_owned)return fail(error,"Party current Game scheduler singleton ownership differs");
@@ -203,7 +203,7 @@ bool NativePort::batch(const action_session::Context& context,const action_sessi
         return true;
     };
     local::SaveScopeReceipt receipt;
-    const local::SaveScopeApi api{reinterpret_cast<local::SaveScopeCall>(image_+0x4a03a0),reinterpret_cast<local::SaveScopeCall>(image_+0x49f6f0)};
+    const local::SaveScopeApi api{reinterpret_cast<local::SaveScopeCall>(image_+0x4a5890),reinterpret_cast<local::SaveScopeCall>(image_+0x4a4be0)};
     const bool ok=local::with_save_scope(api,current.world.mode,run,exit,&work,receipt,error);
     held_=false;
     if(receipt.unknown){blocked_scope_=current.scope;blocked_cause_=error.empty()?"Party original SaveScope outcome unknown":error;return fail(error,blocked_cause_);}
@@ -233,9 +233,9 @@ bool NativePort::capture(const party_live::Member& member,const party_live::Refe
         value.toons.push_back(std::move(key));
     }
     Capture captured;local::CaptureReceipt cleanup;
-    const local::CaptureApi calls{reinterpret_cast<local::Construct>(image_+0x9667c0),reinterpret_cast<local::Construct>(image_+0x9676a0),
-        reinterpret_cast<local::Construct>(image_+0x89e580),reinterpret_cast<local::Construct>(image_+0x89e5f0),
-        reinterpret_cast<local::PrepareSave>(image_+0x1103ca0),reinterpret_cast<local::SaveRecord>(image_+0x1103d00)};
+    const local::CaptureApi calls{reinterpret_cast<local::Construct>(image_+0x96f9e0),reinterpret_cast<local::Construct>(image_+0x9708c0),
+        reinterpret_cast<local::Construct>(image_+0x8a76a0),reinterpret_cast<local::Construct>(image_+0x8a7710),
+        reinterpret_cast<local::PrepareSave>(image_+0x110f640),reinterpret_cast<local::SaveRecord>(image_+0x110f6a0)};
     if(!local::capture_original(calls,reinterpret_cast<void*>(member.pointer),Capture::inspect,&captured,cleanup,error)||
        !party_live::captured(captured.graph,member.pointer,refs,value,error)||!owner(error))return false;
     uint64_t final_uid=0;return identity(image_,member.pointer,final_uid,error)&&
@@ -260,7 +260,7 @@ bool NativePort::load_record(const party_live::Member* existing,const party_live
         }
         std::vector<uintptr_t> toons;
         for(const auto& key:target.toons){uintptr_t toon=0;uint64_t uid=0;
-            if(!refs.resolve(key,toon,error)||!typed(image_,toon,0x1744e90,error)||!identity(image_,toon,uid,error))return false;
+            if(!refs.resolve(key,toon,error)||!typed(image_,toon,0x174b230,error)||!identity(image_,toon,uid,error))return false;
             toons.push_back(toon);
         }
         std::vector<uintptr_t> old_toons;
@@ -290,7 +290,7 @@ bool NativePort::load_record(const party_live::Member* existing,const party_live
         if(property_ap!=image_+party_live_codes::toon_party_property_ap||property_offset!=0x950)
             return fail(error,"Party original Toon reciprocal property class/member offset differs");
         local::CallReceipt call;receipt.attempted=true;++receipt.calls.context;
-        if(!decode::context_call(reinterpret_cast<decode::Unary>(image_+0x89e940),&resource->context,call,error))return false;
+        if(!decode::context_call(reinterpret_cast<decode::Unary>(image_+0x8a7a60),&resource->context,call,error))return false;
         resource->context_constructed=true;
         if(!links.arm(thread_,&resource->context,target.local_ids,borrowed.expected,ExternalScope::fresh,&borrowed,error))return false;
         uint32_t seh=0;
@@ -298,29 +298,29 @@ bool NativePort::load_record(const party_live::Member* existing,const party_live
             resource->party=existing->pointer;
             for(const auto toon:old_toons)if(std::find(toons.begin(),toons.end(),toon)==toons.end()){
                 ++receipt.calls.toon_leave;
-                if(!decode::context_call(reinterpret_cast<decode::Unary>(image_+0x3e66d0),reinterpret_cast<void*>(toon),call,error))return false;
+                if(!decode::context_call(reinterpret_cast<decode::Unary>(image_+0x3eb1e0),reinterpret_cast<void*>(toon),call,error))return false;
             }
         }else{
-            ++receipt.calls.factory;seh=factory_call(image_+0xd96cc0,&resource->party);
+            ++receipt.calls.factory;seh=factory_call(image_+0xda24f0,&resource->party);
             if(seh||!resource->party)return fail(error,"Party original RTTI factory failed SEH="+std::to_string(seh));
         }
         if(!typed(image_,resource->party,dungeon_party_census::party_ap,error))return false;
-        ++receipt.calls.load;seh=load_call(image_+0xceba00,reinterpret_cast<void*>(resource->party),reinterpret_cast<void*>(resource->record.root),&resource->context);
+        ++receipt.calls.load;seh=load_call(image_+0xcf7120,reinterpret_cast<void*>(resource->party),reinterpret_cast<void*>(resource->record.root),&resource->context);
         if(seh)return fail(error,"Party original complete Record load failed SEH="+std::to_string(seh));
         for(const auto toon:toons){uintptr_t old=0;if(!field(toon,0x950,old,error))return false;
             if(old&&old!=resource->party){++receipt.calls.toon_leave;
-                if(!decode::context_call(reinterpret_cast<decode::Unary>(image_+0x3e66d0),reinterpret_cast<void*>(toon),call,error))return false;}
+                if(!decode::context_call(reinterpret_cast<decode::Unary>(image_+0x3eb1e0),reinterpret_cast<void*>(toon),call,error))return false;}
             ++receipt.calls.toon_bind;bool accepted=false;
-            seh=property_call(image_+0xe090d0,reinterpret_cast<void*>(property),reinterpret_cast<void*>(toon),
+            seh=property_call(image_+0xe149e0,reinterpret_cast<void*>(property),reinterpret_cast<void*>(toon),
                 reinterpret_cast<void*>(resource->reciprocal.root),&resource->context,&accepted);
             if(seh||!accepted)return fail(error,"Party original Toon reciprocal PropertyLoad failed SEH="+std::to_string(seh));
-            seh=property_resolve_call(image_+0xe091e0,reinterpret_cast<void*>(property),reinterpret_cast<void*>(toon),&resource->context);
+            seh=property_resolve_call(image_+0xe14af0,reinterpret_cast<void*>(property),reinterpret_cast<void*>(toon),&resource->context);
             if(seh)return fail(error,"Party original Toon reciprocal PropertyResolve failed SEH="+std::to_string(seh));
             uintptr_t actual=0;if(!field(toon,0x950,actual,error))return false;
             if(actual!=resource->party)return fail(error,"Party original Toon reciprocal property did not resolve the actual new Party");
         }
         resource->context_destroy_attempted=true;++receipt.calls.context;
-        if(!decode::context_call(reinterpret_cast<decode::Unary>(image_+0x89e480),&resource->context,call,error))return false;
+        if(!decode::context_call(reinterpret_cast<decode::Unary>(image_+0x8a75a0),&resource->context,call,error))return false;
         resource->context_destroyed=true;
         const auto lookup_receipt=links.receipt();if(lookup_receipt.failed)return fail(error,lookup_receipt.cause);
         links.clear();
@@ -336,10 +336,10 @@ bool NativePort::load_record(const party_live::Member* existing,const party_live
     std::string cause=error;
     if(resource->context_constructed&&!resource->context_destroyed&&!resource->context_destroy_attempted){
         local::CallReceipt abort,destroy;std::string cleanup;
-        const bool aborted=decode::context_call(reinterpret_cast<decode::Unary>(image_+0x89dfb0),&resource->context,abort,cleanup);
+        const bool aborted=decode::context_call(reinterpret_cast<decode::Unary>(image_+0x8a70d0),&resource->context,abort,cleanup);
         if(!aborted){keep=true;cause+="; Party context abort failed: "+cleanup;}
         else{resource->context_destroy_attempted=true;
-            if(!decode::context_call(reinterpret_cast<decode::Unary>(image_+0x89e480),&resource->context,destroy,cleanup)){
+            if(!decode::context_call(reinterpret_cast<decode::Unary>(image_+0x8a75a0),&resource->context,destroy,cleanup)){
                 keep=true;cause+="; Party context cleanup failed: "+cleanup;
             }else resource->context_destroyed=true;
         }
@@ -377,10 +377,10 @@ bool NativePort::finish_membership(const party_live::Member& original,const part
         uintptr_t old_owner=0;
         if(!field(pointer,0x620,old_owner,error))return false;
         if(desired_owner&&old_owner!=desired_owner){
-            seh=load_call(image_+0x3ccdb0,reinterpret_cast<void*>(pointer),reinterpret_cast<void*>(old_owner),reinterpret_cast<void*>(desired_owner));
+            seh=load_call(image_+0x3d18c0,reinterpret_cast<void*>(pointer),reinterpret_cast<void*>(old_owner),reinterpret_cast<void*>(desired_owner));
             if(seh)return fail(error,"Party original NotifyRegionChanged failed SEH="+std::to_string(seh));
         }
-        if(!decode::context_call(reinterpret_cast<decode::Unary>(image_+0x3d3550),reinterpret_cast<void*>(pointer),call,error))return false;
+        if(!decode::context_call(reinterpret_cast<decode::Unary>(image_+0x3d8060),reinterpret_cast<void*>(pointer),call,error))return false;
         // InitMapData performs the original owner/advertiser registration. The
         // target may also retain a second native manager during a transfer.
         party_live::Raw actual;
@@ -390,8 +390,8 @@ bool NativePort::finish_membership(const party_live::Member& original,const part
             const bool wanted=std::any_of(desired.begin(),desired.end(),[&](const auto* row){return row->manager==pool.manager;});
             if(contains==wanted)continue;
             if(!dungeon_party_census::settled(pool))return fail(error,"Party manager changed to active work during original state load");
-            if(wanted){seh=manager_call(image_+0x2b41a0,reinterpret_cast<void*>(pool.manager),reinterpret_cast<void*>(pointer));}
-            else{++receipt.calls.release;seh=manager_call(image_+0x2b3060,reinterpret_cast<void*>(pool.manager),reinterpret_cast<void*>(pointer));}
+            if(wanted){seh=manager_call(image_+0x2b77a0,reinterpret_cast<void*>(pool.manager),reinterpret_cast<void*>(pointer));}
+            else{++receipt.calls.release;seh=manager_call(image_+0x2b6610,reinterpret_cast<void*>(pool.manager),reinterpret_cast<void*>(pointer));}
             if(seh)return fail(error,"Party original manager membership reconciliation failed SEH="+std::to_string(seh));
         }
         born.pointer=pointer;
@@ -444,7 +444,7 @@ bool NativePort::ready_to_init(const party_live::Member& party,const party_live:
         if(toons[i]!=expected||backlink!=party.pointer)return fail(error,"Party prepared Toon order/reciprocal differs before deferred InitMapData");
         // The original transform callback reads Region and Subscriber fields.
         // Their saved IDs must have passed through Subscriber ObjectContext D1.
-        if(!typed(image_,region,dungeon_party_census::region_ap,error)||!typed(image_,subscriber,0x16e75f0,error)||
+        if(!typed(image_,region,dungeon_party_census::region_ap,error)||!typed(image_,subscriber,0x16ed990,error)||
            !field(subscriber,0x80,main,error))return false;
         if(main!=toons[i])return fail(error,"Party prepared Toon Subscriber reciprocal is unresolved before deferred InitMapData");
     }
@@ -507,7 +507,7 @@ bool NativePort::reserve(const std::string& key,party_live::Member& member,party
         receipt.member=member;receipt.existing=true;receipt.returned=true;return true;
     }
     receipt.attempted=true;++receipt.calls.factory;
-    uintptr_t actual=0;const auto seh=factory_call(image_+0xd96cc0,&actual);
+    uintptr_t actual=0;const auto seh=factory_call(image_+0xda24f0,&actual);
     if(seh||!actual){receipt.unknown=true;batch_unknown_="Party original factory reservation failed SEH="+std::to_string(seh);return fail(error,batch_unknown_);}
     uint64_t uid=0;
     if(!typed(image_,actual,dungeon_party_census::party_ap,error)||!identity(image_,actual,uid,error)){
@@ -526,14 +526,14 @@ bool NativePort::rearm_toon_party(uintptr_t toon,uint64_t uid,int32_t saved_id,v
     if(!held_||context_.role!=action_session::Role::Client||!context||saved_id<0||!uid||!owner(error))
         return fail(error,error.empty()?"Party Toon reciprocal re-arm requires its held actual Client context and nonnegative saved ID":error);
     uint64_t actual_uid=0;
-    if(!typed(image_,toon,0x1744e90,error)||!identity(image_,toon,actual_uid,error))return false;
+    if(!typed(image_,toon,0x174b230,error)||!identity(image_,toon,actual_uid,error))return false;
     if(actual_uid!=uid)return fail(error,"Party Toon reciprocal re-arm lost the actual pending Toon full UID");
     if(!saved_id){uintptr_t path=0,task=0;
         if(!field(toon,0x2e8,path,error)||!field(toon,0x308,task,error))return false;
         if(path||task)return fail(error,"Pending Toon has nonempty native path/task state before Party PostResolve");
         uintptr_t controlled=0;
-        if(!field(image_+0x1744e90,0x3f8,controlled,error))return false;
-        if(controlled!=image_+0x39aa80)return fail(error,"Pending Toon original Party-controlled virtual target differs");
+        if(!field(image_+0x174b230,0x3f8,controlled,error))return false;
+        if(controlled!=image_+0x39f580)return fail(error,"Pending Toon original Party-controlled virtual target differs");
     }
     const auto property=image_+party_live_codes::toon_party_property;uintptr_t ap=0,offset=0;
     if(!field(property,0,ap,error)||!field(property,0x38,offset,error))return false;
@@ -543,7 +543,7 @@ bool NativePort::rearm_toon_party(uintptr_t toon,uint64_t uid,int32_t saved_id,v
         if(!decode::resolve_record_api(memory,image_,api,error)||
            !decode::decode_integer_record(api,memory,"party",saved_id,resource->reciprocal,resource->reciprocal_decoded,error))return false;
         receipt.attempted=true;++receipt.calls.toon_bind;bool accepted=false;
-        const auto seh=property_call(image_+0xe090d0,reinterpret_cast<void*>(property),reinterpret_cast<void*>(toon),reinterpret_cast<void*>(resource->reciprocal.root),context,&accepted);
+        const auto seh=property_call(image_+0xe149e0,reinterpret_cast<void*>(property),reinterpret_cast<void*>(toon),reinterpret_cast<void*>(resource->reciprocal.root),context,&accepted);
         if(seh||!accepted)return fail(error,"Party original pending Toon PropertyLoad re-arm failed SEH="+std::to_string(seh)+" accepted="+std::to_string(accepted));
         uint64_t stored=0;
         if(!field(toon,0x950,stored,error)||!owner(error))return false;
@@ -580,10 +580,10 @@ bool NativePort::remove(const party_live::Raw& before,const party_live::Member& 
         if(reciprocal!=member.pointer)return fail(error,"Party original removal Toon member has another current reciprocal Party");}
     receipt.attempted=true;
     for(const auto manager:release){++receipt.calls.release;
-        const auto seh=manager_call(image_+0x2b3060,reinterpret_cast<void*>(manager),reinterpret_cast<void*>(member.pointer));
+        const auto seh=manager_call(image_+0x2b6610,reinterpret_cast<void*>(manager),reinterpret_cast<void*>(member.pointer));
         if(seh)return fail(error,"Party original transfer ReleaseParty failed SEH="+std::to_string(seh));}
     ++receipt.calls.remove;
-    const auto seh=manager_call(image_+0x2b3820,reinterpret_cast<void*>(deleting_manager),reinterpret_cast<void*>(member.pointer));
+    const auto seh=manager_call(image_+0x2b6e20,reinterpret_cast<void*>(deleting_manager),reinterpret_cast<void*>(member.pointer));
     if(seh)return fail(error,"Party original owning RemoveParty failed SEH="+std::to_string(seh));
     // RemoveParty performs the one original deleting destructor. Its Party and
     // member pointers must not be dereferenced after this call.

@@ -15,19 +15,19 @@ struct Model {
     Memory m;developer_staff::Capture c;uintptr_t window=0x3000,detail=0x5000,bug=0x6000,button=0xa000,details=0x9000;
     Model(){c.image=0x10000000;c.pin.origin.mode=reinterpret_cast<void*>(0x1000);
         m.put<uintptr_t>(0x10a0,0x2000);m.put<int32_t>(0x10a8,1);m.put<int32_t>(0x10ac,1);m.put<uintptr_t>(0x2000,window);
-        m.put(window,c.image+0x1722e60);m.text(window+0x1b0,"development");m.put<uintptr_t>(window+0x318,0);
-        m.put<uintptr_t>(window+0x540,0x4000);m.put<uintptr_t>(0x4000,c.image+0x17015b0);m.put<uintptr_t>(0x43b8,0x7000);
-        m.put<uintptr_t>(0x7000,c.image+0x16dfe90);m.put<uintptr_t>(0x4280,window);m.put<uintptr_t>(0x7280,window);m.put<uint8_t>(window+0x45f,1);
+        m.put(window,c.image+0x1729200);m.text(window+0x1b0,"development");m.put<uintptr_t>(window+0x318,0);
+        m.put<uintptr_t>(window+0x540,0x4000);m.put<uintptr_t>(0x4000,c.image+0x1707950);m.put<uintptr_t>(0x43b8,0x7000);
+        m.put<uintptr_t>(0x7000,c.image+0x16e6230);m.put<uintptr_t>(0x4280,window);m.put<uintptr_t>(0x7280,window);m.put<uint8_t>(window+0x45f,1);
         page(0x7000,0x8000,"{dev_tab_bugs}");page(detail,details,"details");
-        m.put<uintptr_t>(window+0x558,detail);m.put<uintptr_t>(detail,c.image+0x172abf0);m.put<uintptr_t>(detail+0x460,bug);
+        m.put<uintptr_t>(window+0x558,detail);m.put<uintptr_t>(detail,c.image+0x1730f90);m.put<uintptr_t>(detail+0x460,bug);
         m.put<uintptr_t>(detail+0x468,0xb000);m.put<uintptr_t>(0xb000,bug+0x18);m.put<uintptr_t>(bug+0x20,0xb000);
-        m.put<uintptr_t>(detail+0x450,button);m.put<uintptr_t>(button,c.image+0x16e3ec0);
+        m.put<uintptr_t>(detail+0x450,button);m.put<uintptr_t>(button,c.image+0x16ea260);
         for(auto p:{button,details})m.put<uintptr_t>(p+0x280,window);
         m.put<uintptr_t>(button+0x278,details);m.put<uintptr_t>(details+0x278,detail);
         for(size_t offset:{0x46c,0x46d,0x46e,0x584})m.put<uint8_t>(button+offset,0);
-        m.put<uint8_t>(button+0x174,1);m.text(button+0x388,"MessageTo Parent BugButton");m.put<uintptr_t>(c.image+0x16e3ec0+0x1c8,c.image+0xb63ee0);
+        m.put<uint8_t>(button+0x174,1);m.text(button+0x388,"MessageTo Parent BugButton");m.put<uintptr_t>(c.image+0x16ea260+0x1c8,c.image+0xb70740);
     }
-    void page(uintptr_t view,uintptr_t value,const char* name){m.text(view+0x3e8,name);m.put<uintptr_t>(view+0x410,value);m.put<uintptr_t>(view+0x418,value);m.put<int32_t>(view+0x408,0);m.put<uintptr_t>(value,c.image+0x1745a80);m.text(value+0x1b0,name);}
+    void page(uintptr_t view,uintptr_t value,const char* name){m.text(view+0x3e8,name);m.put<uintptr_t>(view+0x410,value);m.put<uintptr_t>(view+0x418,value);m.put<int32_t>(view+0x408,0);m.put<uintptr_t>(value,c.image+0x174be20);m.text(value+0x1b0,name);}
     bool read(std::string& e,bool pressed=false){f::Control out;return f::button([&](auto p,auto target,auto n,auto& error){return m.copy(p,target,n,error);},c,bug,pressed,out,e);}
 };
 struct Click {
@@ -52,14 +52,14 @@ int main(){try{
         if(i==8)bad.m.put<uintptr_t>(bad.button+0x280,0xdead);
         if(i==9)bad.m.put<uintptr_t>(bad.details+0x278,bad.button);
         if(i==10)bad.m.put<uintptr_t>(bad.button+0x278,bad.detail);
-        if(i==11)bad.m.put<uintptr_t>(bad.c.image+0x16e3ec0+0x1c8,bad.c.image+0x674780);
+        if(i==11)bad.m.put<uintptr_t>(bad.c.image+0x16ea260+0x1c8,bad.c.image+0x67b950);
         if(i==12)bad.m.bytes.erase(bad.button+0x584);
         e.clear();require(!bad.read(e)&&!e.empty(),"foreign/unready/changed control rejects");
         if(i==12)require(e=="fixture exact unreadable field","original read cause retained");
     }
     for(const uintptr_t pane:{uintptr_t(0x8000),uintptr_t(0x9000)}){
-        Model policy;policy.m.put<uintptr_t>(pane,policy.c.image+0x1705ee0);e.clear();
-        require(!policy.read(e)&&e.find("requires original mmoView AP0x1745A80")!=std::string::npos,
+        Model policy;policy.m.put<uintptr_t>(pane,policy.c.image+0x170c280);e.clear();
+        require(!policy.read(e)&&e.find("requires original mmoView AP0x174BE20")!=std::string::npos,
             "policy subclass is not the shipped Bugs/details mmoView");
     }
     const std::string uuid="11111111-1111-4111-8111-111111111111";

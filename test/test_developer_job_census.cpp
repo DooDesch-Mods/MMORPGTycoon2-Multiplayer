@@ -11,13 +11,13 @@ struct Fixture {
     Fixture(){
         capture.image=0x10000000;capture.thread=1;capture.pin.origin.state=reinterpret_cast<void*>(0x1000);
         block(0x1000,0x200);block(0x2000,0x200);block(0x3000,32);block(0x4000,0xc8);block(0x5000,0xc8);block(0x6000,0x58);
-        block(capture.image+0x13df230,8);put<uintptr_t>(0x11a8,0x2000);put<uintptr_t>(capture.image+0x13df230,0x2000);
-        put<uintptr_t>(0x2000,capture.image+0x16db570);put<uintptr_t>(0x2018,capture.image+0x16ef400);
+        block(capture.image+0x13eb230,8);put<uintptr_t>(0x11a8,0x2000);put<uintptr_t>(capture.image+0x13eb230,0x2000);
+        put<uintptr_t>(0x2000,capture.image+0x16e1910);put<uintptr_t>(0x2018,capture.image+0x16f57a0);
         put<uintptr_t>(0x2020,0x3000);put<int32_t>(0x202c,4);put<uintptr_t>(0x3000,0x4000);put<uintptr_t>(0x3008,0x5000);
-        put<uintptr_t>(0x4000,capture.image+0x17427a0);put<uintptr_t>(0x5000,capture.image+0x17427a0);
-        put<uintptr_t>(0x6000,capture.image+0x1742200);
+        put<uintptr_t>(0x4000,capture.image+0x1748b40);put<uintptr_t>(0x5000,capture.image+0x1748b40);
+        put<uintptr_t>(0x6000,capture.image+0x17485a0);
         for(int n=0;n<50;++n){const uintptr_t actor=0x10000+uintptr_t(n)*0x1000;block(actor,0x500);
-            put<uintptr_t>(actor,capture.image+0x17422e0);put<int32_t>(actor+0x4c0,n);
+            put<uintptr_t>(actor,capture.image+0x1748680);put<int32_t>(actor+0x4c0,n);
             capture.local.developers.push_back(actor);Row row;row.id=n;row.slot=n;capture.state.rows.push_back(row);}
     }
     void block(uintptr_t p,size_t n){memory[p].resize(n);}
@@ -42,7 +42,7 @@ int main(){
     {Fixture f;f.assigned();f.put<uintptr_t>(0x104c8,0x5000);check(f.run(out,e)&&out.developers[0].job_index==-1&&!out.jobs[0].reciprocal,"dangling link visible");}
     {Fixture f;f.assigned();f.put<uintptr_t>(0x4038,0x6000);f.put<uintptr_t>(0x6048,0x4000);check(f.run(out,e)&&out.jobs[0].bug.job==0x4000,"Bug incoming link");}
     {Fixture f;f.put<uintptr_t>(0x2018,1);check(!f.run(out,e)&&e.find("addresspoint")!=std::string::npos,"wrong array class");}
-    {Fixture f;f.put<uintptr_t>(f.capture.image+0x13df230,0x3000);check(!f.run(out,e)&&e.find("singleton")!=std::string::npos,"owner mismatch");}
+    {Fixture f;f.put<uintptr_t>(f.capture.image+0x13eb230,0x3000);check(!f.run(out,e)&&e.find("singleton")!=std::string::npos,"owner mismatch");}
     {Fixture f;f.assigned();f.put<int32_t>(0x2028,2);f.put<uintptr_t>(0x3008,0x4000);check(!f.run(out,e)&&e.find("duplicate")!=std::string::npos,"duplicate job");}
     {Fixture f;f.assigned();f.put<uintptr_t>(0x3000,0);check(!f.run(out,e),"null job");}
     {Fixture f;f.put<int32_t>(0x2028,-1);check(!f.run(out,e)&&e.find("header")!=std::string::npos,"negative count");}

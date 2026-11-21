@@ -13,7 +13,7 @@ struct Owner {
     bool operator==(const Owner&)const=default;
 };
 inline constexpr std::array<size_t,4> region_offsets{0x960,0x968,0x988,0x9a8};
-inline constexpr std::array<uintptr_t,4> addresspoints{0x17152d0,0x16fe170,0x1714100,0x1700260};
+inline constexpr std::array<uintptr_t,4> addresspoints{0x171b670,0x1704510,0x171a4a0,0x1706600};
 inline constexpr std::array<size_t,4> reverse_region{0x900,0xf0,0x80,0x70};
 
 // The caller supplies the bound NativeOpen root, actual Dungeon and original UID/RTTI lookup. No current camera Shard participates.

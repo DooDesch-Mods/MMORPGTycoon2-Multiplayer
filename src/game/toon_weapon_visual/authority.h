@@ -11,18 +11,18 @@ template<class T>bool visual_read(placement_ui_probe::Memory& memory,uintptr_t b
 }
 inline bool toon_census(placement_ui_probe::Memory& memory,uintptr_t image,std::vector<ToonOwner>& out,std::string& error){
     out.clear();uintptr_t manager=0,ap=0,data=0;int32_t count=0,capacity=0;
-    if(!visual_read(memory,image,0x13df690,manager,error)||!visual_read(memory,manager,0,ap,error)||
+    if(!visual_read(memory,image,0x13eb690,manager,error)||!visual_read(memory,manager,0,ap,error)||
        !visual_read(memory,manager,0x40,data,error)||!visual_read(memory,manager,0x48,count,error)||!visual_read(memory,manager,0x4c,capacity,error))return false;
-    if(ap!=image+0x1725f40||count<0||capacity<count||count>1000000||(count&&!data))return visual_fail(error,"Weapon authority actual Subscriber manager differs");
+    if(ap!=image+0x172c2e0||count<0||capacity<count||count>1000000||(count&&!data))return visual_fail(error,"Weapon authority actual Subscriber manager differs");
     std::set<int32_t> ids;std::set<uintptr_t> receivers;
     for(int32_t i=0;i<count;++i){ToonOwner row;uintptr_t backlink=0;
         if(!visual_read(memory,data,size_t(i)*8,row.subscriber,error)||!visual_read(memory,row.subscriber,0,ap,error)||
-           ap!=image+0x16e75f0)return visual_fail(error,"Weapon authority Subscriber member class differs");
+           ap!=image+0x16ed990)return visual_fail(error,"Weapon authority Subscriber member class differs");
         if(!visual_read(memory,row.subscriber,0x20,row.id,error)||!visual_read(memory,row.subscriber,0x80,row.toon,error))return false;
         if(row.id<0||!ids.insert(row.id).second||!receivers.insert(row.subscriber).second)return visual_fail(error,"Weapon authority Subscriber ID/receiver is ambiguous");
         if(row.toon){
             if(!visual_read(memory,row.toon,0,ap,error)||!visual_read(memory,row.toon,0x940,backlink,error))return false;
-            if(ap!=image+0x1744e90||backlink!=row.subscriber||!receivers.insert(row.toon).second)return visual_fail(error,"Weapon authority reciprocal Toon owner differs");
+            if(ap!=image+0x174b230||backlink!=row.subscriber||!receivers.insert(row.toon).second)return visual_fail(error,"Weapon authority reciprocal Toon owner differs");
         }
         out.push_back(row);
     }

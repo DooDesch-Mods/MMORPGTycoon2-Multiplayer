@@ -6,12 +6,12 @@ bool policy_ui_find(Runtime& r,uintptr_t queue,uint8_t policy,gp::Field field,Po
     if(!at(r,out.window,0x45f,shown,e)||shown>1)return fail(e,e.empty()?"GM policy window visibility invalid":e);out.visible=shown!=0;if(!out.visible)return true;
     const bool integer=gp::integer(field);const auto target=queue+(policy?0x70:0x48);std::vector<uintptr_t> pending{out.window};std::set<uintptr_t> seen;
     while(!pending.empty()){const auto pane=pending.back();pending.pop_back();if(!seen.insert(pane).second||seen.size()>2048)return fail(e,"GM policy active pane cycle/extent invalid");uintptr_t klass=0;if(!at(r,pane,0,klass,e))return false;
-        if(klass==r.image+0x17015b0){std::string name;uintptr_t owner=0;if(!text(r,pane+0x1b0,name,256,e)||!at(r,pane,0x280,owner,e)||owner!=out.window)return fail(e,e.empty()?"GM policy tab owner differs":e);
-            if(name=="multi"){if(out.tabs)return fail(e,"GM policy duplicate actual tabs");out.tabs=pane;if(!at(r,pane,0x3b8,out.view,e)||!ap(r,out.view,0x16dfe90,e))return false;}}
-        if(klass==r.image+(integer?0x16e7070:0x16d98c0)){uintptr_t value=0,owner=0,address=0;if(!at(r,pane,integer?0x420:0x3c8,value,e))return false;
+        if(klass==r.image+0x1707950){std::string name;uintptr_t owner=0;if(!text(r,pane+0x1b0,name,256,e)||!at(r,pane,0x280,owner,e)||owner!=out.window)return fail(e,e.empty()?"GM policy tab owner differs":e);
+            if(name=="multi"){if(out.tabs)return fail(e,"GM policy duplicate actual tabs");out.tabs=pane;if(!at(r,pane,0x3b8,out.view,e)||!ap(r,out.view,0x16e6230,e))return false;}}
+        if(klass==r.image+(integer?0x16ed410:0x16dfc60)){uintptr_t value=0,owner=0,address=0;if(!at(r,pane,integer?0x420:0x3c8,value,e))return false;
             if(value){if(!at(r,value,8,owner,e)||!at(r,value,0x38,address,e))return false;
                 if(owner==target&&address==target+gp::offsets[size_t(field)]){std::string property;uint8_t clickable=0;bool visible=false;
-                    if(!ap(r,value,integer?0x17496b0:0x1749610,e)||!text(r,value+0x18,property,64,e)||property!=gp::names[size_t(field)]||!at(r,pane,0x174,clickable,e)||clickable>1||!rules_numeric_visible(r,pane,out.window,visible,e))return fail(e,e.empty()?"GM policy original bound control differs":e);
+                    if(!ap(r,value,integer?0x174fa50:0x174f9b0,e)||!text(r,value+0x18,property,64,e)||property!=gp::names[size_t(field)]||!at(r,pane,0x174,clickable,e)||clickable>1||!rules_numeric_visible(r,pane,out.window,visible,e))return fail(e,e.empty()?"GM policy original bound control differs":e);
                     if(field==gp::Field::Enabled||field==gp::Field::CheckLog){std::string name;if(!text(r,pane+0x1b0,name,256,e)||name!=(field==gp::Field::Enabled?"enable_toxic_complaints":"checklogs"))return fail(e,e.empty()?"GM policy original checkbox ID differs":e);}
                     if(out.checkbox||out.spinner)return fail(e,"GM policy actual bound control is not unique");
                     if(integer){int32_t min=0,max=0;uint8_t enabled=0;if(!at(r,pane,0x320,min,e)||!at(r,pane,0x324,max,e)||min||max!=gp::maximum(field)||!at(r,pane,0x428,out.current,e)||out.current<0||out.current>max||!at(r,pane,0x3f1,enabled,e)||enabled>1)return fail(e,e.empty()?"GM policy original spinner range/current/enabled differs":e);out.spinner=pane;out.ready=visible&&clickable==1&&enabled==1;}
@@ -25,10 +25,10 @@ bool policy_ui_find(Runtime& r,uintptr_t queue,uint8_t policy,gp::Field field,Po
 }
 bool policy_ui_find(Runtime& r,uintptr_t queue,bool enabled,PolicyUi& out,std::string& e){return policy_ui_find(r,queue,0,enabled?gp::Field::Enabled:gp::Field::CheckLog,out,e);}
 uint32_t policy_ui_page(uintptr_t image,uintptr_t tabs)noexcept{struct View{const char* data;size_t length;unsigned char rest[16];};static constexpr char name[]="{gamemaster_tab_policy}";const View value{name,sizeof(name)-1,{}};
-    __try{reinterpret_cast<void(*)(void*,const void*)>(image+0x7524f0)(reinterpret_cast<void*>(tabs),&value);return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
+    __try{reinterpret_cast<void(*)(void*,const void*)>(image+0x759f70)(reinterpret_cast<void*>(tabs),&value);return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 uint32_t policy_ui_set_integer(uintptr_t image,uintptr_t spinner,int32_t value)noexcept{
-    __try{reinterpret_cast<void(*)(void*,int32_t)>(image+0x7c9e70)(reinterpret_cast<void*>(spinner),value);return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
+    __try{reinterpret_cast<void(*)(void*,int32_t)>(image+0x7d2190)(reinterpret_cast<void*>(spinner),value);return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 bool policy_observer_rows(Runtime& r,const Local& local,const a::Context& context,const a::Binding& binding,nlohmann::json& out,std::string& e){
     gm_ticket::Census census;building_mixed_identity::opened_file::CurrentWorld world;if(!gm_census(r,context,binding,local,census,world,e))return false;out=nlohmann::json::array();
@@ -37,7 +37,7 @@ bool policy_observer_rows(Runtime& r,const Local& local,const a::Context& contex
         auto read=[&](uintptr_t object,size_t offset,auto& value,std::string& cause){return at(r,object,offset,value,cause);};
         if(!gp::policy_array(read,array,8,4096,members,e))return false;
         for(auto listener:members.members){uintptr_t table=0,callback=0;if(!at(r,listener,0,table,e)||!table||!at(r,table,0x38,callback,e)||!callback)return fail(e,e.empty()?"GM policy diagnostic observer target absent":e);
-            auto relative=[&](uintptr_t pointer)->nlohmann::json{return pointer>=r.image&&pointer-r.image<0x1d8d000?nlohmann::json(pointer-r.image):nlohmann::json(nullptr);};
+            auto relative=[&](uintptr_t pointer)->nlohmann::json{return pointer>=r.image&&pointer-r.image<0x1d2e000?nlohmann::json(pointer-r.image):nlohmann::json(nullptr);};
             out.push_back({{"ticket",index},{"null_object_offset",base},{"vtable_rva",relative(table)},{"callback_rva",relative(callback)}});
         }
     }

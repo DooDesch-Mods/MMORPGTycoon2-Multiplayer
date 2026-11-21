@@ -9,22 +9,22 @@ bool level_state(Runtime& r,const LocalView& view,const std::array<int32_t,2>& r
     if(!levels::census(r.image,view.region,range,census,read_field,e))return false;
     action::RegionLevelState value;value.counts=census.counts;
     if(!sha256(census.roster.dump(),value.roster_sha256,e)||!sha256(census.levels.dump(),value.levels_sha256,e)||
-       !sha256(census.expected.dump(),value.expected_sha256,e)||!at(r,r.image,0x164b250,global,e))return false;
+       !sha256(census.expected.dump(),value.expected_sha256,e)||!at(r,r.image,0x1650830,global,e))return false;
     if(!global)return fail(e,"region level native global RNG singleton absent");if(!at(r,global,0,value.global_random,e))return false;
     out=std::move(value);return true;
 }
 uint32_t level_window_find(uintptr_t image,uintptr_t& window){
     const NativeString name{"level_select",12,{}};
-    __try{window=uintptr_t(reinterpret_cast<void*(__fastcall*)(const NativeString*)>(image+0x81aa90)(&name));return 0;}
+    __try{window=uintptr_t(reinterpret_cast<void*(__fastcall*)(const NativeString*)>(image+0x823080)(&name));return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 bool level_inputs(Runtime& r,uintptr_t expected,uintptr_t& cursor,uintptr_t& collision,uintptr_t& window,uintptr_t& widget,std::array<int32_t,3>& prior,std::array<int32_t,3>& domain,std::string& e){
     uintptr_t ap=0;
-    if(!at(r,r.image,0x13df9d0,cursor,e)||!at(r,cursor,0,ap,e)||ap!=r.image+0x1786dd0||
+    if(!at(r,r.image,0x13eb9d0,cursor,e)||!at(r,cursor,0,ap,e)||ap!=r.image+0x178d170||
        (expected&&cursor!=expected)||!at(r,cursor,0x230,collision,e)||!collision)return fail(e,e.empty()?"region level actual Cursor/collision differs":e);
     const auto seh=level_window_find(r.image,window);
     if(seh||!window)return fail(e,"region level original Window.Find failed SEH="+std::to_string(seh));
-    if(!at(r,window,0,ap,e)||ap!=r.image+0x1724450||!at(r,window,0x4f0,widget,e)||!at(r,widget,0,ap,e)||ap!=r.image+0x17241f0||
+    if(!at(r,window,0,ap,e)||ap!=r.image+0x172a7f0||!at(r,window,0x4f0,widget,e)||!at(r,widget,0,ap,e)||ap!=r.image+0x172a590||
        !at(r,widget,0x348,prior,e)||!at(r,widget,0x354,domain,e))return fail(e,e.empty()?"region level actual range window/widget differs":e);
     return ((domain[2]&255)==1&&domain[0]>=1&&domain[1]>=domain[0]&&domain[1]<=INT32_MAX/10-10)||fail(e,"region level native widget allowed range invalid");
 }
@@ -42,7 +42,7 @@ void level_entry(void* brush,void* supplied_cursor,const float* hit,float dt){
     std::string e;uintptr_t cursor=0,collision=0,window=0,widget=0,ap=0,active=0,region=0,previous=0,borrowed_window=0;
     std::array<int32_t,3> range{},domain{};action::RegionPropertyIntent intent;intent.kind=action::RegionPropertyKind::LevelRange;uint8_t owned=0;
     if(!level_inputs(*r,uintptr_t(supplied_cursor),cursor,collision,window,widget,range,domain,e)||
-       !at(*r,uintptr_t(brush),0,ap,e)||ap!=r->image+0x1741210||!at(*r,cursor,0x190,active,e)||active!=uintptr_t(brush)||
+       !at(*r,uintptr_t(brush),0,ap,e)||ap!=r->image+0x17475b0||!at(*r,cursor,0x190,active,e)||active!=uintptr_t(brush)||
        !at(*r,uintptr_t(brush),0x148,borrowed_window,e)||borrowed_window!=window||!at(*r,collision,0x1d8,region,e)||
        !at(*r,uintptr_t(brush),0x150,previous,e)){property_rejected(e.empty()?"region level actual tool/owner differs":e);return;}
     if(!region||region==previous)return;
@@ -57,38 +57,38 @@ void level_entry(void* brush,void* supplied_cursor,const float* hit,float dt){
 }
 bool install_levels(Runtime& r,std::string& e){
     constexpr unsigned char expected[]{0x41,0x54,0x55,0x57,0x56,0x53,0x48,0x81};std::array<unsigned char,8> actual{};
-    if(!r.memory.copy(r.image+0x5d8480,actual.data(),actual.size(),e)||std::memcmp(actual.data(),expected,sizeof expected))return fail(e,e.empty()?"region level original Drag bytes differ":e);
-    LevelDrag original=nullptr;const auto created=MH_CreateHook(reinterpret_cast<void*>(r.image+0x5d8480),reinterpret_cast<void*>(&level_entry),reinterpret_cast<void**>(&original));
+    if(!r.memory.copy(r.image+0x5debd0,actual.data(),actual.size(),e)||std::memcmp(actual.data(),expected,sizeof expected))return fail(e,e.empty()?"region level original Drag bytes differ":e);
+    LevelDrag original=nullptr;const auto created=MH_CreateHook(reinterpret_cast<void*>(r.image+0x5debd0),reinterpret_cast<void*>(&level_entry),reinterpret_cast<void**>(&original));
     if(created!=MH_OK||!original)return fail(e,"region level Drag hook create status="+std::to_string(created));
-    level_drag.store(original,std::memory_order_release);const auto enabled=MH_EnableHook(reinterpret_cast<void*>(r.image+0x5d8480));
+    level_drag.store(original,std::memory_order_release);const auto enabled=MH_EnableHook(reinterpret_cast<void*>(r.image+0x5debd0));
     return enabled==MH_OK||fail(e,"region level Drag hook enable status="+std::to_string(enabled));
 }
 uint32_t level_restore(uintptr_t image,uintptr_t collision,uintptr_t prior_region,uintptr_t widget,const std::array<int32_t,3>& prior){
     __try{*reinterpret_cast<uintptr_t*>(collision+0x1d8)=prior_region;std::memcpy(reinterpret_cast<void*>(widget+0x348),prior.data(),12);
-        reinterpret_cast<void(__fastcall*)(void*)>(image+0x7299c0)(reinterpret_cast<void*>(widget));
+        reinterpret_cast<void(__fastcall*)(void*)>(image+0x731100)(reinterpret_cast<void*>(widget));
         return *reinterpret_cast<uintptr_t*>(collision+0x1d8)==prior_region&&std::memcmp(reinterpret_cast<const void*>(widget+0x348),prior.data(),12)==0?0:0xE0010005;
     }__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 uint32_t level_original(uintptr_t image,uintptr_t cursor,uintptr_t collision,uintptr_t window,uintptr_t widget,uintptr_t region,PropertyOperation& op,uint32_t& restore){
     uintptr_t prior_region=0;std::array<int32_t,3> prior{};bool borrowed=false;uint32_t original=0;restore=0;
     __try{
-        op.level_brush=uintptr_t(reinterpret_cast<void*(__fastcall*)(size_t)>(image+0xa02670)(0x178));
+        op.level_brush=uintptr_t(reinterpret_cast<void*(__fastcall*)(size_t)>(image+0xa0d230)(0x178));
         if(!op.level_brush)return 0xE0010004;
-        reinterpret_cast<void(__fastcall*)(void*)>(image+0x5d82f0)(reinterpret_cast<void*>(op.level_brush));op.level_constructed=true;
+        reinterpret_cast<void(__fastcall*)(void*)>(image+0x5dea40)(reinterpret_cast<void*>(op.level_brush));op.level_constructed=true;
         *reinterpret_cast<uintptr_t*>(op.level_brush+0x148)=window;
         prior_region=*reinterpret_cast<uintptr_t*>(collision+0x1d8);std::memcpy(prior.data(),reinterpret_cast<const void*>(widget+0x348),12);borrowed=true;
         *reinterpret_cast<uintptr_t*>(collision+0x1d8)=region;
         const auto& range=op.request.region_property.levels;
-        reinterpret_cast<void(__fastcall*)(void*,int32_t,int32_t)>(image+0x729ae0)(reinterpret_cast<void*>(widget),range[0],range[1]);
+        reinterpret_cast<void(__fastcall*)(void*,int32_t,int32_t)>(image+0x731220)(reinterpret_cast<void*>(widget),range[0],range[1]);
         op.attempted=true;
-        reinterpret_cast<CursorProperty>(image+0x5d7cc0)(reinterpret_cast<void*>(op.level_brush),reinterpret_cast<void*>(cursor),op.request.region_property.hit.data());
+        reinterpret_cast<CursorProperty>(image+0x5de410)(reinterpret_cast<void*>(op.level_brush),reinterpret_cast<void*>(cursor),op.request.region_property.hit.data());
         op.level_graph=*reinterpret_cast<uintptr_t*>(op.level_brush+0x170);
-        reinterpret_cast<CursorProperty>(image+0x5d83a0)(reinterpret_cast<void*>(op.level_brush),reinterpret_cast<void*>(cursor),op.request.region_property.hit.data());op.returned=true;
+        reinterpret_cast<CursorProperty>(image+0x5deaf0)(reinterpret_cast<void*>(op.level_brush),reinterpret_cast<void*>(cursor),op.request.region_property.hit.data());op.returned=true;
     }__except(EXCEPTION_EXECUTE_HANDLER){original=GetExceptionCode();}
     if(borrowed)restore=level_restore(image,collision,prior_region,widget,prior);
     // An uncertain original graph is retained for inspection, never destroyed or replayed.
-    if(!original&&!restore&&op.level_constructed){__try{reinterpret_cast<void(__fastcall*)(void*)>(image+0x5d7dc0)(reinterpret_cast<void*>(op.level_brush));op.level_destroyed=true;
-        reinterpret_cast<void(__fastcall*)(void*,size_t)>(image+0x1264b60)(reinterpret_cast<void*>(op.level_brush),0x178);}__except(EXCEPTION_EXECUTE_HANDLER){original=GetExceptionCode();}}
+    if(!original&&!restore&&op.level_constructed){__try{reinterpret_cast<void(__fastcall*)(void*)>(image+0x5de510)(reinterpret_cast<void*>(op.level_brush));op.level_destroyed=true;
+        reinterpret_cast<void(__fastcall*)(void*,size_t)>(image+0x1270520)(reinterpret_cast<void*>(op.level_brush),0x178);}__except(EXCEPTION_EXECUTE_HANDLER){original=GetExceptionCode();}}
     return original;
 }
 bool level_inverse(Runtime& r,const LocalView& view,const action::RegionPropertyState& before,const undo::UndoWitness& a,const undo::UndoWitness& b,uintptr_t expected,std::string& e){
@@ -97,7 +97,7 @@ bool level_inverse(Runtime& r,const LocalView& view,const action::RegionProperty
     if(!undo::read_graph(r.memory,r.image,expected,graph,e)||!undo::validate_undo_commit(a,b,graph,e))return false;
     if(graph.operations!=1||!at(r,expected,0x20,data,e)||!at(r,data,0,op,e)||!at(r,op,0,ap,e)||
        !at(r,op,0xb8,region,e)||!at(r,op,0xc0,type,e)||!at(r,op,0xc4,range,e))return fail(e,e.empty()?"region level Undo requires one DoConfigureRegion":e);
-    return (ap==r.image+0x1723230&&region==view.region&&type==before.type&&range==std::array<int32_t,2>{before.level,before.max_level})||fail(e,"region level original Undo inverse Region/type/range differs");
+    return (ap==r.image+0x17295d0&&region==view.region&&type==before.type&&range==std::array<int32_t,2>{before.level,before.max_level})||fail(e,"region level original Undo inverse Region/type/range differs");
 }
 action::Outcome level_perform(Runtime& r,const action::Binding& binding,const action::Request& request,const action::Evidence* authority,std::string& e){
     const auto& intent=request.region_property;LocalView view;action::RegionPropertyState before;action::Ledger money;action::RegionLevelState actors;uintptr_t global=0;
@@ -107,7 +107,7 @@ action::Outcome level_perform(Runtime& r,const action::Binding& binding,const ac
        !level_state(r,view,intent.levels,actors,global,e)||!undo::read_undo(r.memory,r.image,undo_before,e))return action::Outcome::RejectedNoEffect;
     before.actors=actors;
     if(!before.owned||undo_before.active_graph||(before.level==intent.levels[0]&&before.max_level==intent.levels[1])){e="region level action requires owned Region, changed range and idle Undo";return action::Outcome::RejectedNoEffect;}
-    if(!at(r,r.image,0x13df8c0,map,e))return action::Outcome::RejectedNoEffect;
+    if(!at(r,r.image,0x13eb8c0,map,e))return action::Outcome::RejectedNoEffect;
     const auto hit=property_hit_region(r.image,map,intent.hit.data(),found);
     if(hit||found!=view.region){e="region level hit resolves another Region SEH="+std::to_string(hit);return action::Outcome::RejectedNoEffect;}
     if(authority&&(authority->before!=money||!property_same_before(before,authority->property_before))){e="region level Client actor roster/levels/Region/Ledger differs from Host before";return action::Outcome::RejectedNoEffect;}
@@ -133,9 +133,9 @@ action::Outcome level_perform(Runtime& r,const action::Binding& binding,const ac
     saved.confirmed=true;return action::Outcome::Confirmed;
 }
 uint32_t level_ui_input(uintptr_t image,unsigned step,const placement_ui_probe::Binding& b,const action::RegionPropertyIntent& intent,uintptr_t widget){
-    __try{if(step==0)reinterpret_cast<void(__fastcall*)(void*)>(image+0x580870)(reinterpret_cast<void*>(b.button));
-        else if(step==1)reinterpret_cast<void(__fastcall*)(void*,int32_t,int32_t)>(image+0x729ae0)(reinterpret_cast<void*>(widget),intent.levels[0],intent.levels[1]);
-        else reinterpret_cast<CursorProperty>(image+(step==2?0x5d7cc0:0x5d83a0))(reinterpret_cast<void*>(b.behaviour),reinterpret_cast<void*>(b.cursor),intent.hit.data());return 0;
+    __try{if(step==0)reinterpret_cast<void(__fastcall*)(void*)>(image+0x587030)(reinterpret_cast<void*>(b.button));
+        else if(step==1)reinterpret_cast<void(__fastcall*)(void*,int32_t,int32_t)>(image+0x731220)(reinterpret_cast<void*>(widget),intent.levels[0],intent.levels[1]);
+        else reinterpret_cast<CursorProperty>(image+(step==2?0x5de410:0x5deaf0))(reinterpret_cast<void*>(b.behaviour),reinterpret_cast<void*>(b.cursor),intent.hit.data());return 0;
     }__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 uint32_t level_ui_borrow(uintptr_t collision,uintptr_t region,bool& borrowed){
@@ -146,7 +146,7 @@ bool level_ui(Runtime& r,const std::string& token,const action::RegionPropertyIn
     action::RegionPropertyState before;LocalView view;uintptr_t cursor=0,collision=0,window=0,widget=0,map=0,found=0,prior_region=0;std::array<int32_t,3> prior{},domain{};
     if(intent.name!=""||intent.type!=-1||!property_read(r,intent.id,0,before,view,e)||!before.owned||
        !level_inputs(r,0,cursor,collision,window,widget,prior,domain,e)||!level_domain(intent.levels,domain,e)||
-       !at(r,r.image,0x13df8c0,map,e)||!at(r,collision,0x1d8,prior_region,e))return fail(e,e.empty()?"region level UI requires owned Region and native range":e);
+       !at(r,r.image,0x13eb8c0,map,e)||!at(r,collision,0x1d8,prior_region,e))return fail(e,e.empty()?"region level UI requires owned Region and native range":e);
     for(float x:intent.hit)if(!std::isfinite(x)||std::abs(x)>1000000)return fail(e,"region level UI hit outside finite bounds");
     const auto hit=property_hit_region(r.image,map,intent.hit.data(),found);if(hit||found!=view.region)return fail(e,"region level UI hit resolves another Region");
     placement_ui_probe::Context context{r.image,uintptr_t(view.world.origin.state),view.world.origin.world_epoch,view.world.origin.generation,r.thread};

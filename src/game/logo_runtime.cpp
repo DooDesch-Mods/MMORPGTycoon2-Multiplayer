@@ -36,9 +36,9 @@ void reject(Runtime& r,const std::string& e){if(r.cause!=e){r.cause=e;LOG_ERROR(
 bool read(Runtime& r,const a::Context& context,const a::Binding& binding,uintptr_t& software,uintptr_t& logo,a::LogoState& value,a::Ledger& money,std::string& e){
     a::Context actual;if(GetCurrentThreadId()!=r.thread||!a::selected_session().current(actual,e)||actual!=context)return fail(e,e.empty()?"Logo current Session/Mainthread differs":e);
     live::NativePort port(context,binding,nullptr);live::Pin pin;if(!port.read(pin,e)||pin.image!=r.image)return false;
-    if(!at(r,r.image,0x13df500,software,e)||!ap(r,software,0x1715450,e)||!at(r,software,0x68,logo,e))return false;
+    if(!at(r,r.image,0x13eb500,software,e)||!ap(r,software,0x171b7f0,e)||!at(r,software,0x68,logo,e))return false;
     Memory memory(r);json records;if(!logo_native::read(r.image,memory,logo,value,records,e))return false;
-    uintptr_t after_software=0,after_logo=0;live::Pin after;if(!port.read(after,e)||after!=pin||!at(r,r.image,0x13df500,after_software,e)||after_software!=software||!at(r,software,0x68,after_logo,e)||after_logo!=logo)return fail(e,e.empty()?"Logo native owner/Ledger changed during original capture":e);
+    uintptr_t after_software=0,after_logo=0;live::Pin after;if(!port.read(after,e)||after!=pin||!at(r,r.image,0x13eb500,after_software,e)||after_software!=software||!at(r,software,0x68,after_logo,e)||after_logo!=logo)return fail(e,e.empty()?"Logo native owner/Ledger changed during original capture":e);
     money=live::ledger(pin.values);e.clear();return true;
 }
 std::string uuid(std::string& e){unsigned char bytes[16];const auto status=BCryptGenRandom(nullptr,bytes,sizeof bytes,BCRYPT_USE_SYSTEM_PREFERRED_RNG);
@@ -49,9 +49,9 @@ void set_entry(void* receiver,void* object){
     const auto controller=typed_action_runtime::controller_status();
     if(GetCurrentThreadId()!=r->thread||!controller.value("started",false)){r->set(receiver,object);return;}
     const auto caller=uintptr_t(_ReturnAddress())-r->image;std::string e;
-    if(r->unknown||r->pending||r->replay||!r->view||caller!=0x735e04||controller.value("locked",true)||controller.value("pending",true)){
+    if(r->unknown||r->pending||r->replay||!r->view||caller!=0x73d704||controller.value("locked",true)||controller.value("pending",true)){
         r->unknown=true;reject(*r,"Logo shared Apply lacks exact idle original editor/caller; setter suppressed");return;}
-    uintptr_t owned=0;if(!ap(*r,r->view,0x1701010,e)||!at(*r,r->view,0x330,owned,e)||owned!=uintptr_t(object)||!object){
+    uintptr_t owned=0;if(!ap(*r,r->view,0x17073b0,e)||!at(*r,r->view,0x330,owned,e)||owned!=uintptr_t(object)||!object){
         r->unknown=true;reject(*r,e.empty()?"Logo editor detached ownership slot differs":e);return;}
     Pending pending;if(!a::selected_session().current(pending.context,e)||!typed_action_runtime::network_binding(pending.context.snapshot_uuid,pending.binding,e)){
         r->unknown=true;reject(*r,e);return;}
@@ -85,11 +85,11 @@ bool enable(std::string& e){
     if(GetCurrentThreadId()!=r->thread)return fail(e,"Logo hook initialization requires Mainthread");if(r->ready){e.clear();return true;}
     if(r->install_attempted)return fail(e,"Logo hook installation failed earlier; no retry: "+r->install_cause);r->install_attempted=true;
     struct Keep{Runtime& r;std::string& e;~Keep(){if(!e.empty())r.install_cause=e;}}keep{*r,e};
-    uint32_t thread=0;std::string sha;if(!native::read_resolver_receipt(r->image,thread,sha,e)||thread!=r->thread||sha!="bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6")return fail(e,"Logo exact EXE/Mainthread differs: "+e);
+    uint32_t thread=0;std::string sha;if(!native::read_resolver_receipt(r->image,thread,sha,e)||thread!=r->thread||sha!="7efd8ee7b97f78362e7a2f8116b327fa6b756bdce23114b68143c4c9d2dd50eb")return fail(e,"Logo exact EXE/Mainthread differs: "+e);
     struct Code{uintptr_t rva;size_t size;const char* sha;};
     #include "logo_native_pins.inc"
     for(const auto& pin:codes){std::vector<unsigned char> bytes(pin.size);if(!r->memory.copy(r->image+pin.rva,bytes.data(),bytes.size(),e)||mt2mp::sha256(bytes)!=pin.sha)return fail(e,e.empty()?"Logo exact original code differs RVA="+std::to_string(pin.rva):e);}
-    struct Hook{uintptr_t rva;void* entry;void** original;};const Hook hooks[]{{0x735800,reinterpret_cast<void*>(&ui_entry),reinterpret_cast<void**>(&r->ui)},{0x2dcc00,reinterpret_cast<void*>(&set_entry),reinterpret_cast<void**>(&r->set)}};
+    struct Hook{uintptr_t rva;void* entry;void** original;};const Hook hooks[]{{0x73d100,reinterpret_cast<void*>(&ui_entry),reinterpret_cast<void**>(&r->ui)},{0x2e03b0,reinterpret_cast<void*>(&set_entry),reinterpret_cast<void**>(&r->set)}};
     for(const auto& h:hooks){const auto created=MH_CreateHook(reinterpret_cast<void*>(r->image+h.rva),h.entry,h.original);if(created!=MH_OK||!*h.original)return fail(e,"Logo hook create failed RVA="+std::to_string(h.rva)+" status="+std::to_string(created)+" original="+hook_cause());
         const auto enabled=MH_EnableHook(reinterpret_cast<void*>(r->image+h.rva));if(enabled!=MH_OK)return fail(e,"Logo hook enable failed RVA="+std::to_string(h.rva)+" status="+std::to_string(enabled)+" original="+hook_cause());}
     r->ready=true;e.clear();return true;

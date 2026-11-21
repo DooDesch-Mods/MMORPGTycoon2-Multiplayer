@@ -61,7 +61,7 @@ void trim_sample(Sample& sample){
 }
 bool text(Runtime& r,uintptr_t object,std::string& out,std::string& e){return prop_text::text(r,object,out,e);}
 uint32_t directory_call(uintptr_t image,int32_t category,uintptr_t& out){
-    __try{out=uintptr_t(reinterpret_cast<const void*(*)(int32_t)>(image+0x448660)(category));return 0;}
+    __try{out=uintptr_t(reinterpret_cast<const void*(*)(int32_t)>(image+0x44d670)(category));return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 bool catalog(Runtime& r,int32_t category,int32_t variant,std::string& type,std::string& file,std::string& e){

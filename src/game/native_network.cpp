@@ -17,8 +17,8 @@
 
 namespace mt2mp::game::native_network {
 namespace {
-constexpr uintptr_t map_slot=0x13df8c0,analytics_slot=0x13df280;
-constexpr uintptr_t map_vtable=0x1742860,region_vtable=0x1787930,manager_vtable=0x17141e0,node_vtable=0x16fc700,definition_vtable=0x1738010,analytics_vtable=0x16dd3b0;
+constexpr uintptr_t map_slot=0x13eb8c0,analytics_slot=0x13eb280;
+constexpr uintptr_t map_vtable=0x1748c00,region_vtable=0x178dcd0,manager_vtable=0x171a580,node_vtable=0x1702aa0,definition_vtable=0x173e3b0,analytics_vtable=0x16e3750;
 constexpr uint32_t max_regions=16384,max_nodes=65536;
 std::mutex log_mutex;
 std::string last_failure;
@@ -82,11 +82,11 @@ uintptr_t module_base() {
 bool prologues(uintptr_t base,std::string& error) {
     struct Guard { uintptr_t rva; const char* bytes; size_t size; };
     const Guard guards[]={
-        {0x32b670,"\x57\x56\x53\x48\x83\xec\x20\x8b\x81\x60\x03\x00\x00\x48\x89\xce",16},
-        {0x34f860,"\x48\x83\xec\x28\x31\xc0\x80\xb9\x50\x08\x00\x00\x00\x74\x24\x83",16},
-        {0x2a5140,"\x55\x57\x56\x53\x48\x83\xec\x28\x8b\x51\x28\x48\x89\xcf\x85\xd2",16},
-        {0x42cee0,"\x0f\xb6\x81\xea\x02\x00\x00\xc3",8},
-        {0x42cef0,"\x53\x48\x83\xec\x20\x48\x83\xb9\x58\x02\x00\x00\x00\x48\x89\xcb",16}};
+        {0x32f700,"\x57\x56\x53\x48\x83\xec\x20\x8b\x81\x60\x03\x00\x00\x48\x89\xce",16},
+        {0x353f60,"\x48\x83\xec\x28\x31\xc0\x80\xb9\x50\x08\x00\x00\x00\x74\x24\x83",16},
+        {0x2a85e0,"\x55\x57\x56\x53\x48\x83\xec\x28\x8b\x51\x28\x48\x89\xcf\x85\xd2",16},
+        {0x431cc0,"\x0f\xb6\x81\xea\x02\x00\x00\xc3",8},
+        {0x431cd0,"\x53\x48\x83\xec\x20\x48\x83\xb9\x58\x02\x00\x00\x00\x48\x89\xcb",16}};
     for(const auto& guard:guards) {
         const auto address=reinterpret_cast<const void*>(base+guard.rva);
         if(!readable(address,guard.size)||std::memcmp(address,guard.bytes,guard.size)) return fail(error,"network getter prologue mismatch rva="+std::to_string(guard.rva));
@@ -97,7 +97,7 @@ DWORD call_int(uintptr_t base,uintptr_t rva,void* object,int32_t& result) {
     using Getter=int32_t(__fastcall*)(void*);
     auto function=reinterpret_cast<Getter>(base+rva);
 #ifdef MT2MP_NETWORK_TEST
-    function=rva==0x32b670?test_map:rva==0x34f860?test_region:test_extra;
+    function=rva==0x32f700?test_map:rva==0x353f60?test_region:test_extra;
     if(!function) return ERROR_PROC_NOT_FOUND;
 #endif
     __try { result=function(object); return 0; }
@@ -122,7 +122,7 @@ bool read_state(State& output,std::string& error) {
         if(!native::read_world_status(world,error)) return fail(error,"network world/thread guard rejected: "+error);
         if(!native::in_game()||!world.world_present||world.quitting) return fail(error,"network read requires active native world");
         const auto base=module_base();
-        if(!base||reinterpret_cast<uintptr_t>(native::entrypoint(native::EntryPoint::GameUpdate))!=base+0x463ce0) return fail(error,"network module differs from exact-build native resolver");
+        if(!base||reinterpret_cast<uintptr_t>(native::entrypoint(native::EntryPoint::GameUpdate))!=base+0x468d00) return fail(error,"network module differs from exact-build native resolver");
         if(!prologues(base,error)) return false;
         void* map=nullptr;
         if(!read_at(reinterpret_cast<void*>(base),map_slot,map)||!vtable(map,base,map_vtable)) return fail(error,"network map singleton/vtable mismatch");
@@ -172,13 +172,13 @@ bool read_state(State& output,std::string& error) {
                     state.nodes.push_back(entry);
                 }
                 int32_t actual_extra=0;
-                if(!invoke(base,0x2a5140,manager,actual_extra,error)) return false;
+                if(!invoke(base,0x2a85e0,manager,actual_extra,error)) return false;
                 if(actual_extra!=computed_extra) return fail(error,"network extra getter differs from observed nodes region="+std::to_string(index)+" actual="+std::to_string(actual_extra)+" observed="+std::to_string(computed_extra));
             }
             row.extra_supply=eligible?int32_t(computed_extra):0;
             const auto expected_total=int64_t(row.base_capacity)+row.extra_supply;
             if(!bounded_int(expected_total)) return fail(error,"network region capacity exceeds int32");
-            if(!invoke(base,0x34f860,region,row.total_capacity,error)) return false;
+            if(!invoke(base,0x353f60,region,row.total_capacity,error)) return false;
             if(row.total_capacity!=expected_total) return fail(error,"network region getter differs index="+std::to_string(index)+" actual="+std::to_string(row.total_capacity)+" observed="+std::to_string(expected_total));
             total_base+=row.base_capacity; total_extra+=row.extra_supply; total_capacity+=row.total_capacity;
             if(!bounded_int(total_base)||!bounded_int(total_extra)||!bounded_int(total_capacity)) return fail(error,"network map capacity exceeds int32");
@@ -187,7 +187,7 @@ bool read_state(State& output,std::string& error) {
         void** regions_after=nullptr; int32_t count_after=-1; void* map_after=nullptr;
         if(!read_at(reinterpret_cast<void*>(base),map_slot,map_after)||map_after!=map||!read_at(map,0x358,regions_after)||regions_after!=regions||!read_at(map,0x360,count_after)||count_after!=region_count)
             return fail(error,"network map/region identity changed during read");
-        if(!invoke(base,0x32b670,map,state.total_capacity,error)) return false;
+        if(!invoke(base,0x32f700,map,state.total_capacity,error)) return false;
         if(state.total_capacity!=total_capacity) return fail(error,"network map getter differs actual="+std::to_string(state.total_capacity)+" observed="+std::to_string(total_capacity));
         state.base_capacity=int32_t(total_base); state.extra_supply=int32_t(total_extra);
         void* analytics=nullptr;

@@ -12,13 +12,13 @@ bool height_code(region::Runtime& r,bool hooked,std::string& e){
         if(!r.memory.copy(relay,actual.data(),actual.size(),e)||actual!=jump||!r.memory.copy(relay+6,&entry,8,e)||entry!=uintptr_t(&height_entry))return fail(e,"height native hook relay owner differs");
     }
     const std::array<float,2> wanted{20.0f,-20.0f};std::array<float,2> actual{};
-    return region::at(r,r.image,0x14f4aa0,actual,e)&&(actual==wanted||fail(e,"height original step constants differ"));
+    return region::at(r,r.image,0x14fc080,actual,e)&&(actual==wanted||fail(e,"height original step constants differ"));
 }
 bool height_enable(region::Runtime& r,std::string& e){
     if(!height_code(r,false,e))return false;
-    const auto create=MH_CreateHook(reinterpret_cast<void*>(r.image+0x5e1860),reinterpret_cast<void*>(&height_entry),reinterpret_cast<void**>(&height_drag));
+    const auto create=MH_CreateHook(reinterpret_cast<void*>(r.image+0x5e7fb0),reinterpret_cast<void*>(&height_entry),reinterpret_cast<void**>(&height_drag));
     if(create!=MH_OK||!height_drag)return fail(e,"height original Drag hook creation failed status="+std::to_string(create));
-    const auto enable=MH_EnableHook(reinterpret_cast<void*>(r.image+0x5e1860));
+    const auto enable=MH_EnableHook(reinterpret_cast<void*>(r.image+0x5e7fb0));
     return enable==MH_OK?height_code(r,true,e):fail(e,"height original Drag hook enable failed status="+std::to_string(enable));
 }
 bool height_grid(region::Runtime& r,uintptr_t receiver,terrain_height::Grid& grid,std::string& digest,std::string& e){
@@ -28,12 +28,12 @@ bool height_grid(region::Runtime& r,uintptr_t receiver,terrain_height::Grid& gri
     return region::sha256(json{{"width",grid.width},{"height",grid.height},{"cell_size_bits",std::bit_cast<uint32_t>(grid.cell_size)},{"origin_bits",origin},{"height_bits",bits}}.dump(),digest,e);
 }
 bool height_cursor(region::Runtime& r,uintptr_t expected,uintptr_t& cursor,uintptr_t& model,std::string& e){
-    uintptr_t ap=0;if(!region::at(r,r.image,0x13df9d0,cursor,e)||!cursor||(expected&&cursor!=expected)||!region::at(r,cursor,0,ap,e)||ap!=r.image+0x1786dd0||!region::at(r,cursor,0x160,model,e)||!model||!region::at(r,model,0,ap,e)||ap!=r.image+0x1749490)return fail(e,e.empty()?"height actual Cursor/model owner differs":e);return true;
+    uintptr_t ap=0;if(!region::at(r,r.image,0x13eb9d0,cursor,e)||!cursor||(expected&&cursor!=expected)||!region::at(r,cursor,0,ap,e)||ap!=r.image+0x178d170||!region::at(r,cursor,0x160,model,e)||!model||!region::at(r,model,0,ap,e)||ap!=r.image+0x174f830)return fail(e,e.empty()?"height actual Cursor/model owner differs":e);return true;
 }
 uint32_t height_cache(void* brush,const std::array<float,3>& point){__try{std::memcpy(static_cast<unsigned char*>(brush)+0x14c,point.data(),12);return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
-uint32_t height_lookup(uintptr_t image,uintptr_t map,const std::array<float,3>& hit,uintptr_t& receiver){__try{receiver=uintptr_t(reinterpret_cast<void*(*)(void*,const void*,void*)>(image+0x32a990)(reinterpret_cast<void*>(map),hit.data(),nullptr));return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
+uint32_t height_lookup(uintptr_t image,uintptr_t map,const std::array<float,3>& hit,uintptr_t& receiver){__try{receiver=uintptr_t(reinterpret_cast<void*(*)(void*,const void*,void*)>(image+0x32ea20)(reinterpret_cast<void*>(map),hit.data(),nullptr));return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
 bool height_region_at(region::Runtime& r,const std::array<float,3>& hit,uintptr_t expected,uintptr_t& receiver,std::string& e){
-    uintptr_t map=0,ap=0;if(!region::at(r,r.image,0x13df8c0,map,e)||!region::at(r,map,0,ap,e)||ap!=r.image+0x1742860)return fail(e,e.empty()?"height actual Map owner differs":e);
+    uintptr_t map=0,ap=0;if(!region::at(r,r.image,0x13eb8c0,map,e)||!region::at(r,map,0,ap,e)||ap!=r.image+0x1748c00)return fail(e,e.empty()?"height actual Map owner differs":e);
     const auto seh=height_lookup(r.image,map,hit,receiver);return native_error(seh,"height GetRegionAt",e)&&(!expected||receiver==expected||fail(e,"height hit resolves to another native Region"));
 }
 void height_entry(void* brush,void* supplied_cursor,const void* position,float delta){
@@ -42,7 +42,7 @@ void height_entry(void* brush,void* supplied_cursor,const void* position,float d
     if(!r||!controller.value("started",false)||controller.value("locked",true)||controller.value("pending",true)||terrain.capture||terrain.pending){rejected(e.empty()?"height requires idle bound Controller":e);return;}
     if(!height_code(*r,true,e)){rejected(e);return;}
     uintptr_t cursor=0,model=0,active=0,ap=0;uint8_t up=0;action::TerrainHeightIntent h;
-    if(!height_cursor(*r,uintptr_t(supplied_cursor),cursor,model,e)||!region::at(*r,cursor,0x190,active,e)||active!=uintptr_t(brush)||!region::at(*r,active,0,ap,e)||ap!=r->image+0x1740010||!region::at(*r,active,0x148,up,e)||up>1||!region::at(*r,active,0x14c,h.previous,e)||!region::at(*r,model,0xe0,h.picked,e)||!region::at(*r,cursor,0x170,h.radius,e)||!r->memory.copy(uintptr_t(position),h.hit.data(),12,e)){rejected(e.empty()?"height original active tool/input differs":e);return;}
+    if(!height_cursor(*r,uintptr_t(supplied_cursor),cursor,model,e)||!region::at(*r,cursor,0x190,active,e)||active!=uintptr_t(brush)||!region::at(*r,active,0,ap,e)||ap!=r->image+0x17463b0||!region::at(*r,active,0x148,up,e)||up>1||!region::at(*r,active,0x14c,h.previous,e)||!region::at(*r,model,0xe0,h.picked,e)||!region::at(*r,cursor,0x170,h.radius,e)||!r->memory.copy(uintptr_t(position),h.hit.data(),12,e)){rejected(e.empty()?"height original active tool/input differs":e);return;}
     if(h.picked==h.previous)return;
     h.up=up!=0;uintptr_t receiver=0;
     // Region selection uses the original Drag hit; the selected cell uses the
@@ -60,7 +60,7 @@ void height_entry(void* brush,void* supplied_cursor,const void* position,float d
 uint32_t height_original(TerrainOperation& op,uintptr_t image,uintptr_t cursor,uintptr_t model,uint32_t& restore){
     std::array<float,3> prior{};float radius=0;bool borrowed=false;uint32_t original=0;restore=0;
     __try{
-        reinterpret_cast<Unary>(image+0x5e16d0)(op.brush->bytes);op.constructed=true;
+        reinterpret_cast<Unary>(image+0x5e7e20)(op.brush->bytes);op.constructed=true;
         const auto& h=*op.request.terrain.height;
         op.brush->bytes[0x148]=h.up?1:0;std::memcpy(op.brush->bytes+0x14c,h.previous.data(),12);
         std::memcpy(prior.data(),reinterpret_cast<const void*>(model+0xe0),12);radius=*reinterpret_cast<float*>(cursor+0x170);borrowed=true;

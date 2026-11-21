@@ -15,9 +15,9 @@ bool research_tabs(Pin& p,ResearchUI& out,std::string& e,bool before_show=false)
         if(!at(p.window,0x45f,visible,e)||!at(p.window,0x460,layout_pending,e))return false;
         return (visible==0&&layout_pending==1)||fail(e,"startingpoint Research unbound child requires hidden Window with native Layout pending");
     };
-    if(!at(p.window,0x540,out.tabs,e)||!type(out.tabs,p.image+0x17015b0,e)||
+    if(!at(p.window,0x540,out.tabs,e)||!type(out.tabs,p.image+0x1707950,e)||
        !owner(out.tabs,"startingpoint Research tabs have a different window owner"))return false;
-    if(!at(out.tabs,0x3b8,out.view,e)||!type(out.view,p.image+0x16dfe90,e)||
+    if(!at(out.tabs,0x3b8,out.view,e)||!type(out.view,p.image+0x16e6230,e)||
        !owner(out.view,"startingpoint Research page view has a different window owner"))return false;
     return true;
 }
@@ -43,9 +43,9 @@ bool research_measure(Pin& p,const tutorial_development::StartingpointSnapshot& 
     values["window_visible"]=visible;values["window_layout_pending"]=layout;
     if(visible!=1)issue("window visible="+std::to_string(visible)+" required=1");
     bool tabs_type=false,view_type=false,grid_type=false,button_type=false;
-    if(!at(p.window,0x540,out.tabs,e)||!read_type(out.tabs,0x17015b0,"tabs",tabs_type))return false;
+    if(!at(p.window,0x540,out.tabs,e)||!read_type(out.tabs,0x1707950,"tabs",tabs_type))return false;
     if(tabs_type){
-        if(!read_owner(out.tabs,"tabs")||!at(out.tabs,0x3b8,out.view,e)||!read_type(out.view,0x16dfe90,"view",view_type))return false;
+        if(!read_owner(out.tabs,"tabs")||!at(out.tabs,0x3b8,out.view,e)||!read_type(out.view,0x16e6230,"view",view_type))return false;
     }
     if(view_type){
         uintptr_t active=0,next=0;int32_t transition=0;std::string requested,current,next_name;
@@ -57,8 +57,8 @@ bool research_measure(Pin& p,const tutorial_development::StartingpointSnapshot& 
         if(requested!="{dev_tab_tech}")issue("requested page="+requested+" required={dev_tab_tech}");
         if(current!="{dev_tab_tech}")issue("active page="+current+" required={dev_tab_tech}");
     }
-    if(!at(p.window,0x5d8,out.grid,e)||!read_type(out.grid,0x16dade0,"grid",grid_type)||
-       !at(p.window,0x600,out.button,e)||!read_type(out.button,0x16e3ec0,"button",button_type))return false;
+    if(!at(p.window,0x5d8,out.grid,e)||!read_type(out.grid,0x16e1180,"grid",grid_type)||
+       !at(p.window,0x600,out.button,e)||!read_type(out.button,0x16ea260,"button",button_type))return false;
     bool selected=false;
     if(!s.creation||!s.creation->source||s.project||!s.row||s.row->purchased||!s.record)
         issue("owned unpurchased catalogue/no-project binding differs");

@@ -14,9 +14,9 @@ bool type(const Read& r,uintptr_t p,uintptr_t expected,std::string& e){
 }
 bool observe(const Read& r,const Capture& c,Census& out,std::string& e){
     out={};const auto image=c.image;uintptr_t singleton=0;int32_t count=0;
-    if(!at(r,reinterpret_cast<uintptr_t>(c.pin.origin.state),0x1a8,out.queue,e)||!at(r,image,0x13df230,singleton,e))return false;
+    if(!at(r,reinterpret_cast<uintptr_t>(c.pin.origin.state),0x1a8,out.queue,e)||!at(r,image,0x13eb230,singleton,e))return false;
     if(out.queue!=singleton)return fail(e,"Job census GameState queue and singleton differ");
-    if(!type(r,out.queue,image+0x16db570,e)||!type(r,out.queue+0x18,image+0x16ef400,e)||
+    if(!type(r,out.queue,image+0x16e1910,e)||!type(r,out.queue+0x18,image+0x16f57a0,e)||
        !at(r,out.queue,0x20,out.data,e)||!at(r,out.queue,0x28,count,e)||!at(r,out.queue,0x2c,out.capacity,e))return false;
     constexpr int32_t budget=65536;
     if(count<0||count>budget||out.capacity<count||out.capacity>budget||(out.capacity&&!out.data))
@@ -26,14 +26,14 @@ bool observe(const Read& r,const Capture& c,Census& out,std::string& e){
         Job j;
         if(!at(r,out.data,size_t(n)*8,j.pointer,e))return false;
         if(!pointers.insert(j.pointer).second)return fail(e,"Job census duplicate queue receiver");
-        if(!type(r,j.pointer,image+0x17427a0,e)||!at(r,j.pointer,0x18,j.type,e)||!at(r,j.pointer,0x1c,j.position,e)||
+        if(!type(r,j.pointer,image+0x1748b40,e)||!at(r,j.pointer,0x18,j.type,e)||!at(r,j.pointer,0x1c,j.position,e)||
            !at(r,j.pointer,0x28,j.destination,e)||!at(r,j.pointer,0x38,j.bug.pointer,e)||!at(r,j.pointer,0x68,j.building,e)||
            !at(r,j.pointer,0x70,j.building_proxy,e)||!at(r,j.pointer,0xa0,j.monster,e)||!at(r,j.pointer,0xa8,j.monster_proxy,e)||
            !at(r,j.pointer,0xb0,j.region,e)||!at(r,j.pointer,0xb8,j.developer,e)||!at(r,j.pointer,0xc0,j.raw_id,e)||!at(r,j.pointer,0xc4,j.valid,e))return false;
         if(j.type<0||j.type>8||j.valid>1)return fail(e,"Job census native type/valid differs");
         for(size_t k=0;k<3;++k)if(!std::isfinite(j.position[k])||!std::isfinite(j.destination[k]))return fail(e,"Job census position is not finite");
         if(j.bug.pointer){auto& b=j.bug;
-            if(!type(r,b.pointer,image+0x1742200,e)||!at(r,b.pointer,0x28,b.runtime_id,e)||!at(r,b.pointer,0x2c,b.type,e)||
+            if(!type(r,b.pointer,image+0x17485a0,e)||!at(r,b.pointer,0x28,b.runtime_id,e)||!at(r,b.pointer,0x2c,b.type,e)||
                !at(r,b.pointer,0x30,b.created,e)||!at(r,b.pointer,0x34,b.discovered,e)||!at(r,b.pointer,0x38,b.toons,e)||
                !at(r,b.pointer,0x3c,b.reproducibility,e)||!at(r,b.pointer,0x40,b.variant,e)||!at(r,b.pointer,0x44,b.known,e)||
                !at(r,b.pointer,0x45,b.manual,e)||!at(r,b.pointer,0x46,b.debugged,e)||!at(r,b.pointer,0x48,b.job,e)||!at(r,b.pointer,0x50,b.anchor,e))return false;
@@ -43,7 +43,7 @@ bool observe(const Read& r,const Capture& c,Census& out,std::string& e){
     }
     for(size_t n=0;n<50;++n){
         const auto& expected=c.state.rows[n];Developer d;d.pointer=c.local.developers[n];int32_t state=0;uint8_t employed=0,active=0,onmap=0;
-        if(!type(r,d.pointer,image+0x17422e0,e)||!at(r,d.pointer,0x4c0,d.id,e)||!at(r,d.pointer,0x4c4,state,e)||
+        if(!type(r,d.pointer,image+0x1748680,e)||!at(r,d.pointer,0x4c0,d.id,e)||!at(r,d.pointer,0x4c4,state,e)||
            !at(r,d.pointer,0x4c8,d.job,e)||!at(r,d.pointer,0x4d0,d.carried,e)||!at(r,d.pointer,0x4d8,employed,e)||
            !at(r,d.pointer,0x4d9,active,e)||!at(r,d.pointer,0x368,onmap,e))return false;
         if(expected.slot!=int32_t(n)||expected.id!=d.id||expected.state!=state||employed!=uint8_t(expected.employed)||

@@ -49,8 +49,8 @@ inline bool observe_building_targets(const Read& read, const Capture& capture,
             if (job.building > UINTPTR_MAX - 0x20 || weak_target != job.building + 0x20)
                 return fail("Job target weak proxy does not name the cached Building receiver");
             if (!selection) {
-                if (!at(capture.image, 0x13df630, selection) || !at(selection, 0, ap)) return false;
-                if (ap != capture.image + 0x17205d0)
+                if (!at(capture.image, 0x13eb630, selection) || !at(selection, 0, ap)) return false;
+                if (ap != capture.image + 0x1726970)
                     return fail("Job target observation SelectionManager class differs");
             }
             remove_diagnostics::LocalTarget target;

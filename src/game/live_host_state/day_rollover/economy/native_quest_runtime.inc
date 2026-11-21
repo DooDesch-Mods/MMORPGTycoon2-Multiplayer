@@ -3,7 +3,7 @@ uint32_t quest_runtime_byte(uintptr_t address,uint8_t expected,uint8_t target,bo
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 uint32_t quest_runtime_ads(uintptr_t image,uintptr_t quest)noexcept{
-    __try{reinterpret_cast<void(*)(uintptr_t)>(image+0x4d6c00)(quest);return 0;}
+    __try{reinterpret_cast<void(*)(uintptr_t)>(image+0x4dcac0)(quest);return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 template<class Guard>bool store_quest_runtime(const Pin& p,const QuestOwner& owner,uintptr_t quest,int32_t sequence,
@@ -32,8 +32,8 @@ template<class Guard>bool store_quest_runtime(const Pin& p,const QuestOwner& own
         }
         bool advertise(std::string& error){
             std::vector<unsigned char> bytes(192);
-            if(!memory.copy(p.image+0x4d6c00,bytes.data(),bytes.size(),error))return false;
-            if(mt2mp::sha256(bytes)!="b2b4ef433836335fa6de391315d0398860a1bd3c20ff1e70a62ea55feade575c")return fail(error,"Quest original SetAdvertisements body differs");
+            if(!memory.copy(p.image+0x4dcac0,bytes.data(),bytes.size(),error))return false;
+            if(mt2mp::sha256(bytes)!="70799bef77c963b39a27b47a3a7ec5861889391440f907267b2337cac7f9ac7e")return fail(error,"Quest original SetAdvertisements body differs");
             const auto seh=quest_runtime_ads(p.image,quest);
             return !seh||fail(error,"Quest original SetAdvertisements exception="+std::to_string(seh)+"; no replay");
         }

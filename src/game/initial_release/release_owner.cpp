@@ -5,8 +5,8 @@
 namespace mt2mp::game::initial_release {
 bool owned_mode_route(Memory& m,uintptr_t image,uintptr_t detour,uintptr_t trampoline,std::string& e){
     e.clear();auto fail=[&](const char* cause){e=cause;return false;};
-    if(!image||image>UINTPTR_MAX-0x4a2f96||!detour||!trampoline)return fail("release actual Mode hook owner absent");
-    const uintptr_t entry=image+0x4a2f90;std::vector<uint8_t> actual(sizeof mode_bytes::body);
+    if(!image||image>UINTPTR_MAX-0x4a8486||!detour||!trampoline)return fail("release actual Mode hook owner absent");
+    const uintptr_t entry=image+0x4a8480;std::vector<uint8_t> actual(sizeof mode_bytes::body);
     if(!m.copy(entry,actual.data(),actual.size(),e))return false;
     if(actual[0]!=0xe9||std::memcmp(actual.data()+5,mode_bytes::body+5,actual.size()-5))return fail("release owned Mode physical entry/tail differs");
     int32_t displacement=0;std::memcpy(&displacement,actual.data()+1,4);

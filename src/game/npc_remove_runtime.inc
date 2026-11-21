@@ -36,7 +36,7 @@ bool npc_remove_quest_after(Memory& memory,const action::Binding& binding,const 
 bool selection_absent(Memory& memory,uintptr_t image,uintptr_t manager,uintptr_t target,
                       std::string& error) {
     uintptr_t ap=0,focused=0;
-    if(!field(memory,manager,0,ap,error)||ap!=image+0x17205d0||
+    if(!field(memory,manager,0,ap,error)||ap!=image+0x1726970||
        !field(memory,manager,0x80,focused,error))
         return fail(error,error.empty()?"NPC selection manager class differs":error);
     if(focused==target)return fail(error,"NPC target remains focused after original DestroyProps");
@@ -46,7 +46,7 @@ bool selection_absent(Memory& memory,uintptr_t image,uintptr_t manager,uintptr_t
            !field(memory,manager,offset+8,data,error)||
            !field(memory,manager,offset+16,count,error)||
            !field(memory,manager,offset+20,capacity,error))return false;
-        if(array_ap!=image+0x1748c50||count<0||count>100000||capacity<count||capacity>100000||
+        if(array_ap!=image+0x174eff0||count<0||count>100000||capacity<count||capacity>100000||
            (count&&!data)||data>UINTPTR_MAX-size_t(count)*sizeof(uintptr_t))
             return fail(error,"NPC selection array class or span differs");
         for(int32_t index=0;index<count;++index){uintptr_t selected=0;
@@ -89,10 +89,10 @@ bool target_binding(const std::string& target,const action::Binding& binding,
         if(!building_npc_owner::binding_scope(read_field,state.image,world.root,saved,region,error))return false;
     }else if(!region_saved_identity::resolve(state.image,uintptr_t(world.origin.map),world.root,
            saved_region,0,region,read_field,error))return false;
-    if(!field(memory,state.image,0x13df630,selection,error)||!selection||
+    if(!field(memory,state.image,0x13eb630,selection,error)||!selection||
        !field(memory,selection,0,ap,error)||!npc_census::read(memory,state.image,region,census,error))return false;
     const auto seh=lookup(api.find,uid,registered);
-    if(seh||ap!=state.image+0x17205d0||registered!=pointer)
+    if(seh||ap!=state.image+0x1726970||registered!=pointer)
         return fail(error,"NPC target UID table or SelectionManager differs SEH="+std::to_string(seh));
     const auto row=std::find_if(census.rows.begin(),census.rows.end(),[&](const auto& item){return item.local_uid==uid;});
     if(row==census.rows.end()||row->local_pointer!=registered||row->type!=type)
@@ -197,12 +197,12 @@ bool state_owners_impl(const action::Context& context,const action::Binding& bin
     output=std::move(owners);error.clear();return true;
 }
 uint32_t destroy_prop(uintptr_t image,uintptr_t manager,uintptr_t object)noexcept {
-    __try {reinterpret_cast<void(__fastcall*)(void*,void*)>(image+0x2d5520)(
+    __try {reinterpret_cast<void(__fastcall*)(void*,void*)>(image+0x2d8c10)(
         reinterpret_cast<void*>(manager),reinterpret_cast<void*>(object));return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 uint32_t select_default_tool(uintptr_t image,uintptr_t cursor)noexcept {
-    __try {reinterpret_cast<void(__fastcall*)(void*,void*)>(image+0x5854e0)(
+    __try {reinterpret_cast<void(__fastcall*)(void*,void*)>(image+0x58bca0)(
         reinterpret_cast<void*>(cursor),nullptr);return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
@@ -237,17 +237,17 @@ bool live_npc_window(Memory& memory,uintptr_t image,const ui::LocalBinding& bind
     probe["other_handler_present"]=secondary_handler!=0;
     if(!window.handler)return reject("selected_handler","NPC original single-selection InfoWindow handler absent");
     if(!field(memory,window.handler,0,ap,error))return false;
-    probe["selected_handler_class_matches"]=ap==image+0x1731820;
-    if(ap!=image+0x1731820)return reject("selected_handler_class","NPC original InfoWindow handler class differs");
+    probe["selected_handler_class_matches"]=ap==image+0x1737bc0;
+    if(ap!=image+0x1737bc0)return reject("selected_handler_class","NPC original InfoWindow handler class differs");
     if(!field(memory,window.handler,0x10,window.window,error))return false;
     probe["window_present"]=window.window!=0;
     if(!window.window)return reject("window","NPC original InfoWindow absent after SetInfoWindow");
     if(!field(memory,window.window,0,ap,error))return false;
-    probe["window_class_matches"]=ap==image+0x1707d20;
-    if(ap!=image+0x1707d20)return reject("window_class","NPC original InfoWindow class differs");
+    probe["window_class_matches"]=ap==image+0x170e0c0;
+    if(ap!=image+0x170e0c0)return reject("window_class","NPC original InfoWindow class differs");
     if(!field(memory,ap,0x168,command,error))return false;
-    probe["destroy_command_matches"]=command==image+0x759ad0;
-    if(command!=image+0x759ad0)return reject("command","NPC original DestroyNPC command slot differs");
+    probe["destroy_command_matches"]=command==image+0x761550;
+    if(command!=image+0x761550)return reject("command","NPC original DestroyNPC command slot differs");
     if(!field(memory,window.window,0x45f,visible,error))return false;
     probe["visible"]=visible;
     if(visible!=1)return reject("visible","NPC original InfoWindow is not visible");
@@ -393,9 +393,9 @@ bool native_remove_ui(const json& args,json& result,std::string& error) {
     action::ui_diagnostic::Api api;
     if(!action::ui_diagnostic::resolve_api(memory,state.image,exe_sha,api,error))return false;
     uintptr_t command=0;
-    if(!field(memory,state.image+0x1707d20,0x168,command,error)||
+    if(!field(memory,state.image+0x170e0c0,0x168,command,error)||
        !monster_action_runtime::quest_list::verify_npc_command(command,error))return false;
-    api.command=reinterpret_cast<action::ui_diagnostic::UiCommand>(state.image+0x759ad0);
+    api.command=reinterpret_cast<action::ui_diagnostic::UiCommand>(state.image+0x761550);
     api.destroy_label="DestroyNPC";
     action::ui_diagnostic::Context context{state.image,local.manager,local.object,local.uid,
         binding.native_epoch,binding.native_generation,exe_sha,action::ui_diagnostic::Family::Building};
@@ -623,7 +623,7 @@ bool remove_observe(const action::Binding& binding,const action::Request& reques
     uintptr_t manager=0;
     const bool quest_target=op.target_type==0;
     json current_tasks=json::array();
-    if(!field(memory,state.image,0x13df630,manager,error)||!manager||
+    if(!field(memory,state.image,0x13eb630,manager,error)||!manager||
        !read_effect(memory,state.image,region,0,current,money,witness,census,error,
                     quest_target,&current_tasks)||
        current!=op.evidence.npc_after||money!=op.evidence.after||

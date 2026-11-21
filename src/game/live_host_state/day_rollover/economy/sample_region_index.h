@@ -29,21 +29,21 @@ class SampleRegionIndex {
         if(!read(map,0,map_ap,e)||!read(root,0,root_ap,e)||!read(root,0x48,root_type,e)||
            !read(map+0x230,0,saved_ap,e)||!read(map+0x230,8,next.data,e)||!read(map+0x230,0x10,count,e)||!read(map+0x230,0x14,next.capacity,e)||
            !read(map,0x358,next.owned,e)||!read(map,0x360,owned_count,e)||!read(map,0x364,next.owned_capacity,e))return false;
-        if(map_ap!=image+0x1742860||root_ap!=image+0x174ad20||root_type!=0||saved_ap!=image+0x16f04e0)return reject(e,"sample region Map, root or array address point differs");
+        if(map_ap!=image+0x1748c00||root_ap!=image+0x17510c0||root_type!=0||saved_ap!=image+0x16f6880)return reject(e,"sample region Map, root or array address point differs");
         if(count<1||count>4096||next.capacity<count||!next.data||owned_count<0||owned_count>count||next.owned_capacity<owned_count||(owned_count&&!next.owned))return reject(e,"sample region or owned subset array bounds differ");
         std::set<int32_t> ids;std::set<uintptr_t> saved;
         next.saved.reserve(size_t(count));next.owned_rows.reserve(size_t(owned_count));
         for(int32_t i=0;i<count;++i){
             Row row;uintptr_t ap=0,shard=0;
             if(!read(next.data,size_t(i)*8,row.region,e)||!read(row.region,0,ap,e)||!read(row.region,0x70,shard,e)||!read(row.region,0x834,row.id,e))return false;
-            if(!row.region||ap!=image+0x1787930||shard!=root||row.id<0||!saved.insert(row.region).second||!ids.insert(row.id).second)return reject(e,"sample saved region address point, shard, ID or pointer differs index="+std::to_string(i));
+            if(!row.region||ap!=image+0x178dcd0||shard!=root||row.id<0||!saved.insert(row.region).second||!ids.insert(row.id).second)return reject(e,"sample saved region address point, shard, ID or pointer differs index="+std::to_string(i));
             next.saved.push_back(row);
         }
         std::set<uintptr_t> owned_unique;
         for(int32_t i=0;i<owned_count;++i){
             uintptr_t region=0,ap=0,shard=0;
             if(!read(next.owned,size_t(i)*8,region,e)||!read(region,0,ap,e)||!read(region,0x70,shard,e))return false;
-            if(!region||ap!=image+0x1787930||shard!=root||!owned_unique.insert(region).second||!saved.contains(region))return reject(e,"sample owned region is duplicate or absent from saved Map.region index="+std::to_string(i));
+            if(!region||ap!=image+0x178dcd0||shard!=root||!owned_unique.insert(region).second||!saved.contains(region))return reject(e,"sample owned region is duplicate or absent from saved Map.region index="+std::to_string(i));
             next.owned_rows.push_back(region);
         }
         uintptr_t data=0,owned=0;int32_t count_after=-1,owned_after=-1;
@@ -65,7 +65,7 @@ public:
         const auto slot=slots_.find(requested);if(slot==slots_.end())return reject(e,"sample region ID is absent from saved Map");
         const auto& row=snapshot_.saved[slot->second];uintptr_t receiver=0,ap=0,shard=0;int32_t id=-1;
         if(!read(snapshot_.data,slot->second*8,receiver,e)||!read(row.region,0,ap,e)||!read(row.region,0x70,shard,e)||!read(row.region,0x834,id,e))return false;
-        if(receiver!=row.region||ap!=image+0x1787930||shard!=root||id!=requested||(expected&&row.region!=expected))return reject(e,"sample target region slot/address point/shard/ID/receiver changed");
+        if(receiver!=row.region||ap!=image+0x178dcd0||shard!=root||id!=requested||(expected&&row.region!=expected))return reject(e,"sample target region slot/address point/shard/ID/receiver changed");
         selected=row.region;return true;
     }
     template<class Read>

@@ -4,8 +4,8 @@ json design_state(const DesignMenu& menu){return {{"design_shown",menu.shown},{"
     {"item_state",menu.item_state},{"button_enabled",menu.enabled},{"button_clickable",menu.clickable}};}
 bool design_menu(Memory& memory,DesignMenu& out,std::string& error){
     out={};uintptr_t data=0;int32_t count=0,capacity=0;
-    if(!field(memory,state.image,0x1a3c478,data,error)||!field(memory,state.image,0x1a3c480,count,error)||
-       !field(memory,state.image,0x1a3c484,capacity,error)||count<0||count>1024||capacity<count||capacity>65536||(count&&!data))
+    if(!field(memory,state.image,0x1a43478,data,error)||!field(memory,state.image,0x1a43480,count,error)||
+       !field(memory,state.image,0x1a43484,capacity,error)||count<0||count>1024||capacity<count||capacity>65536||(count&&!data))
         return fail(error,error.empty()?"Character Design window registry differs":error);
     for(int32_t i=0;i<count;++i){uintptr_t value=0;std::string name;
         if(!field(memory,data,size_t(i)*8,value,error)||!npc_quest_records::read_string(memory,value,0x1b0,"Character Design window",name,error))return false;
@@ -14,19 +14,19 @@ bool design_menu(Memory& memory,DesignMenu& out,std::string& error){
     }
     uint8_t shown=0;uintptr_t ap=0;
     if(!out.system||!out.design||!out.collection||!field(memory,out.system,0x45f,shown,error)||shown!=1||
-       !field(memory,out.design,0,ap,error)||ap!=state.image+0x16e6400||!field(memory,out.design,0x45f,shown,error)||shown>1)
+       !field(memory,out.design,0,ap,error)||ap!=state.image+0x16ec7a0||!field(memory,out.design,0x45f,shown,error)||shown>1)
         return fail(error,error.empty()?"Character original Design windows are absent or hidden":error);
     out.shown=shown!=0;if(!field(memory,out.collection,0x45f,shown,error)||shown>1)return false;out.collection_shown=shown!=0;
     std::vector<uintptr_t> panes{out.system};std::set<uintptr_t> seen;
     while(!panes.empty()){const auto pane=panes.back();panes.pop_back();uintptr_t gather=0;
         if(!seen.insert(pane).second||seen.size()>2048||!field(memory,pane,0,ap,error)||!field(memory,ap,0x178,gather,error))
             return fail(error,error.empty()?"Character Design pane cycle or native class differs":error);
-        if(ap==state.image+0x16db1c0){std::string name;
+        if(ap==state.image+0x16e1560){std::string name;
             if(!npc_quest_records::read_string(memory,pane,0x318,"Character Design ItemSlot",name,error))return false;
             if(name=="@DesignMenu"){uintptr_t item=0,proxy=0,target=0,owned=0,parent=0,slot=0,slot_item=0;
-                if(out.button||!field(memory,pane,0x368,out.button,error)||!out.button||!field(memory,out.button,0,ap,error)||ap!=state.image+0x16e5b90||
+                if(out.button||!field(memory,pane,0x368,out.button,error)||!out.button||!field(memory,out.button,0,ap,error)||ap!=state.image+0x16ebf30||
                    !field(memory,out.button,0x2d0,item,error)||!field(memory,out.button,0x2d8,proxy,error)||!proxy||
-                   !field(memory,pane,0x360,slot_item,error)||slot_item!=item||!field(memory,item,0,ap,error)||ap!=state.image+0x17437f0||
+                   !field(memory,pane,0x360,slot_item,error)||slot_item!=item||!field(memory,item,0,ap,error)||ap!=state.image+0x1749b90||
                    !field(memory,proxy,0,target,error)||target!=item+0x20||!field(memory,item,0x28,owned,error)||owned!=proxy||
                    !field(memory,out.button,0x278,parent,error)||parent!=pane||!field(memory,out.button,0x350,slot,error)||slot!=pane||
                    !field(memory,out.button,0x381,out.enabled,error)||!field(memory,out.button,0x174,out.clickable,error)||
@@ -38,8 +38,8 @@ bool design_menu(Memory& memory,DesignMenu& out,std::string& error){
                         " enabled="+std::to_string(out.enabled)+" clickable="+std::to_string(out.clickable)+" cause="+error);
             }
         }
-        if(gather==state.image+0xc35730)continue;
-        if(gather!=state.image+0x8167c0)return fail(error,"Character Design GatherAllContents slot differs");
+        if(gather==state.image+0xc41fe0)continue;
+        if(gather!=state.image+0x81ed30)return fail(error,"Character Design GatherAllContents slot differs");
         for(const auto offset:{size_t(0x2c8),size_t(0x2f8)}){std::vector<uintptr_t> children;
             if(!open_array(memory,pane,offset,children,error))return false;
             for(auto child:children){uintptr_t parent=0,owner=0;if(!field(memory,child,0x278,parent,error)||parent!=pane||
@@ -49,7 +49,7 @@ bool design_menu(Memory& memory,DesignMenu& out,std::string& error){
 }
 bool classes_menu_offered(Memory& memory,DesignMenu& menu,std::string& error){
     uintptr_t callback=0,ap=0;std::vector<uintptr_t> items,rows;
-    if(!menu.shown||!field(memory,menu.design,0x540,menu.menu,error)||!field(memory,menu.menu,0,ap,error)||ap!=state.image+0x1743a60||
+    if(!menu.shown||!field(memory,menu.design,0x540,menu.menu,error)||!field(memory,menu.menu,0,ap,error)||ap!=state.image+0x1749e00||
        !field(memory,menu.menu,0x3b8,callback,error)||callback!=menu.design+0x4e8||!offered_control(memory,menu.menu,menu.design,error)||
        !open_array(memory,menu.design,0x510,items,error)||!open_array(memory,menu.menu,0x368,rows,error))
         return fail(error,error.empty()?"Character original Design Menu callback/rows differ":error);
@@ -67,12 +67,12 @@ bool classes_menu_offered(Memory& memory,DesignMenu& menu,std::string& error){
     return (definitions==1&&offered==1)||fail(error,"Character original classes menu row is absent or ambiguous");
 }
 uint32_t activate_design(uintptr_t button)noexcept{
-    __try{reinterpret_cast<void(*)(void*)>(state.image+0x580870)(reinterpret_cast<void*>(button));return 0;}
+    __try{reinterpret_cast<void(*)(void*)>(state.image+0x587030)(reinterpret_cast<void*>(button));return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 uint32_t select_classes(uintptr_t window)noexcept{
     struct Text {const char* data;uint64_t size;unsigned char rest[16];} key{"pcs",3,{}};
-    __try{reinterpret_cast<void(*)(void*,const Text*)>(state.image+0x73d8a0)(reinterpret_cast<void*>(window),&key);return 0;}
+    __try{reinterpret_cast<void(*)(void*,const Text*)>(state.image+0x7451f0)(reinterpret_cast<void*>(window),&key);return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 bool execute_menu(UiJob& job,const Sample& before,const a::CharacterRenameIntent& intent,std::string& error){

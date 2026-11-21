@@ -2,11 +2,11 @@ namespace {
 bool history_contour_code(region::Runtime& r,std::string& e){
     struct Pin {uintptr_t rva;size_t size;const char* sha;};
     static constexpr Pin pins[]{
-        {0x55e050,256,"d3a9e3c8ac2c5529bca4be455419dd8fd3ceb529e2269bd4080894a4b043b801"},
-        {0x55e150,112,"985f204b2c9b1c2bf229d3720f853b0bb1e7ecc18c824fc945716f9c019d0880"},
-        {0x362450,192,"95573ab3ac6fe5574cb62b539417a57c23dc178e5a432d2b3f809e73f39d5c9e"},
-        {0x362510,304,"f44b8fd7db59df03ea2c35cf4148fffab006a964cd77f0276dc89af16d119761"},
-        {0xf6d80,1056,"f4583a4ade8c3eba4a25a029cdddb6704caeeaa3330f40ad89c293961a14e037"},
+        {0x5646e0,256,"c702c8f3f5bf4b86c21eb5c303dd3c1fb3e2b9ea57c449d398220fac6ba8d930"},
+        {0x5647e0,112,"20038d64aa06679e6d01d4b23fa7310f82be99f495faecf9ced7daed66957377"},
+        {0x366cb0,192,"6c6855acb56a652b090cc995faf75fc3fba735f8dd4e85616040902e7ae0018e"},
+        {0x366d70,304,"488aa56de4868343d37e783b1cc4dae3e0c3716fed1f1616aaa026e40da34f82"},
+        {0xf7df0,1056,"7744ef251b3071814ceb3588393631d4a62fc4827adee025c8ccc9d282ec7efd"},
     };
     for(const auto& pin:pins){std::vector<uint8_t> bytes(pin.size);std::string actual;
         if(!r.memory.copy(r.image+pin.rva,bytes.data(),bytes.size(),e))return false;
@@ -14,7 +14,7 @@ bool history_contour_code(region::Runtime& r,std::string& e){
         if(actual!=pin.sha)return fail(e,"Terrain history contour original body differs RVA="+std::to_string(pin.rva));
     }
     uint32_t scale=0;
-    if(!region::at(r,r.image,0x147f1b0,scale,e))return false;
+    if(!region::at(r,r.image,0x1488960,scale,e))return false;
     return scale==0x3f800000||fail(e,"Terrain history original Simplify scale differs actual="+std::to_string(scale)+" required=1065353216");
 }
 
@@ -56,7 +56,7 @@ struct TerrainHistoryOperation {
 };
 std::map<std::string,TerrainHistoryOperation> terrain_history_operations;
 uint32_t history_find_raw(uintptr_t image,uint64_t uid,uintptr_t& object){
-    __try{object=reinterpret_cast<uintptr_t(*)(uint64_t)>(image+0x47ce20)(uid);return 0;}
+    __try{object=reinterpret_cast<uintptr_t(*)(uint64_t)>(image+0x481f60)(uid);return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 bool history_find(region::Runtime& r,uint64_t uid,uintptr_t& object,std::string& e){
@@ -64,7 +64,7 @@ bool history_find(region::Runtime& r,uint64_t uid,uintptr_t& object,std::string&
     return !code||fail(e,"Terrain history original FindUID SEH="+std::to_string(code));
 }
 uint32_t history_native_height(uintptr_t image,uintptr_t root,const std::array<uint32_t,3>& position,float& height){
-    __try{height=reinterpret_cast<float(*)(void*,const void*)>(image+0x508390)(reinterpret_cast<void*>(root),position.data());return 0;}
+    __try{height=reinterpret_cast<float(*)(void*,const void*)>(image+0x50e4e0)(reinterpret_cast<void*>(root),position.data());return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 bool history_transform_code(region::Runtime& r,std::string& e){
@@ -77,7 +77,7 @@ bool history_transform_code(region::Runtime& r,std::string& e){
 uint32_t history_transform_matrix(uintptr_t image,const std::array<uint8_t,0x6c>& input,std::array<uint32_t,16>& matrix){
     __try{
         alignas(16) auto copy=input;copy[0x28]=1;
-        const auto* result=reinterpret_cast<const void*(*)(void*)>(image+0x9ff8d0)(copy.data());
+        const auto* result=reinterpret_cast<const void*(*)(void*)>(image+0xa0a490)(copy.data());
         if(result!=copy.data()+0x2c||copy[0x28]||std::memcmp(copy.data(),input.data(),0x28))return 0xe0010001;
         std::memcpy(matrix.data(),result,sizeof matrix);return 0;
     }__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
@@ -154,8 +154,8 @@ bool history_graph(region::Runtime& r,uintptr_t graph,uintptr_t receiver,const s
         return fail(e,"Terrain history complete original graph count/lifetime differs graph_boundary="+history_graph_failure(r,graph,witness,source,making).dump());
     for(int32_t i=0;i<witness.operations;++i){uintptr_t node=0,ap=0;
         if(!region::at(r,array,size_t(i)*8,node,e)||!region::at(r,node,0,ap,e))return false;
-        if(ap==r.image+0x1723330){uintptr_t method=0;if(!region::at(r,ap,0x10,method,e))return false;
-            if(++painted!=1||method!=r.image+0x55e150)return fail(e,"Terrain history original contour inverse method/count differs");continue;}
+        if(ap==r.image+0x17296d0){uintptr_t method=0;if(!region::at(r,ap,0x10,method,e))return false;
+            if(++painted!=1||method!=r.image+0x5647e0)return fail(e,"Terrain history original contour inverse method/count differs");continue;}
         uint64_t uid=0;if(!region::at(r,node,0xb8,uid,e))return false;
         const auto saved=source.history_scenery.find(uid);
         if(saved==source.history_scenery.end()||!seen.insert(uid).second)
@@ -195,7 +195,7 @@ struct HistorySelection {std::vector<std::pair<uintptr_t,uint64_t>> rows;std::ar
 bool history_selection(region::Runtime& r,const region::LocalView& view,HistorySelection& out,std::string& e){
     HistoryMemory memory{r};std::vector<uintptr_t> raw,filtered;uintptr_t manager=0;
     if(!group_reader::selection(memory,r.image,view.world.selection,raw,filtered,e)||
-       !region::at(r,view.world.selection,0xc8,out.filter,e)||!region::at(r,r.image,0x13df440,manager,e)||!region::at(r,manager,0x60,out.camera,e))return false;
+       !region::at(r,view.world.selection,0xc8,out.filter,e)||!region::at(r,r.image,0x13eb440,manager,e)||!region::at(r,manager,0x60,out.camera,e))return false;
     if(std::any_of(out.filter.begin(),out.filter.end(),[](auto n){return n>1;}))return fail(e,"Terrain history local Selection filter invalid");
     for(auto pointer:raw){uint64_t uid=0;uintptr_t found=0;
         if(!region::at(r,pointer,0x18,uid,e)||!uid||!history_find(r,uid,found,e)||found!=pointer)return fail(e,"Terrain history local selected UID differs: "+e);
@@ -203,7 +203,7 @@ bool history_selection(region::Runtime& r,const region::LocalView& view,HistoryS
     return true;
 }
 uint32_t history_filter(uintptr_t image,uintptr_t selection,const std::array<uint8_t,9>& values){
-    __try{reinterpret_cast<void(*)(void*,const void*)>(image+0x2d58f0)(reinterpret_cast<void*>(selection),values.data());return 0;}
+    __try{reinterpret_cast<void(*)(void*,const void*)>(image+0x2d8fe0)(reinterpret_cast<void*>(selection),values.data());return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 bool history_restore_selection(region::Runtime& r,const region::LocalView& view,const HistorySelection& before,const TerrainOperation& source,std::string& e){
@@ -211,7 +211,7 @@ bool history_restore_selection(region::Runtime& r,const region::LocalView& view,
     for(const auto& [pointer,uid]:before.rows){uintptr_t found=0;if(!history_find(r,uid,found,e))return false;
         if(found==pointer)desired.push_back(found);
         else if(found||!source.history_scenery.contains(uid))return fail(e,"Terrain history replaced unrelated local selected UID");}
-    const duplicate_calls::Array array{r.image+0x1748c50,desired.data(),int32_t(desired.size()),int32_t(desired.size())};
+    const duplicate_calls::Array array{r.image+0x174eff0,desired.data(),int32_t(desired.size()),int32_t(desired.size())};
     const auto selected=duplicate_calls::select(r.image,view.world.selection,array);
     const auto filter=history_filter(r.image,view.world.selection,before.filter);
     if(selected||filter)return fail(e,"Terrain history Selection restore failed select_seh="+std::to_string(selected)+" filter_seh="+std::to_string(filter));

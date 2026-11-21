@@ -69,7 +69,7 @@ enum class InitPhase {Uninitialized,Ready,Failed};
 InitPhase init_phase=InitPhase::Uninitialized;
 std::string init_error;
 uint32_t installed_hooks=0;
-constexpr char stream_ctor_entry[]="\x56\x53\x48\x83\xec\x28\x48\x8d\x05\xa3\xe8\xd2\x00";
+constexpr char stream_ctor_entry[]="\x56\x53\x48\x83\xec\x28\x48\x8d\x05\x83\xa0\xd2\x00";
 constexpr char reader_ctor_entry[]="\x55\x57\x56\x53\x48\x83\xec\x28";
 std::atomic<bool> callback_failure=false;
 std::atomic_flag emergency_gate=ATOMIC_FLAG_INIT;
@@ -235,11 +235,11 @@ bool sha_handle(HANDLE file,std::string& sha,uint64_t& bytes,std::string& error)
 }
 bool chain(std::string& error) {
     void* file=nullptr;int32_t mode=-1;std::string name;
-    if(!native_file||!vt(native_file,0x1742fd0,error)||!read(native_file,0x70,mode,error)||mode!=5)
+    if(!native_file||!vt(native_file,0x1749370,error)||!read(native_file,0x70,mode,error)||mode!=5)
         return fail(error,"native_file_mode_or_type required_mode=5");
     if(!gcc_string(reinterpret_cast<unsigned char*>(native_file)+8,name,error)||name!=virtual_name)
         return fail(error,"native_file_filename_changed");
-    if(native_stream&&(!vt(native_stream,0x17315c0,error)||!read(native_stream,0x18,file,error)||file!=native_file))
+    if(native_stream&&(!vt(native_stream,0x1737960,error)||!read(native_stream,0x18,file,error)||file!=native_file))
         return fail(error,"native_stream_file_changed");
     return mapped_file(error);
 }
@@ -253,12 +253,12 @@ bool mode_singleton(void*& mode,std::string& error) {
 #ifdef MT2MP_MIXED_OPEN_TEST
     if(mode_override){mode=mode_override;return true;}
 #endif
-    return read(reinterpret_cast<void*>(image),0x13df320,mode,error);
+    return read(reinterpret_cast<void*>(image),0x13eb320,mode,error);
 }
 bool task_owner(void* task,void*& mode,std::string& error) {
     void* singleton=nullptr;void* owned=nullptr;int32_t type=-1;unsigned char auto_delete=1;
-    if(!vt(task,0x17013c0,error)||!read(task,8,type,error)||type!=2||!read(task,0xd,auto_delete,error)||auto_delete!=0||
-       !read(task,0x10,mode,error)||!mode_singleton(singleton,error)||mode!=singleton||!vt(mode,0x16e6730,error)||
+    if(!vt(task,0x1707760,error)||!read(task,8,type,error)||type!=2||!read(task,0xd,auto_delete,error)||auto_delete!=0||
+       !read(task,0x10,mode,error)||!mode_singleton(singleton,error)||mode!=singleton||!vt(mode,0x16ecad0,error)||
        !read(mode,0x2d0,owned,error)||owned!=task)return fail(error,"mode_init_task_owner_type_or_lifetime_mismatch");
     return true;
 }
@@ -267,17 +267,17 @@ bool world_fields(WorldWitness& w,std::string& error) {
         mt2mp::game::live_host_state::apply_timing::Part::NativeOpenWorldFields);
     void* active=nullptr;void* world=nullptr;void* map=nullptr;
     int32_t state=-1;
-    if(!mode_singleton(w.mode,error)||w.mode!=native_mode||!vt(w.mode,0x16e6730,error)||!read(w.mode,0x2c4,state,error)||state!=4)
+    if(!mode_singleton(w.mode,error)||w.mode!=native_mode||!vt(w.mode,0x16ecad0,error)||!read(w.mode,0x2c4,state,error)||state!=4)
         return fail(error,"completed_origin_world_mode_not_active");
 #ifdef MT2MP_MIXED_OPEN_TEST
     if(game_override){w.game=game_override;world=world_override;map=map_override;}
     else
 #endif
-    if(!read(reinterpret_cast<void*>(image),0x13df8f0,w.game,error)||!read(reinterpret_cast<void*>(image),0x13df9c0,world,error)||
-       !read(reinterpret_cast<void*>(image),0x13df8c0,map,error))return false;
-    if(!vt(w.game,0x1743740,error)||!read(w.game,0x28,active,error)||active!=w.mode||
-       !read(w.mode,0x58,w.state,error)||!vt(w.state,0x16de920,error)||!read(w.state,0x160,w.world,error)||
-       !vt(w.world,0x174aef0,error)||!read(w.world,0x158,w.map,error)||!vt(w.map,0x1742860,error)||w.world!=world||w.map!=map)
+    if(!read(reinterpret_cast<void*>(image),0x13eb8f0,w.game,error)||!read(reinterpret_cast<void*>(image),0x13eb9c0,world,error)||
+       !read(reinterpret_cast<void*>(image),0x13eb8c0,map,error))return false;
+    if(!vt(w.game,0x1749ae0,error)||!read(w.game,0x28,active,error)||active!=w.mode||
+       !read(w.mode,0x58,w.state,error)||!vt(w.state,0x16e4cc0,error)||!read(w.state,0x160,w.world,error)||
+       !vt(w.world,0x1751290,error)||!read(w.world,0x158,w.map,error)||!vt(w.map,0x1748c00,error)||w.world!=world||w.map!=map)
         return fail(error,"completed_origin_GameState_World_Map_reciprocity_mismatch");
     return true;
 }
@@ -342,19 +342,19 @@ bool initialize(const std::filesystem::path& runtime_root,std::string& error) {
         std::array<wchar_t,32768> executable{};const auto exe_n=GetModuleFileNameW(nullptr,executable.data(),DWORD(executable.size()));
         if(!exe_n||exe_n==executable.size()||!path_equal(absolute_path(executable.data()),absolute_path(expected_game/L"MT2.exe")))
             return init_fail(error,"native_executable_not_owned_runtime");
-        if(!native_code(image,0x95ec00,"\x41\x57\x41\x56\x41\x55\x41\x54\x55\x57\x56\x53",12,error)||
-           !native_code(image,0xa02d10,stream_ctor_entry,sizeof(stream_ctor_entry)-1,error)||
-           !native_code(image,0x96bbd0,reader_ctor_entry,sizeof(reader_ctor_entry)-1,error)||
-           !native_code(image,0x95ecc1,"\x89\x73\x70",3,error)||
-           !native_code(image,0x96bf3c,"\x80\x79\x18\x00",4,error)||
-           !native_code(image,0x96bf63,"\x80\xbb\x90\x00\x00\x00\x00",7,error)||
-           !native_code(image,0x96bf90,"\x8b\x83\x8c\x00\x00\x00\xeb\xdb",8,error)||
-           !native_code(image,0xbd7a80,"\x48\x8b\x49\x10\xe9\x37\xc4\x8c\xff",9,error)||
-           !native_code(image,0x5258b5,"\x80\x79\x0e\x00",4,error)||
-           !native_code(image,0x526c15,"\xc6\x43\x0e\x01",4,error)||
-           !native_code(image,0x4a5908,"\x48\xc7\x86\xd8\x00\x00\x00\x00\x00\x00\x00",11,error)||
-           !native_code(image,0x4a592c,"\xe8\x4f\x8b\x3f\x00",5,error)||
-           !native_code(image,0x96d370,"\xc7\x01\x01\x00\x00\x00\x48\x83\xc1\x08",10,error))return init_fail(error,error);
+        if(!native_code(image,0x967d60,"\x41\x57\x41\x56\x41\x55\x41\x54\x55\x57\x56\x53",12,error)||
+           !native_code(image,0xa0d8d0,stream_ctor_entry,sizeof(stream_ctor_entry)-1,error)||
+           !native_code(image,0x974df0,reader_ctor_entry,sizeof(reader_ctor_entry)-1,error)||
+           !native_code(image,0x967e21,"\x89\x73\x70",3,error)||
+           !native_code(image,0x97515c,"\x80\x79\x18\x00",4,error)||
+           !native_code(image,0x975183,"\x80\xbb\x90\x00\x00\x00\x00",7,error)||
+           !native_code(image,0x9751b0,"\x8b\x83\x8c\x00\x00\x00\xeb\xdb",8,error)||
+           !native_code(image,0xbe4100,"\x48\x8b\x49\x10\xe9\xa7\x52\x8c\xff",9,error)||
+           !native_code(image,0x52bca5,"\x80\x79\x0e\x00",4,error)||
+           !native_code(image,0x52d035,"\xc6\x43\x0e\x01",4,error)||
+           !native_code(image,0x4aadf8,"\x48\xc7\x86\xd8\x00\x00\x00\x00\x00\x00\x00",11,error)||
+           !native_code(image,0x4aae1c,"\xe8\x7f\xc7\x3f\x00",5,error)||
+           !native_code(image,0x976590,"\xc7\x01\x01\x00\x00\x00\x48\x83\xc1\x08",10,error))return init_fail(error,error);
         const auto dll=GetModuleHandleW(L"libphysfs.dll");
         if(!dll)return init_fail(error,"owned_PhysicsFS_module_missing winerror="+std::to_string(GetLastError()));
         std::array<wchar_t,32768> path{};const auto n=GetModuleFileNameW(dll,path.data(),DWORD(path.size()));
@@ -753,8 +753,8 @@ bool testing_same_file(const std::filesystem::path& candidate,std::string& error
 void testing_callback_failure(const char* cause){emergency(cause);}
 bool testing_entry_guard(uintptr_t rva,const unsigned char* bytes,size_t count,std::string& error){
     std::lock_guard lock(gate);
-    if(rva==0xa02d10)return entry_compare(rva,bytes,count,stream_ctor_entry,sizeof(stream_ctor_entry)-1,error);
-    if(rva==0x96bbd0)return entry_compare(rva,bytes,count,reader_ctor_entry,sizeof(reader_ctor_entry)-1,error);
+    if(rva==0xa0d8d0)return entry_compare(rva,bytes,count,stream_ctor_entry,sizeof(stream_ctor_entry)-1,error);
+    if(rva==0x974df0)return entry_compare(rva,bytes,count,reader_ctor_entry,sizeof(reader_ctor_entry)-1,error);
     return fail(error,"testing_entry_guard_unsupported_RVA");
 }
 #endif

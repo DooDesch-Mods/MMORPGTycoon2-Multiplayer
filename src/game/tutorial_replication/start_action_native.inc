@@ -91,7 +91,7 @@ struct StartActionCalls {
         uintptr_t base=0;uint32_t thread=0;std::string sha;
         if(!native::read_resolver_receipt(base,thread,sha,e))return false;
         if(base!=image||thread!=mainthread||thread!=GetCurrentThreadId()||
-           sha!="bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6")
+           sha!="7efd8ee7b97f78362e7a2f8116b327fa6b756bdce23114b68143c4c9d2dd50eb")
             return fail(e,"Startingpoint Start actual EXE/Mainthread differs");
         bool ordered=false;if(!start_admission(context,binding,key,request,input,ordered,e))return false;
         if(!ordered&&(context.role==action_session::Role::Client)!=load.armed)return fail(e,"Startingpoint Start actual role/joined-load authority differs");

@@ -35,7 +35,7 @@ struct SceneMemory final:scenery_kiss::native::Memory {bool copy(uintptr_t p,voi
 bool fail(std::string& e,const std::string& cause){e=cause;return false;}
 template<class T>bool field(uintptr_t p,size_t o,T& v,std::string& e){if(!p||p>UINTPTR_MAX-o)return fail(e,"tool_prepare_native_address_range_invalid");return memory.copy(p+o,&v,sizeof v,e);}
 bool world(Job& j,std::string& e){uintptr_t image=0;uint32_t thread=0;std::string sha;if(!native::read_resolver_receipt(image,thread,sha,e))return false;
-    if(thread!=GetCurrentThreadId()||(j.thread&&j.thread!=thread)||sha!="bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6")return fail(e,"tool_prepare_actual_module_mainthread_differs");
+    if(thread!=GetCurrentThreadId()||(j.thread&&j.thread!=thread)||sha!="7efd8ee7b97f78362e7a2f8116b327fa6b756bdce23114b68143c4c9d2dd50eb")return fail(e,"tool_prepare_actual_module_mainthread_differs");
     building_mixed_identity::opened_file::CurrentWorld current;if(!native_open_runtime::read_current_world(current,e))return false;
     if(!current.world||!current.state||current.world_epoch!=j.context.epoch||current.generation!=j.context.generation||net::current_snapshot_id()!=j.context.snapshot)return fail(e,"tool_prepare_actual_world_snapshot_differs");j.thread=thread;j.image=image;return true;}
 json format(const Job& j){return {{"acceptance_token",j.context.token},{"snapshot_uuid",j.context.snapshot},{"attempted_mask",j.attempted},{"returned_mask",j.returned},{"exception",j.exception},{"confirmed",j.confirmed},{"unknown",j.unknown},{"cause",j.cause},{"cleanup_observed_tick_ms",j.observed},{"cleanup_applicable",buy_region::preview_applicable(j.buy||j.level,j.old!=j.desired)}};}
@@ -60,20 +60,20 @@ uint32_t calls(Job* j)noexcept{
         struct NativeCalls {
             Job* job;
             void cancel(){reinterpret_cast<void(__fastcall*)(void*,void*)>(job->image+buy_region::cancel_rva(job->build,job->scenery,job->buy||job->level))(reinterpret_cast<void*>(job->old),reinterpret_cast<void*>(job->cursor));}
-            void switch_default(){reinterpret_cast<void(__fastcall*)(void*,void*)>(job->image+0x5854e0)(reinterpret_cast<void*>(job->cursor),nullptr);}
+            void switch_default(){reinterpret_cast<void(__fastcall*)(void*,void*)>(job->image+0x58bca0)(reinterpret_cast<void*>(job->cursor),nullptr);}
         } native_calls{j};
         buy_region::sequence(*j,native_calls);return 0;
     }__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 bool observe(Job& j,std::string& e){Readback out;uintptr_t current=0,ap=0,manager=0,manager_ap=0;native::WorldStatus status;
     if(!world(j,e)||!field(j.cursor,0x190,current,e)||!field(current,0,ap,e))return false;
-    out.actual_default=current==j.desired&&ap==j.image+0x17391a0;
+    out.actual_default=current==j.desired&&ap==j.image+0x173f540;
     if(buy_region::preview_applicable(j.buy||j.level,j.old!=j.desired)){
         if(j.scenery){if(!field(j.old,0x6c0,out.placing,e)||!field(j.old,0x6c1,out.pending,e)||!field(j.old,0x6c2,out.cancel,e)||!field(j.old,0xb58,out.owned_a,e)||!field(j.old,0xb50,out.owned_b,e))return false;}
         else if(j.build){if(!field(j.old,0x660,out.placing,e)||!field(j.old,0x661,out.pending,e)||!field(j.old,0x662,out.cancel,e)||!field(j.old,0x6b8,out.owned_a,e)||!field(j.old,0x6c0,out.owned_b,e))return false;}
         else if(!field(j.old,0x400,out.placing,e)||!field(j.old,0x401,out.pending,e)||!field(j.old,0x402,out.cancel,e)||!field(j.old,0x468,out.records,e)||!field(j.old,0x490,out.owned_a,e))return false;
     }
-    if(!field(j.image,0x13df630,manager,e)||!field(manager,0,manager_ap,e)||manager_ap!=j.image+0x17205d0||!field(manager,0xd1,out.manager_progress,e)||!field(manager,0xd3,out.manager_queue,e)||!native::read_world_status(status,e))return fail(e,e.empty()?"tool_prepare_actual_SelectionManager_class_or_readback_differs":e);
+    if(!field(j.image,0x13eb630,manager,e)||!field(manager,0,manager_ap,e)||manager_ap!=j.image+0x1726970||!field(manager,0xd1,out.manager_progress,e)||!field(manager,0xd3,out.manager_queue,e)||!native::read_world_status(status,e))return fail(e,e.empty()?"tool_prepare_actual_SelectionManager_class_or_readback_differs":e);
     out.edits=status.edit_operations;out.saves=status.saves_in_progress;
     if(j.buy&&!pin_buy_region(j,true,e))return false;
     if(j.level&&!region_level::inspect(memory,j.image,j.old,true,e))return false;
@@ -88,12 +88,12 @@ bool unresolved()noexcept{if(buildings_unresolved()||network_unresolved()||scene
 bool invoke(const json& args,json& out,std::string& e)try{active_job=nullptr;out=json::object();Context q;if(!parse(args,q,e))return false;if(jobs.contains(q.token)||unresolved())return fail(e,"tool_prepare_token_used_or_previous_effect_unresolved_no_replay");
     if(jobs.size()>=32)return fail(e,"tool_prepare_receipt_capacity_reached measured=32 required_less_than=32");
     Job initial;initial.context=q;if(!world(initial,e))return false;const auto controller=typed_action_runtime::status();if(!controller.value("started",false)||controller.value("pending",true)||controller.value("locked",true))return fail(e,"tool_prepare_actual_Controller_not_idle");
-    for(const auto& guard:code::guards){std::vector<unsigned char> bytes(guard.size);if(!memory.copy(initial.image+guard.rva,bytes.data(),bytes.size(),e))return false;if(guard.rva==0x5854e0){if(!hooks::framework::verify_original_bytes(initial.image+guard.rva,bytes.data(),guard.bytes,guard.size,e))return fail(e,"tool_prepare_full_code_guard_differs rva="+std::to_string(guard.rva)+" original="+e);}else if(std::memcmp(bytes.data(),guard.bytes,guard.size))return fail(e,"tool_prepare_full_code_guard_differs rva="+std::to_string(guard.rva));}
+    for(const auto& guard:code::guards){std::vector<unsigned char> bytes(guard.size);if(!memory.copy(initial.image+guard.rva,bytes.data(),bytes.size(),e))return false;if(guard.rva==0x58bca0){if(!hooks::framework::verify_original_bytes(initial.image+guard.rva,bytes.data(),guard.bytes,guard.size,e))return fail(e,"tool_prepare_full_code_guard_differs rva="+std::to_string(guard.rva)+" original="+e);}else if(std::memcmp(bytes.data(),guard.bytes,guard.size))return fail(e,"tool_prepare_full_code_guard_differs rva="+std::to_string(guard.rva));}
     uintptr_t ap=0;unsigned char pending=0;
-    if(!field(initial.image,0x13df9d0,initial.cursor,e)||!field(initial.cursor,0,ap,e)||ap!=initial.image+0x1786dd0||!field(initial.cursor,0x190,initial.old,e)||!field(initial.cursor,0x198,initial.desired,e)||!field(initial.desired,0,ap,e)||ap!=initial.image+0x17391a0)return fail(e,e.empty()?"tool_prepare_actual_default_cursor_class_differs":e);
-    uintptr_t activation=0;unsigned char keeps_selection=0;if(!field(ap,0xa8,activation,e)||activation!=initial.image+0xbf6500||!field(initial.desired,0x120,keeps_selection,e)||keeps_selection!=1)return fail(e,"tool_prepare_Default_activation_or_selection_contract_differs");
+    if(!field(initial.image,0x13eb9d0,initial.cursor,e)||!field(initial.cursor,0,ap,e)||ap!=initial.image+0x178d170||!field(initial.cursor,0x190,initial.old,e)||!field(initial.cursor,0x198,initial.desired,e)||!field(initial.desired,0,ap,e)||ap!=initial.image+0x173f540)return fail(e,e.empty()?"tool_prepare_actual_default_cursor_class_differs":e);
+    uintptr_t activation=0;unsigned char keeps_selection=0;if(!field(ap,0xa8,activation,e)||activation!=initial.image+0xc02bd0||!field(initial.desired,0x120,keeps_selection,e)||keeps_selection!=1)return fail(e,"tool_prepare_Default_activation_or_selection_contract_differs");
     if(initial.old==initial.desired){auto& j=jobs.emplace(q.token,initial).first->second;const bool ok=observe(j,e);j.cause=e;out=format(j);return ok;}
-    if(!field(initial.old,0,ap,e)||(ap!=initial.image+0x17327d0&&ap!=initial.image+0x172f1f0&&ap!=initial.image+0x17396b0&&ap!=initial.image+0x173c170&&ap!=initial.image+0x1741210))return fail(e,"tool_prepare_supports_current_Build_Move_single_Scenery_BuyRegion_or_RegionLevel_only");initial.build=ap==initial.image+0x17327d0;initial.scenery=ap==initial.image+0x17396b0;initial.buy=ap==initial.image+0x173c170;initial.level=ap==initial.image+0x1741210;
+    if(!field(initial.old,0,ap,e)||(ap!=initial.image+0x1738b70&&ap!=initial.image+0x1735590&&ap!=initial.image+0x173fa50&&ap!=initial.image+0x1742510&&ap!=initial.image+0x17475b0))return fail(e,"tool_prepare_supports_current_Build_Move_single_Scenery_BuyRegion_or_RegionLevel_only");initial.build=ap==initial.image+0x1738b70;initial.scenery=ap==initial.image+0x173fa50;initial.buy=ap==initial.image+0x1742510;initial.level=ap==initial.image+0x17475b0;
     if(initial.level&&!region_level::inspect(memory,initial.image,initial.old,false,e))return false;
     if(initial.buy){
         if(!native_open_runtime::read_current_world(initial.buy_origin,e)||!typed_action_runtime::network_binding(q.snapshot,initial.buy_binding,e))return false;
@@ -101,7 +101,7 @@ bool invoke(const json& args,json& out,std::string& e)try{active_job=nullptr;out
         if(!buy_region::inspect(memory,initial.image,expected,false,initial.buy_pin,e)||!pin_buy_region(initial,false,e))return false;
     }
     if(initial.scenery&&(!scenery_kiss::cancel_code(scene_memory,initial.image,e)||!scenery_kiss::cancel_before(scene_memory,initial.image,initial.old,e)))return false;
-    uintptr_t deactivation=0,cancellation=0;if(!initial.buy&&!initial.level&&(!field(ap,0xb0,deactivation,e)||deactivation!=initial.image+(initial.scenery?0x5d04b0:(initial.build?0x5910e0:0x5c13e0))||!field(ap,0x128,cancellation,e)||cancellation!=initial.image+(initial.scenery?0x5d0690:(initial.build?0x591320:0x5c0900))))return fail(e,"tool_prepare_actual_Build_Move_virtual_cleanup_contract_differs");
+    uintptr_t deactivation=0,cancellation=0;if(!initial.buy&&!initial.level&&(!field(ap,0xb0,deactivation,e)||deactivation!=initial.image+(initial.scenery?0x5d6c00:(initial.build?0x597890:0x5c7b80))||!field(ap,0x128,cancellation,e)||cancellation!=initial.image+(initial.scenery?0x5d6de0:(initial.build?0x597ad0:0x5c70a0))))return fail(e,"tool_prepare_actual_Build_Move_virtual_cleanup_contract_differs");
     if(!initial.buy&&!initial.level&&(!field(initial.old,initial.scenery?0x6c1:(initial.build?0x661:0x401),pending,e)||pending))return fail(e,e.empty()?"tool_prepare_native_commit_pending_no_cancel":e);
     action_session::Ledger before,after;if(!ledger(before,e))return false;
     auto& j=jobs.emplace(q.token,initial).first->second;active_job=&j;

@@ -26,13 +26,13 @@ bool array(uintptr_t owner,size_t offset,std::vector<uintptr_t>& out,std::string
 }
 bool read(uintptr_t release,Graph& out,std::string& e){
     Graph next;next.release=release;
-    if(!type(release,0x16c12b0,e)||!array(release,0x148,next.features,e)||!array(release,0x178,next.minor,e))return false;
+    if(!type(release,0x16c7650,e)||!array(release,0x148,next.features,e)||!array(release,0x178,next.minor,e))return false;
     auto roots=next.features;roots.insert(roots.end(),next.minor.begin(),next.minor.end());
     std::set<uintptr_t> seen;
     for(auto root:roots){
         if(!seen.insert(root).second)return fail(e,"Research Release root belongs to multiple arrays");
         Change node;node.address=root;
-        if(!type(root,0x1786d10,e)||!at(root,0x70,node.owner,e)||!str(root,0x18,node.key,e)||
+        if(!type(root,0x178d0b0,e)||!at(root,0x70,node.owner,e)||!str(root,0x18,node.key,e)||
            !at(root,0xe8,node.order,e)||!at(root,0xec,node.feature,e)||!array(root,0xb8,node.children,e))return false;
         if(node.feature>1)return fail(e,"Research Release Change feature is not Boolean");
         next.changes.push_back(node);
@@ -41,7 +41,7 @@ bool read(uintptr_t release,Graph& out,std::string& e){
         for(auto child:node.children){
             if(!seen.insert(child).second)return fail(e,"Research Release child has duplicate ownership");
             Change value;value.address=child;
-            if(!type(child,0x1786d10,e)||!at(child,0x70,value.owner,e)||!str(child,0x18,value.key,e)||
+            if(!type(child,0x178d0b0,e)||!at(child,0x70,value.owner,e)||!str(child,0x18,value.key,e)||
                !at(child,0xe8,value.order,e)||!at(child,0xec,value.feature,e)||!array(child,0xb8,value.children,e))return false;
             if(value.feature>1)return fail(e,"Research Release child feature is not Boolean");
             next.changes.push_back(std::move(value));

@@ -3,7 +3,7 @@ namespace {
 using Command=a::ui_diagnostic::UiCommand;
 Command original=nullptr;uint64_t generation=0,captures=0,submitted=0,rejected=0;bool installed=false,ready=false,fault=false,replaying=false;
 uintptr_t replay_receiver=0;uint32_t original_calls=0;int32_t replay_atmosphere=-1;bool preparing=false;std::string cause,last_action;
-constexpr npc_quest_list_ui_codes::Code ui_code{0x6d4ff0,215,"94e4fd8e9934644efaf67f495886e82969ad509bb61c33fbb956f409a8edf4c7",
+constexpr npc_quest_list_ui_codes::Code ui_code{0x6dc410,215,"e3c5af3a1c3617dc9945d4a323306c4b6290580daa4b0af240e584fdd947ee3b",
     {0x55,0x57,0x56,0x53,0x48,0x83,0xec,0x48,0x48,0xb8,0x53,0x65,0x74,0x41,0x74,0x6d,0x6f,0x73,0x48,0x89,0xd7,0x48,0x8d,0x5c,0x24,0x20,0x48,0x89,0xce,0x48,0x89,0x44}};
 struct Sample {dungeon_light::Sample dungeon;a::DungeonSoundState value;};
 struct Pending {a::Binding binding;std::string snapshot;a::DungeonSoundIntent intent;};
@@ -30,18 +30,18 @@ bool sample(Memory& memory,const a::Binding& binding,const std::string& snapshot
     out.value.dungeon=out.dungeon.value.dungeon;out.value.light=out.dungeon.value.light;
     if(out.value.atmosphere<0||out.value.atmosphere>=6)return fail(error,"Dungeon sound actual atmosphere is outside native rows");return true;
 }
-uint32_t find_window(uintptr_t& outer)noexcept{__try{const quest_list::QuestTitleView name{"dungeon_sound",13};outer=reinterpret_cast<uintptr_t(*)(const quest_list::QuestTitleView&)>(state.image+0x81aa90)(name);return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
+uint32_t find_window(uintptr_t& outer)noexcept{__try{const quest_list::QuestTitleView name{"dungeon_sound",13};outer=reinterpret_cast<uintptr_t(*)(const quest_list::QuestTitleView&)>(state.image+0x823080)(name);return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
 bool window(Memory& memory,uintptr_t& outer,uintptr_t& owner,uintptr_t& grid,std::string& error){
     const auto seh=find_window(outer);uintptr_t ap=0;
     if(seh||!outer)return fail(error,"Dungeon sound named Window unavailable SEH="+std::to_string(seh));
     if(!field(memory,outer,0,ap,error)||!field(memory,outer,0x4e8,owner,error)||!field(memory,outer,0x4f0,grid,error))return false;
-    if(ap!=state.image+0x172c3c0||!grid)return fail(error,"Dungeon sound actual Window/Grid differs");
+    if(ap!=state.image+0x1732760||!grid)return fail(error,"Dungeon sound actual Window/Grid differs");
     auto at=[&](uintptr_t base,size_t offset,auto& value,std::string& e){return field(memory,base,offset,value,e);};
     auto text=[&](uintptr_t base,size_t offset,std::string& value,std::string& e){return npc_quest_records::read_string(memory,base,offset,"Dungeon sound native Grid command",value,e);};
     return dungeon_sound_record::grid(at,text,state.image,outer,grid,error);
 }
-uint32_t prepare(uintptr_t outer,uintptr_t owner)noexcept{__try{*reinterpret_cast<uintptr_t*>(outer+0x4e8)=owner;reinterpret_cast<void(*)(void*)>(state.image+0x6d4cd0)(reinterpret_cast<void*>(outer));return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
-uint32_t select(uintptr_t grid,int32_t atmosphere)noexcept{__try{reinterpret_cast<void(*)(void*,int32_t)>(state.image+0x70a9d0)(reinterpret_cast<void*>(grid),atmosphere);return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
+uint32_t prepare(uintptr_t outer,uintptr_t owner)noexcept{__try{*reinterpret_cast<uintptr_t*>(outer+0x4e8)=owner;reinterpret_cast<void(*)(void*)>(state.image+0x6dc0f0)(reinterpret_cast<void*>(outer));return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
+uint32_t select(uintptr_t grid,int32_t atmosphere)noexcept{__try{reinterpret_cast<void(*)(void*,int32_t)>(state.image+0x711ec0)(reinterpret_cast<void*>(grid),atmosphere);return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
 bool same_local(const Sample& before,const Sample& after){return dungeon_light::same_local(before.dungeon,after.dungeon);}
 bool record_value(Memory& memory,void* record,int32_t& atmosphere,std::string& error){auto at=[&](uintptr_t base,size_t offset,auto& value,std::string& e){return field(memory,base,offset,value,e);};return dungeon_sound_record::read(at,uintptr_t(record),atmosphere,error);}
 bool replay_record_equals(const void* record,const char*){

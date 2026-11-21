@@ -59,7 +59,7 @@ bool current(Runtime& runtime,const Job& job,std::string& error){
 }
 bool selection_ready(Runtime& runtime,const Job& job,std::string& error){
     auto& memory=runtime.memory;const auto image=runtime.image;uintptr_t cursor=0,behaviour=0;uint8_t allowed=0,setting=0,queued=0;
-    if(!group_reader::q::at(memory,image,0x13df9d0,cursor,error)||!group_reader::q::typed(memory,image,cursor,0x1786dd0,error)||
+    if(!group_reader::q::at(memory,image,0x13eb9d0,cursor,error)||!group_reader::q::typed(memory,image,cursor,0x178d170,error)||
        !group_reader::q::at(memory,cursor,0x190,behaviour,error)||!group_reader::q::at(memory,behaviour,0x120,allowed,error)||
        !group_reader::q::at(memory,job.world.selection,0xd1,setting,error)||!group_reader::q::at(memory,job.world.selection,0xd3,queued,error))return false;
     return (allowed==1&&!setting&&!queued)||probe_contract::fail(error,"object_ui_original_selection_not_allowed_cancel_tool_first");
@@ -111,7 +111,7 @@ bool reconcile_rejection(Runtime& runtime,Job& job,std::string& error){
     job.action_uuid=id;job.cause=controller.at("cause").get<std::string>();job.phase="rejected";job.reconciliation_cause.clear();error.clear();return true;
 }
 uint32_t show(uintptr_t image,uintptr_t manager,const group_edit::Array* selected,const common::Api* api,uint32_t* attempted,uint32_t* returned)noexcept{
-    __try{*attempted|=1;reinterpret_cast<void(*)(void*,const group_edit::Array*)>(image+0x2d5910)(reinterpret_cast<void*>(manager),selected);*returned|=1;
+    __try{*attempted|=1;reinterpret_cast<void(*)(void*,const group_edit::Array*)>(image+0x2d9000)(reinterpret_cast<void*>(manager),selected);*returned|=1;
         *attempted|=2;api->info(reinterpret_cast<void*>(manager));*returned|=2;return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
@@ -125,14 +125,14 @@ uint32_t command(const common::Api* api,uintptr_t window,const char* label,Job* 
     return exception;
 }
 uint32_t cursor_call(uintptr_t image,uintptr_t behaviour,uintptr_t cursor,const std::array<float,3>* position,unsigned step,Job* job)noexcept{
-    __try{job->attempted_mask|=uint32_t(1)<<step;const auto rva=step==6?0x5c0200:step==7?0x5c05c0:0x5c01e0;
+    __try{job->attempted_mask|=uint32_t(1)<<step;const auto rva=step==6?0x5c69a0:step==7?0x5c6d60:0x5c6980;
         reinterpret_cast<void(*)(void*,void*,const float*)>(image+rva)(reinterpret_cast<void*>(behaviour),reinterpret_cast<void*>(cursor),position->data());job->returned_mask|=uint32_t(1)<<step;return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 bool cursor(Runtime& runtime,Job& job,bool pending,std::string& error){
     auto& memory=runtime.memory;const auto image=runtime.image;uintptr_t ap=0,behaviour=0,data=0,target=0;int32_t count=0,capacity=0;uint8_t placing=0,queued=0,duplicate=0;
-    if(!group_reader::q::at(memory,image,0x13df9d0,job.cursor,error)||!group_reader::q::typed(memory,image,job.cursor,0x1786dd0,error)||
-       !group_reader::q::at(memory,job.cursor,0x190,behaviour,error)||!group_reader::q::at(memory,behaviour,0,ap,error)||ap!=image+0x172f1f0||
+    if(!group_reader::q::at(memory,image,0x13eb9d0,job.cursor,error)||!group_reader::q::typed(memory,image,job.cursor,0x178d170,error)||
+       !group_reader::q::at(memory,job.cursor,0x190,behaviour,error)||!group_reader::q::at(memory,behaviour,0,ap,error)||ap!=image+0x1735590||
        !group_reader::q::at(memory,behaviour,0x460,data,error)||!group_reader::q::at(memory,behaviour,0x468,count,error)||!group_reader::q::at(memory,behaviour,0x46c,capacity,error)||count!=1||capacity<1||
        !group_reader::q::at(memory,data,16,target,error)||target!=job.selected.front().object||!group_reader::q::at(memory,behaviour,0x400,placing,error)||
        !group_reader::q::at(memory,behaviour,0x401,queued,error)||!group_reader::q::at(memory,behaviour,0x499,duplicate,error)||duplicate!=1||placing!=(pending?0:1)||queued!=(pending?1:0))
@@ -145,14 +145,14 @@ bool live_window(Runtime& runtime,const Job& job,common::Api& api,uintptr_t& win
     if(!group_reader::selection(memory,image,manager,raw,filtered,error)||raw!=expected||filtered!=expected)return probe_contract::fail(error,error.empty()?"object_ui_exact_current_selection_differs":error);
     const bool group=job.input.keys.front().starts_with("group:");uintptr_t ap=0,entry=0,target=0,handler=0;uint8_t visible=0;
     if(job.input.command=="Group"||job.selected.size()>1){
-        if(!group_reader::q::at(memory,manager,0xc0,window,error))return false;ap=image+0x171b260;entry=image+0x74bc00;
+        if(!group_reader::q::at(memory,manager,0xc0,window,error))return false;ap=image+0x1721600;entry=image+0x7535a0;
     }else if(group){
         if(!group_reader::q::at(memory,manager,0xb8,handler,error)||!group_reader::q::at(memory,handler,0x10,window,error)||
            !group_reader::q::at(memory,window,0x4e8,target,error)||target!=job.selected.front().object)return probe_contract::fail(error,error.empty()?"object_ui_Group_InfoWindow_target_differs":error);
-        ap=image+0x1719fd0;entry=image+0x718c80;
+        ap=image+0x1720370;entry=image+0x720210;
     }else{
         remove_diagnostics::LocalTarget selected;if(!remove_diagnostics::resolve_record_target(job.input.snapshot,job.input.keys.front(),selected,error))return false;
-        ProbeMemory adapter(runtime);common::Context context{image,manager,selected.object,selected.uid,job.input.epoch,job.input.generation,"bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6",selected.normal_scenery?common::Family::Scenery:common::Family::Building};common::Window actual;
+        ProbeMemory adapter(runtime);common::Context context{image,manager,selected.object,selected.uid,job.input.epoch,job.input.generation,"7efd8ee7b97f78362e7a2f8116b327fa6b756bdce23114b68143c4c9d2dd50eb",selected.normal_scenery?common::Family::Scenery:common::Family::Building};common::Window actual;
         if(!common::read_live_window(adapter,context,actual,error))return false;window=actual.window;return true;
     }
     uintptr_t actual=0,actual_entry=0;if(!group_reader::q::at(memory,window,0,actual,error)||actual!=ap||!group_reader::q::at(memory,ap,0x168,actual_entry,error)||actual_entry!=entry||
@@ -189,7 +189,7 @@ bool probe(const json& args,json& out,std::string& error){Job* active=nullptr;tr
     if(job.input.command=="Group"){action::GroupIntent intent{action::GroupKind::Group,job.input.keys};group_transition::Plan plan;
         if(!group_transition::plan(sample.groups.state,intent,plan,error))return stopped(job,error,error);}
     ProbeMemory adapter(r);common::Api api;
-    if(!common::resolve_api(adapter,r.image,"bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6",api,error,family))return stopped(job,error,error);
+    if(!common::resolve_api(adapter,r.image,"7efd8ee7b97f78362e7a2f8116b327fa6b756bdce23114b68143c4c9d2dd50eb",api,error,family))return stopped(job,error,error);
     const auto check=[&](const auto& guards){for(const auto& guard:guards){std::vector<unsigned char> actual(guard.size);if(!r.memory.read(r.image+guard.rva,actual.data(),actual.size(),error))return false;if(std::memcmp(actual.data(),guard.bytes,guard.size))return probe_contract::fail(error,"object_ui_exact_native_body_differs rva="+std::to_string(guard.rva));}return true;};
     if(!check(mt2mp::game::object_ui_code::guards)||!check(mt2mp::game::move_ui_probe::code::guards))return stopped(job,error,error);
     const bool duplicate=job.input.command=="Duplicate";
@@ -198,7 +198,7 @@ bool probe(const json& args,json& out,std::string& error){Job* active=nullptr;tr
     job.money=sample.money;
     if(!selection_ready(r,job,error))return stopped(job,error,error);
     job.revision=controller.value("host_revision",uint64_t(0));job.started_at=GetTickCount64();job.phase="attempted";
-    std::vector<uintptr_t> selected;for(const auto& handle:job.selected)selected.push_back(handle.object);const group_edit::Array array{r.image+0x1748c50,selected.data(),int32_t(selected.size()),int32_t(selected.size())};
+    std::vector<uintptr_t> selected;for(const auto& handle:job.selected)selected.push_back(handle.object);const group_edit::Array array{r.image+0x174eff0,selected.data(),int32_t(selected.size()),int32_t(selected.size())};
     job.exception=show(r.image,job.world.selection,&array,&api,&job.attempted_mask,&job.returned_mask);uintptr_t window=0;
     if(job.exception||!current(r,job,error)||!live_window(r,job,api,window,error)){
         stopped(job,error.empty()?"object_ui_original_selection_or_current_window_failed":error,error);

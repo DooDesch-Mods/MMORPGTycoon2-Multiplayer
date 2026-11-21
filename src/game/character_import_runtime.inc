@@ -8,7 +8,7 @@ void import_entry(void*,const void*);
 bool import_route(Memory& memory,std::string& error){
     if(!original_import)return fail(error,"Character image import original route is unavailable");
     MT2FW_MT2_RouteReceipt receipt{sizeof receipt};
-    if(!quest_list::read_route(state.image+0x689510,receipt,error))return false;
+    if(!quest_list::read_route(state.image+0x690720,receipt,error))return false;
     if(receipt.detour!=uintptr_t(&import_entry)||receipt.trampoline!=uintptr_t(original_import)||
        receipt.generation!=import_generation||receipt.state!=MT2FW_MT2_ROUTE_ENABLED)
         return fail(error,"Character image import active original route ownership differs");
@@ -17,7 +17,7 @@ bool import_route(Memory& memory,std::string& error){
     if(!memory.copy(uintptr_t(original_import),trampoline.data(),trampoline.size(),error))return false;
     std::memcpy(&resume,trampoline.data()+copied+6,8);
     if(!std::equal(receipt.pristine,receipt.pristine+copied,trampoline.begin())||
-       !std::equal(jump.begin(),jump.end(),trampoline.begin()+copied)||resume!=state.image+0x689510+copied)
+       !std::equal(jump.begin(),jump.end(),trampoline.begin()+copied)||resume!=state.image+0x690720+copied)
         return fail(error,"Character image import original six-byte instruction boundary differs");
     return true;
 }
@@ -26,7 +26,7 @@ bool import_view(Memory& memory,uintptr_t requested,character_import_view::State
     if(!character_rename::window(memory,0,out.view,editor,outer,error)||out.view!=requested||
        !field(memory,out.view,0x458,out.base,error)||!field(memory,out.view,0x460,out.selected,error)||
        !field(memory,out.view,0x3b8,out.prefabs,error)||!out.prefabs||
-       !field(memory,out.prefabs,0,ap,error)||ap!=state.image+0x1731f40||!field(memory,out.prefabs,0x358,out.notice,error))
+       !field(memory,out.prefabs,0,ap,error)||ap!=state.image+0x17382e0||!field(memory,out.prefabs,0x358,out.notice,error))
         return fail(error,error.empty()?"Character image import current View/owned Prefabs pane differs":error);
     return true;
 }
@@ -62,7 +62,7 @@ void import_entry(void* receiver,const void* image)try{
     const auto caller=uintptr_t(_ReturnAddress())-state.image;
     std::string error;Memory memory;a::Binding binding;const auto snapshot=net::current_snapshot_id();
     const auto controller=typed_action_runtime::controller_status();
-    if((caller!=0x689cf4&&caller!=0xc14a67&&caller!=0xc14fd1)||!ready||fault||pending||executing||
+    if((caller!=0x690f04&&caller!=0xc211e7&&caller!=0xc21751)||!ready||fault||pending||executing||
        GetCurrentThreadId()!=state.thread||!controller.value("started",false)||controller.value("locked",true)||controller.value("pending",true)||
        !code(memory,error)||!import_route(memory,error)||!typed_action_runtime::network_binding(snapshot,binding,error)){
         reject(error.empty()?"Character image import capture requires its original File/URL caller and idle current Mainthread Controller":error);return;}
@@ -128,16 +128,16 @@ a::Outcome perform_import(Memory& memory,const a::Binding& binding,const a::Requ
 bool import_presentation(void* view,void* selected,uintptr_t caller,bool& handled,std::string& error){
     handled=false;if(!import_tail.armed)return true;handled=true;
     if(GetCurrentThreadId()!=state.thread||uintptr_t(view)!=import_tail.view||uintptr_t(selected)!=import_tail.target||
-       caller!=state.image+0x68997a||import_tail.calls++){
+       caller!=state.image+0x690b8a||import_tail.calls++){
         fault=true;return fail(error,"Character image import scoped presentation receiver/selected/caller/thread/count differs");}
     if(!import_tail.preserve)ability_edit::original_view_select(view,selected);return true;
 }
 bool enable_import(std::string& error){
     Memory memory;if(original_import)return import_route(memory,error);
-    const auto status=MH_CreateHook(reinterpret_cast<void*>(state.image+0x689510),reinterpret_cast<void*>(&import_entry),reinterpret_cast<void**>(&original_import));
+    const auto status=MH_CreateHook(reinterpret_cast<void*>(state.image+0x690720),reinterpret_cast<void*>(&import_entry),reinterpret_cast<void**>(&original_import));
     if(status!=MH_OK||!original_import)return fail(error,"Character image import prepare failed status="+std::to_string(status)+" cause="+hooks::framework::process_backend().error());
-    MT2FW_MT2_RouteReceipt receipt{sizeof receipt};if(!quest_list::read_route(state.image+0x689510,receipt,error))return false;import_generation=receipt.generation;
-    const auto enabled=MH_EnableHook(reinterpret_cast<void*>(state.image+0x689510));
+    MT2FW_MT2_RouteReceipt receipt{sizeof receipt};if(!quest_list::read_route(state.image+0x690720,receipt,error))return false;import_generation=receipt.generation;
+    const auto enabled=MH_EnableHook(reinterpret_cast<void*>(state.image+0x690720));
     if(enabled!=MH_OK)return fail(error,"Character image import enable failed status="+std::to_string(enabled));
     return import_route(memory,error);
 }

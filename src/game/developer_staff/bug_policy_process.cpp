@@ -33,7 +33,7 @@ bool code(uintptr_t image,std::string& e){
         if(!memory.copy(image+body.rva,bytes.data(),bytes.size(),e))return false;
         if(!hooks::framework::verify_original_hash(image+body.rva,bytes.data(),bytes.size(),body.sha,e))return fail(e,"Bug-C policy original complete body differs RVA="+std::to_string(body.rva)+" original="+e);}}
     catch(const std::exception& ex){return fail(e,std::string("Bug-C policy native body hash failed original=")+ex.what());}
-    return hud_time_runtime::verify_window_show_hook(image+0x81ec20,e);
+    return hud_time_runtime::verify_window_show_hook(image+0x827210,e);
 }
 struct NativePort final:Port {
     uintptr_t image=0;

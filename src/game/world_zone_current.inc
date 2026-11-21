@@ -13,7 +13,7 @@ bool resolve_world_zone(const action_session::Binding& binding,const std::string
     auto find=[&](uint64_t value,uintptr_t& pointer,std::string& cause){const auto exception=exact_uid(value,pointer);
         return !exception||q::fail(cause,"World Zone target FindUID failed exception="+std::to_string(exception));};
     uintptr_t root=0,region=0,manager=0,registered=0;uint64_t actual_uid=0;int32_t type=-1;
-    if(!q::typed(memory,image,object,0x1745ce0,error)||!at(object,0x18,actual_uid,error)||!at(object,0x170,root,error)||
+    if(!q::typed(memory,image,object,0x174c080,error)||!at(object,0x18,actual_uid,error)||!at(object,0x170,root,error)||
        !at(object,0x178,region,error)||!at(object,0x24c,type,error)||!at(region,0x968,manager,error)||!find(uid,registered,error))return false;
     if(actual_uid!=uid||registered!=object||type<0||type>3)return q::fail(error,"World Zone target exact full UID/class/type differs");
     const q::SavedPool* monsters=nullptr;std::string scene="root";const auto map=reinterpret_cast<uintptr_t>(world.map);

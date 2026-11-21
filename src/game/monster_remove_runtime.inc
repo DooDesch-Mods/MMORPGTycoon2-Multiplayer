@@ -24,22 +24,22 @@ bool remove_code(Memory& m,std::string& e){
         if(!m.copy(state.image+c.rva,bytes.data(),bytes.size(),e)||!quest_bridge::sha256(bytes,sha,e))return false;
         if(sha!=c.sha)return fail(e,"Monster Remove native body differs RVA="+std::to_string(c.rva));}
     const std::array<std::array<uintptr_t,3>,4> quest_methods{{
-        {0x174ac10,8,0x4d80f0},{0x1713330,0x18,0xbeef60},{0x1713330,0x20,0xbeef80},{0x1713330,0x28,0xbeef70}}};
+        {0x1750fb0,8,0x4ddfb0},{0x17196d0,0x18,0xbfb5e0},{0x17196d0,0x20,0xbfb600},{0x17196d0,0x28,0xbfb5f0}}};
     for(const auto& method:quest_methods){uintptr_t actual=0;
         if(!field(m,state.image+method[0],method[1],actual,e)||actual!=state.image+method[2])
             return fail(e,e.empty()?"Monster Quest destructor or inverse virtual method differs":e);}
     uintptr_t command=0,destroy=0,cost=0,undo=0;
-    return field(m,state.image+0x16c0770,0xb0,command,e)&&command==state.image+0x3bc9a0&&
-        field(m,state.image+0x16c0770,0x160,destroy,e)&&destroy==state.image+0x3bc530&&
-        field(m,state.image+0x16c0770,0x278,cost,e)&&cost==state.image+0xe3f510&&
-        field(m,state.image+0x16c0770,0xe0,undo,e)&&undo==state.image+0xcf3050||fail(e,e.empty()?"Monster Remove original virtual methods differ":e);
+    return field(m,state.image+0x16c6b10,0xb0,command,e)&&command==state.image+0x3c14b0&&
+        field(m,state.image+0x16c6b10,0x160,destroy,e)&&destroy==state.image+0x3c1040&&
+        field(m,state.image+0x16c6b10,0x278,cost,e)&&cost==state.image+0xe4b000&&
+        field(m,state.image+0x16c6b10,0xe0,undo,e)&&undo==state.image+0xcfe790||fail(e,e.empty()?"Monster Remove original virtual methods differ":e);
 }
 uint32_t remove_original(uintptr_t manager,uintptr_t object)noexcept{
-    __try{reinterpret_cast<void(*)(void*,void*)>(state.image+0x2d5520)(reinterpret_cast<void*>(manager),reinterpret_cast<void*>(object));return 0;}
+    __try{reinterpret_cast<void(*)(void*,void*)>(state.image+0x2d8c10)(reinterpret_cast<void*>(manager),reinterpret_cast<void*>(object));return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 uint32_t spatial_has(uintptr_t spatial,uintptr_t token,bool& present)noexcept{
-    __try{present=reinterpret_cast<bool(*)(const void*,const void*)>(state.image+0x874df0)(reinterpret_cast<const void*>(spatial),reinterpret_cast<const void*>(token));return 0;}
+    __try{present=reinterpret_cast<bool(*)(const void*,const void*)>(state.image+0x87dbb0)(reinterpret_cast<const void*>(spatial),reinterpret_cast<const void*>(token));return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 bool remove_absent(Memory& m,const Pin& p,const d::Sample& after,const RemoveOperation& op,std::string& e){
@@ -88,7 +88,7 @@ bool remove_inverse(Memory& m,const Pin& p,const RemoveOperation& op,const d::Sa
        !field(m,inverse,0xf8,zone,e)||!field(m,inverse,0x100,rotation,e)||!field(m,inverse,0x110,position,e)||
        !field(m,inverse,0x11c,scale,e)||!field(m,inverse,0x16c,level,e)||!field(m,inverse,0x170,id,e))return false;
     const auto& actor=op.evidence.monster_before.actor;
-    return (ap==state.image+0x1706550&&uid==op.birth.uid&&root==p.region.root&&region==p.region.region&&
+    return (ap==state.image+0x170c8f0&&uid==op.birth.uid&&root==p.region.root&&region==p.region.region&&
         rank==actor.rank&&!zone&&rotation==actor.rotation&&position==actor.position&&scale==actor.scale&&level==actor.level&&
         name==actor.name&&id==op.character_id)||fail(e,"Monster Remove original DoMakeMonster identity/name/owner/pose/level inverse differs");
 }
@@ -121,7 +121,7 @@ static bool remove_bound_local(const a::Binding& binding,const std::string& snap
     if(!state.ready||GetCurrentThreadId()!=state.thread||!ui_remove_runtime::enabled())
         return fail(e,"Monster Remove capture requires ready Mainthread and enabled original hook");
     Memory m;uintptr_t ap=0,region=0;uint64_t uid=0;int32_t saved=-1;
-    if(!remove_code(m,e)||!field(m,object,0,ap,e)||ap!=state.image+0x16c0770||!field(m,object,0x18,uid,e)||
+    if(!remove_code(m,e)||!field(m,object,0,ap,e)||ap!=state.image+0x16c6b10||!field(m,object,0x18,uid,e)||
        !field(m,object,0x178,region,e)||!field(m,region,0x834,saved,e))return fail(e,e.empty()?"Monster Remove capture class/full UID/Region differs":e);
     Pin p;d::Sample sample;std::string key;
     if(!direct_receiver(m,binding,snapshot,object,uid,key,e)||!direct_target_pin(m,binding,snapshot,monster_target_key::argument(key),saved,p,e))return false;

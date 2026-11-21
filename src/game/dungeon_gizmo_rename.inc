@@ -2,14 +2,14 @@ namespace dungeon_gizmo {
 namespace {
 struct RenameText{const char* data=nullptr;size_t size=0;std::array<uint8_t,16> storage{};};
 uint32_t rename_original(uintptr_t object,const RenameText& value,bool& returned)noexcept{
-    returned=false;__try{reinterpret_cast<void(*)(void*,const RenameText*)>(state.image+0x4cf710)(reinterpret_cast<void*>(object),&value);returned=true;return 0;}
+    returned=false;__try{reinterpret_cast<void(*)(void*,const RenameText*)>(state.image+0x4d5490)(reinterpret_cast<void*>(object),&value);returned=true;return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 bool rename_code(Memory& memory,std::string& error){
     std::array<unsigned char,16> original{};
-    return memory.copy(state.image+0x4cf710,original.data(),original.size(),error)&&
-        hooks::framework::verify_original_hash(state.image+0x4cf710,original.data(),original.size(),
-            "a09973ac6e34d4b78efa50878d5da6dfd7004a87abee0fec1014e20f7119aeaf",error);
+    return memory.copy(state.image+0x4d5490,original.data(),original.size(),error)&&
+        hooks::framework::verify_original_hash(state.image+0x4d5490,original.data(),original.size(),
+            "9c8ca9aedcea34fab0b67d35965958bb416129b7d3ed5a144ed05dd9b2c1207e",error);
 }
 }
 bool rename_target(uintptr_t object,std::string& key,std::string& scene,std::string& error){

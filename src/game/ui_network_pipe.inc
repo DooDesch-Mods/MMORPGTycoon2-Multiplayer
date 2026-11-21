@@ -20,32 +20,32 @@ bool code(region::Runtime& r,bool hooked,std::string& e){
     }return true;
 }
 uint32_t call(uintptr_t image,unsigned step,uintptr_t tool,uintptr_t cursor,const Point& point){
-    __try{if(step==0)reinterpret_cast<void(*)(void*)>(image+0x580870)(reinterpret_cast<void*>(tool));
-        else if(step==1)reinterpret_cast<Press>(image+0x5c7340)(reinterpret_cast<void*>(tool),reinterpret_cast<void*>(cursor),point.data());
+    __try{if(step==0)reinterpret_cast<void(*)(void*)>(image+0x587030)(reinterpret_cast<void*>(tool));
+        else if(step==1)reinterpret_cast<Press>(image+0x5cda90)(reinterpret_cast<void*>(tool),reinterpret_cast<void*>(cursor),point.data());
         else if(step==2)state.press(reinterpret_cast<void*>(tool),reinterpret_cast<void*>(cursor),point.data());
-        else if(step==3)reinterpret_cast<void(*)(void*,void*)>(image+0x5854e0)(reinterpret_cast<void*>(cursor),nullptr);
-        else reinterpret_cast<Press>(image+0x5c7970)(reinterpret_cast<void*>(tool),reinterpret_cast<void*>(cursor),point.data());return 0;
+        else if(step==3)reinterpret_cast<void(*)(void*,void*)>(image+0x58bca0)(reinterpret_cast<void*>(cursor),nullptr);
+        else reinterpret_cast<Press>(image+0x5ce0c0)(reinterpret_cast<void*>(tool),reinterpret_cast<void*>(cursor),point.data());return 0;
     }__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 uint32_t price(uintptr_t image,uintptr_t definition,float length,int32_t& value){
-    __try{value=reinterpret_cast<int32_t(*)(void*,float)>(image+0x430250)(reinterpret_cast<void*>(definition),length);return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
+    __try{value=reinterpret_cast<int32_t(*)(void*,float)>(image+0x435030)(reinterpret_cast<void*>(definition),length);return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 uint32_t settled_height(uintptr_t image,uintptr_t map,const Point& point,float& height){
-    __try{height=reinterpret_cast<float(*)(void*,const void*)>(image+0x32ab80)(reinterpret_cast<void*>(map),point.data());return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
+    __try{height=reinterpret_cast<float(*)(void*,const void*)>(image+0x32ec10)(reinterpret_cast<void*>(map),point.data());return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 uint32_t inverse_price(uintptr_t image,uintptr_t object,int32_t& value){
-    __try{value=reinterpret_cast<int32_t(*)(const void*)>(image+0x4332d0)(reinterpret_cast<const void*>(object));return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
+    __try{value=reinterpret_cast<int32_t(*)(const void*)>(image+0x4380b0)(reinterpret_cast<const void*>(object));return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 uint32_t construct(uintptr_t image,uintptr_t& tool){
-    __try{tool=uintptr_t(reinterpret_cast<void*(*)(size_t)>(image+0xa02670)(0x240));if(!tool)return ERROR_OUTOFMEMORY;
-        reinterpret_cast<void(*)(void*)>(image+0x5c7ff0)(reinterpret_cast<void*>(tool));
+    __try{tool=uintptr_t(reinterpret_cast<void*(*)(size_t)>(image+0xa0d230)(0x240));if(!tool)return ERROR_OUTOFMEMORY;
+        reinterpret_cast<void(*)(void*)>(image+0x5ce740)(reinterpret_cast<void*>(tool));
         region::NativeString type{"Cable",5,{}},node{"Junction",8,{}};
-        reinterpret_cast<void(*)(void*,const void*,const void*)>(image+0x5c6600)(reinterpret_cast<void*>(tool),&type,&node);return 0;
+        reinterpret_cast<void(*)(void*,const void*,const void*)>(image+0x5ccd50)(reinterpret_cast<void*>(tool),&type,&node);return 0;
     }__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 uint32_t destroy(uintptr_t image,uintptr_t tool){
-    __try{reinterpret_cast<void(*)(void*)>(image+0x5c5a30)(reinterpret_cast<void*>(tool));
-        reinterpret_cast<void(*)(void*)>(image+0x5c6080)(reinterpret_cast<void*>(tool));return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
+    __try{reinterpret_cast<void(*)(void*)>(image+0x5cc180)(reinterpret_cast<void*>(tool));
+        reinterpret_cast<void(*)(void*)>(image+0x5cc7d0)(reinterpret_cast<void*>(tool));return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 bool preview(region::Runtime& r,uintptr_t tool,const reader::Graph& before,const action::NetworkState& network,Preview& out,std::string& e){
     if(!network_pipe_native::preview(r.memory,r.image,tool,before,network.graph_sha256,out,e)||
@@ -55,7 +55,7 @@ bool preview(region::Runtime& r,uintptr_t tool,const reader::Graph& before,const
 bool purchase_entry(void* def,float length,const void* point){
     if(!state.capture_receiver)return state.purchase(def,length,point);
     std::string e;auto* r=runtime(e);if(!r){rejected(e);return false;}const auto caller=uintptr_t(_ReturnAddress());
-    if(caller!=r->image+0x5c7b26&&caller!=r->image+0x5c7b8c){rejected("network Pipe Purchase caller differs from original Press");return false;}
+    if(caller!=r->image+0x5ce276&&caller!=r->image+0x5ce2dc){rejected("network Pipe Purchase caller differs from original Press");return false;}
     if(state.pending||state.captured){rejected("network Pipe intent already retained");return false;}
     uintptr_t region_object=0;int32_t id=-1;region::LocalView view;reader::Graph before;action::NetworkState network;Preview actual;Point endpoint{};
     if(!region::at(*r,state.capture_receiver,0x200,region_object,e)||!region::at(*r,region_object,0x834,id,e)||!region::identity(*r,id,region_object,view,e)||
@@ -92,8 +92,8 @@ void press_entry(void* receiver,void* cursor,const void* point){
 bool enable(region::Runtime& r,std::string& e){
     if(state.attempted)return fail(e,"network Pipe hook installation already attempted");state.attempted=true;if(!code(r,false,e))return false;
     struct Hook{uintptr_t rva;void* entry;void** original;};const Hook hooks[]{
-        {0x5c7970,reinterpret_cast<void*>(&press_entry),reinterpret_cast<void**>(&state.press)},
-        {0x433e80,reinterpret_cast<void*>(&purchase_entry),reinterpret_cast<void**>(&state.purchase)}};
+        {0x5ce0c0,reinterpret_cast<void*>(&press_entry),reinterpret_cast<void**>(&state.press)},
+        {0x438c60,reinterpret_cast<void*>(&purchase_entry),reinterpret_cast<void**>(&state.purchase)}};
     for(const auto& h:hooks){const auto result=MH_CreateHook(reinterpret_cast<void*>(r.image+h.rva),h.entry,h.original);if(result!=MH_OK||!*h.original)return fail(e,"network Pipe MH_CreateHook RVA="+std::to_string(h.rva)+" status="+std::to_string(result));}
     if(!mt2mp::hooks::enable_prepared_routes(r.image,hooks,"network Pipe hook",e))return false;
     if(!code(r,true,e))return false;state.ready=true;return true;
@@ -104,11 +104,11 @@ bool inverse(region::Runtime& r,const undo::UndoWitness& before,const undo::Undo
     const int32_t expected=op.new_uid?3:2;if(witness.operations!=expected)return fail(e,"network Pipe Undo count actual="+std::to_string(witness.operations)+" required="+std::to_string(expected));
     uintptr_t data=0;if(!region::at(r,address,0x20,data,e))return false;size_t index=0;
     auto removed=[&](uint64_t expected_uid){uintptr_t destroy_op=0;uint64_t uid=0;
-        if(!region::at(r,data,8*index++,destroy_op,e)||!reader::read::ap(r.memory,destroy_op,r.image,0x16de860,e)||!region::at(r,destroy_op,0xb8,uid,e))return false;
+        if(!region::at(r,data,8*index++,destroy_op,e)||!reader::read::ap(r.memory,destroy_op,r.image,0x16e4c00,e)||!region::at(r,destroy_op,0xb8,uid,e))return false;
         return uid==expected_uid||fail(e,"network Pipe Undo destroy UID differs from actual created object");};
     if(op.new_uid&&!removed(op.new_uid))return false;
     uintptr_t cash=0;Point actual{},position{};
-    if(!region::at(r,data,8*index++,cash,e)||!reader::read::ap(r.memory,cash,r.image,0x1786fb0,e)||!region::at(r,cash,0xb8,op.inverse_cost,e)||
+    if(!region::at(r,data,8*index++,cash,e)||!reader::read::ap(r.memory,cash,r.image,0x178d350,e)||!region::at(r,cash,0xb8,op.inverse_cost,e)||
        !region::at(r,cash,0xbc,actual,e)||!region::at(r,op.created,0x110,position,e))return false;
     int32_t expected_cost=-1;if(!native_error(inverse_price(r.image,op.created,expected_cost),"Pipe inverse Cost",e))return false;
     if(actual!=position||op.inverse_cost<0||op.inverse_cost!=expected_cost)return fail(e,"network Pipe Undo native cash/position differs from original Cost");
@@ -121,10 +121,10 @@ action::Outcome perform(const action::Binding& binding,const action::Request& re
     const auto controller=typed_action_runtime::status();if(!ordered&&(!controller.value("pending",false)||controller.value("action_uuid",std::string{})!=request.action_uuid)){e="network Pipe requires exact pending Controller action";return action::Outcome::RejectedNoEffect;}
     const auto& intent=request.network_pipe;region::LocalView view;reader::Graph before;action::NetworkState network;action::Ledger money;undo::UndoWitness before_undo;uintptr_t cursor=0;
     if(!code(*r,true,e)||!region::identity(*r,intent.region,0,view,e)||!region::bound(view,binding,request.snapshot_uuid,e)||!graph(*r,view,before,network,e)||
-       !region::ledger(money,e)||!undo::read_undo(r->memory,r->image,before_undo,e)||!region::at(*r,r->image,0x13df9d0,cursor,e)||!reader::read::ap(r->memory,cursor,r->image,0x1786dd0,e))return action::Outcome::RejectedNoEffect;
+       !region::ledger(money,e)||!undo::read_undo(r->memory,r->image,before_undo,e)||!region::at(*r,r->image,0x13eb9d0,cursor,e)||!reader::read::ap(r->memory,cursor,r->image,0x178d170,e))return action::Outcome::RejectedNoEffect;
     if(network.graph_sha256!=intent.graph_before_sha256||before_undo.active_graph||!money.record_present||money.cash<intent.quoted_cost){e="network Pipe before digest/Undo/cash admission differs";return action::Outcome::RejectedNoEffect;}
     if(authority&&(money!=authority->before||network!=authority->network_before)){e="network Pipe Client before differs from Host";return action::Outcome::RejectedNoEffect;}
-    uintptr_t shards=0,active_shard=0;if(!region::at(*r,r->image,0x13df440,shards,e)||!reader::read::ap(r->memory,shards,r->image,0x1702b00,e)||!region::at(*r,shards,0x60,active_shard,e))return action::Outcome::RejectedNoEffect;
+    uintptr_t shards=0,active_shard=0;if(!region::at(*r,r->image,0x13eb440,shards,e)||!reader::read::ap(r->memory,shards,r->image,0x1708ea0,e)||!region::at(*r,shards,0x60,active_shard,e))return action::Outcome::RejectedNoEffect;
     if(active_shard!=view.world.root){e="network Pipe original Purchase requires actual root view shard";return action::Outcome::RejectedNoEffect;}
     auto settled=intent;
     // Original AddNode replaces input Y with the map point height before setting the endpoint.

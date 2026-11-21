@@ -9,7 +9,7 @@ namespace {
 struct Scope {const Anchor* callback=nullptr;std::string* cause=nullptr;bool failed=false;};
 thread_local Scope* current=nullptr;
 bool add(uintptr_t image,uintptr_t collection,int type,float reproducibility,uintptr_t& result,uint32_t& exception){
-    __try{result=reinterpret_cast<uintptr_t(*)(uintptr_t,int,float)>(image+0x59a00)(collection,type,reproducibility);return true;}
+    __try{result=reinterpret_cast<uintptr_t(*)(uintptr_t,int,float)>(image+0x59f00)(collection,type,reproducibility);return true;}
     __except(EXCEPTION_EXECUTE_HANDLER){exception=GetExceptionCode();return false;}
 }
 bool set_anchor(SetAnchor original,uintptr_t bug,uintptr_t parent,uint32_t& exception){
@@ -18,20 +18,20 @@ bool set_anchor(SetAnchor original,uintptr_t bug,uintptr_t parent,uint32_t& exce
 }
 bool attach_collection(const Lease* lease,uintptr_t& result,uint32_t& exception){
     __try{
-        result=reinterpret_cast<uintptr_t(*)(size_t)>(lease->image+0xa02670)(0x50);
-        reinterpret_cast<void(*)(uintptr_t)>(lease->image+0x59c40)(result);
-        reinterpret_cast<void(*)(uintptr_t,uintptr_t)>(lease->image+(lease->kind==Parent::Building?0x406400:0x3c4790))(lease->parent,result);
+        result=reinterpret_cast<uintptr_t(*)(size_t)>(lease->image+0xa0d230)(0x50);
+        reinterpret_cast<void(*)(uintptr_t)>(lease->image+0x5a140)(result);
+        reinterpret_cast<void(*)(uintptr_t,uintptr_t)>(lease->image+(lease->kind==Parent::Building?0x40afc0:0x3c92a0))(lease->parent,result);
         return true;
     }__except(EXCEPTION_EXECUTE_HANDLER){exception=GetExceptionCode();return false;}
 }
 bool property(uintptr_t image,uintptr_t object,uintptr_t prop,uintptr_t load,const char* text,uint32_t& exception){
     initial_release::Record record{};bool constructed=false,ok=false;
     __try{
-        reinterpret_cast<initial_release::RecordCtor>(image+0x967370)(&record,text);constructed=true;
-        if(reinterpret_cast<initial_release::RecordEquals>(image+0x1113d80)(&record,text))
+        reinterpret_cast<initial_release::RecordCtor>(image+0x970590)(&record,text);constructed=true;
+        if(reinterpret_cast<initial_release::RecordEquals>(image+0x111f720)(&record,text))
             ok=reinterpret_cast<bool(*)(uintptr_t,uintptr_t,void*,void*)>(image+load)(image+prop,object,&record,nullptr);
     }__except(EXCEPTION_EXECUTE_HANDLER){exception=GetExceptionCode();}
-    if(constructed){__try{reinterpret_cast<initial_release::RecordDtor>(image+0x9676a0)(&record);}
+    if(constructed){__try{reinterpret_cast<initial_release::RecordDtor>(image+0x9708c0)(&record);}
         __except(EXCEPTION_EXECUTE_HANDLER){if(!exception)exception=GetExceptionCode();ok=false;}}
     return ok&&!exception;
 }
@@ -76,8 +76,8 @@ bool NativeServices::scalars(const Lease& lease,uintptr_t bug,const Value& value
         "toonsAffected "+std::to_string(value.toons),"reproducibility "+std::string(floating.data(),converted.ptr),
         "variantId "+std::to_string(value.variant),std::string("known ")+(value.known?"true":"false"),
         std::string("manualJob ")+(value.manual?"true":"false"),std::string("beingDebugged ")+(value.debugged?"true":"false")};
-    constexpr std::array<uintptr_t,9> properties={0x13b69e0,0x13b69a0,0x13b6960,0x13b6920,0x13b68e0,0x13b68a0,0x13b6860,0x13b6820,0x13b67e0};
-    constexpr std::array<uintptr_t,9> loads={0xd0f770,0xd30470,0xd30470,0xd30470,0xd2a9b0,0xd30470,0xd257f0,0xd257f0,0xd257f0};
+    constexpr std::array<uintptr_t,9> properties={0x13c29e0,0x13c29a0,0x13c2960,0x13c2920,0x13c28e0,0x13c28a0,0x13c2860,0x13c2820,0x13c27e0};
+    constexpr std::array<uintptr_t,9> loads={0xd1aeb0,0xd3bbb0,0xd3bbb0,0xd3bbb0,0xd360f0,0xd3bbb0,0xd30f30,0xd30f30,0xd30f30};
     for(size_t index=0;index<records.size();++index){
         uint32_t exception=0;
         if(!property(lease.image,bug,properties[index],loads[index],records[index].c_str(),exception)){

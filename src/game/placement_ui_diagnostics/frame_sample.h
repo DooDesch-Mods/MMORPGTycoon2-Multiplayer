@@ -21,9 +21,9 @@ inline nlohmann::json sample(placement_ui_probe::Memory& memory,const placement_
     };
     if(dt&&!std::isfinite(*dt))return finish("build_ui_frame_dt_not_finite");
     uintptr_t cursor=0,ap=0,active=0,capture=0,trap=0;
-    if(!field(binding.context.image,0x13df9d0,cursor)||!field(cursor,0,ap))return finish(error);
+    if(!field(binding.context.image,0x13eb9d0,cursor)||!field(cursor,0,ap))return finish(error);
     out["current_cursor"]=cursor;out["cursor_class_addresspoint"]=ap;out["cursor_matches_binding"]=cursor==binding.cursor;
-    if(ap!=binding.context.image+0x1786dd0)return finish("build_ui_frame_current_cursor_class_differs");
+    if(ap!=binding.context.image+0x178d170)return finish("build_ui_frame_current_cursor_class_differs");
     std::array<float,3> world_pick{};std::array<float,2> screen{};std::array<uint8_t,3> ui_flags{};std::array<uint8_t,2> input{};
     uint8_t enabled=0,input_gate=0,trap_gate=0;
     if(!field(cursor,0x190,active)||!field(cursor,0x180,capture)||!field(cursor,0x1d8,trap)||
@@ -40,14 +40,14 @@ inline nlohmann::json sample(placement_ui_probe::Memory& memory,const placement_
     for(float value:world_pick)if(!std::isfinite(value))return finish("build_ui_frame_cursor_world_pick_not_finite");
     if(!field(binding.behaviour,0,ap))return finish(error);
     out["expected_build_class_addresspoint"]=ap;
-    if(ap!=binding.context.image+(binding.family==placement_ui_probe::Family::Scenery?0x17396b0:0x17327d0))return finish("build_ui_frame_expected_build_class_differs");
+    if(ap!=binding.context.image+(binding.family==placement_ui_probe::Family::Scenery?0x173fa50:0x1738b70))return finish("build_ui_frame_expected_build_class_differs");
     std::array<uint8_t,3> flags{};uint8_t obstruction=0;uintptr_t ghost=0,blueprint=0;
     if(!field(binding.behaviour,binding.family==placement_ui_probe::Family::Scenery?0x6c0:0x660,flags)||!field(binding.behaviour,binding.family==placement_ui_probe::Family::Scenery?0x6b9:0x659,obstruction)||
        !field(binding.behaviour,binding.family==placement_ui_probe::Family::Scenery?0xb58:0x6b8,ghost)||!field(binding.behaviour,binding.family==placement_ui_probe::Family::Scenery?0xb50:0x6c0,blueprint))return finish(error);
     out["build_active_pending_abort"]=flags;out["placement_obstruction_291"]=obstruction;out["ghost"]=ghost;out["blueprint"]=blueprint;
     if(!ghost)return finish("build_ui_frame_native_ghost_absent");
     if(!field(ghost,0,ap))return finish(error);out["ghost_class_addresspoint"]=ap;
-    if(ap!=binding.context.image+0x1705230)return finish("build_ui_frame_native_ghost_class_differs");
+    if(ap!=binding.context.image+0x170b5d0)return finish("build_ui_frame_native_ghost_class_differs");
     std::array<float,3> position{},scale{};std::array<float,4> rotation{};
     if(!field(ghost,0x110,position)||!field(ghost,0x100,rotation)||!field(ghost,0x11c,scale))return finish(error);
     out["ghost_pose"]={{"position",position},{"rotation",rotation},{"scale",scale}};

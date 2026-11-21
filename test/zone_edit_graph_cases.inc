@@ -81,8 +81,8 @@ inline unsigned run(){
     {Memory memory;put_stored58(memory,false);memory.put(uintptr_t(0x500000),poly58::VectorView{});StoredMemory58 port{memory};stored58::Stored value;
         require58(stored58::read(port,image,0x10000,value,cause58)&&value.shape.empty(),"Stored reader invented a nonempty shape requirement");}
     for(int invalid58=0;invalid58<8;++invalid58){Memory memory;put_stored58(memory,false);
-        if(invalid58==0)memory.put(uintptr_t(0x10000),image+0x16e4a08);
-        if(invalid58==1)memory.put(image+0x16e4a00+0x10,image+0x55bd51);
+        if(invalid58==0)memory.put(uintptr_t(0x10000),image+0x16eada8);
+        if(invalid58==1)memory.put(image+0x16eada0+0x10,image+0x5623e1);
         if(invalid58==2)memory.put(uintptr_t(0x100b8),uint64_t(0));
         if(invalid58==3)memory.put(uintptr_t(0x10138),uintptr_t(0));
         if(invalid58==4)memory.put(uintptr_t(0x10140),uintptr_t(0));

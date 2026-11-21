@@ -51,7 +51,7 @@ struct Route {uintptr_t rva;size_t bytes,stolen;const char* sha;uintptr_t ap;UI 
 struct Runtime {DWORD thread=GetCurrentThreadId();uintptr_t image=0,presentation_window=0;size_t image_bytes=0;
     release_ui_owner::Owner postresolve_owner;release_graph_native::PostResolve postresolve=nullptr;bool install_attempted=false,ready=false,unknown=false;placement_ui_probe::ProcessMemory memory;
     std::optional<Pending> pending;std::map<std::string,Pending> presentations;std::map<std::string,Operation> operations;std::map<std::string,nlohmann::json> ui_proofs;bool ui_proof_locked=false;std::string ui_proof_cause;uint64_t captures=0,submitted=0,rejected=0;std::string cause;
-    std::array<Route,3> routes{{{0x79baa0,1840,6,"bbc3f16988ec42c6fd77f3dc59f929b67f6d4c01f0c025afa0aec3c66ac8f542",0x171fe80},{0x79d8b0,784,11,"105796f231015274d19186f55d8713a89d681fb849de3b8a12f5d485d0c7b4f3",0x17338a0},{0x69ef10,528,8,"445d5464b3260595c7358d14d7049dd138361682bdc0b51487b2421a23745fbc",0x1721d20}}};
+    std::array<Route,3> routes{{{0x7a3ca0,1840,6,"295d3b0444b8bbfa345a7193b71ca57f63e66818bb384546d2031aeabccbf0b7",0x1726220},{0x7a5ab0,784,11,"43a0cc98a7d2db9e3ad27741e4ef324888570eda70235fa06c0600615da07484",0x1739c40},{0x6a6210,528,8,"7b6c1d74db2f718affb9c7b8cee91df872fb9e1a176fbce54bca55b8860a25eb",0x17280c0}}};
 };
 std::atomic<Runtime*> published{nullptr};
 bool fail(std::string& e,const std::string& cause){e=cause;return false;}
@@ -64,7 +64,7 @@ bool string(Runtime& r,uintptr_t address,std::string& value,std::string& e){uint
 std::string hash(const std::string& value){return mt2mp::sha256(std::vector<unsigned char>(value.begin(),value.end()));}
 bool context(Runtime& r,const a::Context& c,const a::Binding& b,live::Pin& pin,std::string& e,bool ordered=false){
     a::Context actual;uintptr_t image=0;uint32_t thread=0;std::string sha;
-    if(GetCurrentThreadId()!=r.thread||!a::selected_session().current(actual,e)||actual!=c||!native::read_resolver_receipt(image,thread,sha,e)||image!=r.image||thread!=r.thread||sha!="bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6")return fail(e,e.empty()?"Release actual Session/Mainthread/EXE differs":e);
+    if(GetCurrentThreadId()!=r.thread||!a::selected_session().current(actual,e)||actual!=c||!native::read_resolver_receipt(image,thread,sha,e)||image!=r.image||thread!=r.thread||sha!="7efd8ee7b97f78362e7a2f8116b327fa6b756bdce23114b68143c4c9d2dd50eb")return fail(e,e.empty()?"Release actual Session/Mainthread/EXE differs":e);
     live::NativePort port(c,b,nullptr);if(!port.read(pin,e))return false;
     if(!ordered&&c.role==a::Role::Client&&pin.selected!=0)return fail(e,"Release Client actual Clock requires0");return true;
 }
@@ -72,7 +72,7 @@ std::string uuid(std::string& e){unsigned char b[16]{};const auto code=BCryptGen
     b[6]=(b[6]&15)|64;b[8]=(b[8]&63)|128;char text[37]{};std::snprintf(text,sizeof text,"%02x%02x%02x%02x-%02x%02x-%02x%02x-%02x%02x-%02x%02x%02x%02x%02x%02x",b[0],b[1],b[2],b[3],b[4],b[5],b[6],b[7],b[8],b[9],b[10],b[11],b[12],b[13],b[14],b[15]);return text;
 }
 uint32_t command_label(uintptr_t image,void* record,uintptr_t& result)noexcept{
-    __try{result=uintptr_t(reinterpret_cast<const void*(*)(const void*)>(image+0x96d880)(record));return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
+    __try{result=uintptr_t(reinterpret_cast<const void*(*)(const void*)>(image+0x976aa0)(record));return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 
 bool code(Runtime& r,std::string& e){
@@ -84,11 +84,11 @@ bool code(Runtime& r,std::string& e){
     }
     if(r.postresolve_owner.generation){auto& owner=r.postresolve_owner;MT2FW_MT2_RouteReceipt receipt{};receipt.size=sizeof receipt;
         if(!hooks::framework::process_backend().read_route(reinterpret_cast<void*>(owner.entry),receipt)||receipt.state!=MT2FW_MT2_ROUTE_ENABLED||receipt.generation!=owner.generation||receipt.entry!=owner.entry||receipt.trampoline!=owner.trampoline||receipt.detour!=owner.detour||std::strcmp(receipt.owner,"doodesch.multiplayer"))return fail(e,"Release PostResolve actual named owner/generation differs");
-        if(!release_ui_owner::verify(owner,[&](auto address,auto out,auto count,auto& cause){return r.memory.copy(address,out,count,cause);},[](const auto& bytes){return mt2mp::sha256(bytes);},"a1edc1837751699deb1d9ebcd01f53442da8b9ad83733e848720cc0695a58ddd",e)||!hooks::framework::process_backend().verify_code(owner.entry,owner.pristine.data(),owner.pristine.size(),e))return false;}
+        if(!release_ui_owner::verify(owner,[&](auto address,auto out,auto count,auto& cause){return r.memory.copy(address,out,count,cause);},[](const auto& bytes){return mt2mp::sha256(bytes);},"c9b451ab1231afbbdb89576d3333a954f51d396d587715ec0c1eb321319bc880",e)||!hooks::framework::process_backend().verify_code(owner.entry,owner.pristine.data(),owner.pristine.size(),e))return false;}
     #include "release_edit_pins.inc"
     #include "release_cycle_pins.inc"
     for(const auto& pin:cycle_pins){
-        if(pin.rva==0x259d70){bool owned=false;
+        if(pin.rva==0x25ce30){bool owned=false;
             if(!control_input::runtime::verify_clock_time_scale(r.image,pin.bytes,pin.sha,owned,e))return false;
             if(owned)continue;
         }
@@ -123,7 +123,7 @@ bool collection(Runtime& r,uintptr_t owner,size_t offset,std::vector<uintptr_t>&
     if(count<0||count>4096||capacity<count||capacity>65536||(!data&&capacity))return fail(e,"Release UI owned collection extent invalid");out.resize(count);return !count||r.memory.copy(data,out.data(),out.size()*8,e);
 }
 bool window(Runtime& r,uintptr_t receiver,size_t route_index,std::string& e,bool require_visible=true){building_mixed_identity::opened_file::CurrentWorld world;
-    if(!native_open_runtime::read_current_world(world,e))return false;std::vector<uintptr_t> windows;if(!collection(r,route_index==1?r.image:uintptr_t(world.mode),route_index==1?0x1a3c470:0x98,windows,e))return false;
+    if(!native_open_runtime::read_current_world(world,e))return false;std::vector<uintptr_t> windows;if(!collection(r,route_index==1?r.image:uintptr_t(world.mode),route_index==1?0x1a43470:0x98,windows,e))return false;
     uintptr_t ap=0,logic=1;uint8_t visible=0;std::string name;
     if(std::count(windows.begin(),windows.end(),receiver)!=1||!at(r,receiver,0,ap,e)||ap!=r.image+r.routes[route_index].ap||!at(r,receiver,0x318,logic,e)||logic||!at(r,receiver,0x45f,visible,e)||visible>1||(require_visible&&visible!=1)||!string(r,receiver+0x1b0,name,e))return fail(e,e.empty()?"Release original UI class/current owner membership/visibility differs":e);
     if(route_index==0&&name!="release_hud")return fail(e,"Release HUD original window name differs");
@@ -136,8 +136,8 @@ bool child(Runtime& r,uintptr_t owner,uintptr_t object,std::string& e){std::set<
         if(matches!=1)return fail(e,"Release UI child lacks exact primary/secondary membership");current=parent;
     }return fail(e,"Release UI child hierarchy exceeds32");
 }
-uint32_t token_text(uintptr_t image,void* record,int index,uintptr_t& result)noexcept{__try{void* token=reinterpret_cast<void*(*)(void*,int)>(image+0x967740)(record,index);result=uintptr_t(reinterpret_cast<const void*(*)(const void*)>(image+0x96d880)(token));return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
-uint32_t pane_text(uintptr_t image,uintptr_t pane,uintptr_t& result)noexcept{__try{result=uintptr_t(reinterpret_cast<const void*(*)(const void*)>(image+0x7ebd60)(reinterpret_cast<const void*>(pane)));return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
+uint32_t token_text(uintptr_t image,void* record,int index,uintptr_t& result)noexcept{__try{void* token=reinterpret_cast<void*(*)(void*,int)>(image+0x970960)(record,index);result=uintptr_t(reinterpret_cast<const void*(*)(const void*)>(image+0x976aa0)(token));return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
+uint32_t pane_text(uintptr_t image,uintptr_t pane,uintptr_t& result)noexcept{__try{result=uintptr_t(reinterpret_cast<const void*(*)(const void*)>(image+0x7f40b0)(reinterpret_cast<const void*>(pane)));return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
 #include "release_cycle_runtime.inc"
 bool capture_edit(Runtime& r,size_t index,void* receiver,void* record,bool& handled,bool& accepted,std::string& e){
     handled=false;accepted=false;uintptr_t label=0;std::string command;const auto exception=command_label(r.image,record,label);
@@ -152,14 +152,14 @@ bool capture_edit(Runtime& r,size_t index,void* receiver,void* record,bool& hand
     const auto type=pending.intent.command;const bool has_text=type==p::Command::PlannerTitle||type==p::Command::Changelog||type==p::Command::Announcement;
     if(has_text){uintptr_t value=0;
         if(type==p::Command::PlannerTitle){if(count!=1)return fail(e,"Release planner title needs one original token");const auto seh=token_text(r.image,record,0,value);if(seh)return fail(e,"Release planner original token SEH="+std::to_string(seh));}
-        else{uintptr_t pane=0,ap=0;if(!at(r,pending.window,type==p::Command::Changelog?0x540:0x538,pane,e)||!at(r,pane,0,ap,e)||ap!=r.image+0x1703290||!child(r,pending.window,pane,e))return fail(e,e.empty()?"Release original edit pane differs":e);
+        else{uintptr_t pane=0,ap=0;if(!at(r,pending.window,type==p::Command::Changelog?0x540:0x538,pane,e)||!at(r,pane,0,ap,e)||ap!=r.image+0x1709630||!child(r,pending.window,pane,e))return fail(e,e.empty()?"Release original edit pane differs":e);
             const auto seh=pane_text(r.image,pane,value);if(seh)return fail(e,"Release original pane text SEH="+std::to_string(seh));
             if(!string(r,value,pending.intent.text,e))return false;
             if(type==p::Command::Announcement&&!pending.intent.text.empty()){if(count!=1)return fail(e,"Release nonempty announcement needs its original token");const auto seh=token_text(r.image,record,0,value);if(seh)return fail(e,"Release announcement token SEH="+std::to_string(seh));}
         }
         if(!string(r,value,pending.intent.text,e))return false;pending.intent.text_sha256=hash(pending.intent.text);
     }else if(count)return fail(e,"Release original scalar command has unexpected tokens");
-    if(type==p::Command::UseCustom){uintptr_t checkbox=0,table=0,getter=0;uint8_t value=2;if(!at(r,pending.window,0x560,checkbox,e)||!child(r,pending.window,checkbox,e)||!at(r,checkbox,0,table,e)||!at(r,table,0x1c0,getter,e)||getter!=r.image+0xd388c0||!at(r,checkbox,0x585,value,e)||value>1)return fail(e,e.empty()?"Release original checkbox getter/owner/value differs":e);pending.intent.custom=value;}
+    if(type==p::Command::UseCustom){uintptr_t checkbox=0,table=0,getter=0;uint8_t value=2;if(!at(r,pending.window,0x560,checkbox,e)||!child(r,pending.window,checkbox,e)||!at(r,checkbox,0,table,e)||!at(r,table,0x1c0,getter,e)||getter!=r.image+0xd44000||!at(r,checkbox,0x585,value,e)||value>1)return fail(e,e.empty()?"Release original checkbox getter/owner/value differs":e);pending.intent.custom=value;}
     p::Local local;p::State state;a::Ledger money;if(!p::valid(pending.intent)||!sample(r,pending.context,pending.binding,local,state,money,e,pending.ordered)||(pending.id=uuid(e)).empty())return false;
     r.presentations.emplace(pending.id,pending);r.pending=std::move(pending);++r.captures;accepted=true;return true;
 }
@@ -175,19 +175,19 @@ bool ui_entry(size_t index,void* receiver,void* record){auto* r=published.load(s
 bool hud_entry(void* receiver,void* record){return ui_entry(0,receiver,record);}bool planner_entry(void* receiver,void* record){return ui_entry(1,receiver,record);}bool celebration_entry(void* receiver,void* record){return ui_entry(2,receiver,record);}
 bool presentation(Runtime& r,Operation& op,std::string& e){const auto found=r.presentations.find(op.request.action_uuid);if(found==r.presentations.end())return true;if(op.ui_attempted)return op.ui_returned||fail(e,"Release source presentation already attempted; no replay");
     const auto& source=found->second;const auto index=source.intent.command==p::Command::SetType||source.intent.command==p::Command::PlannerTitle?1u:0u;
-    building_mixed_identity::opened_file::CurrentWorld world;if(!native_open_runtime::read_current_world(world,e))return false;std::vector<uintptr_t> windows;if(!collection(r,index==1?r.image:uintptr_t(world.mode),index==1?0x1a3c470:0x98,windows,e))return false;
+    building_mixed_identity::opened_file::CurrentWorld world;if(!native_open_runtime::read_current_world(world,e))return false;std::vector<uintptr_t> windows;if(!collection(r,index==1?r.image:uintptr_t(world.mode),index==1?0x1a43470:0x98,windows,e))return false;
     if(std::find(windows.begin(),windows.end(),source.window)==windows.end()){r.presentations.erase(found);LOG_INFO("[Release] Source window closed action={}",op.request.action_uuid);return true;}
     if(!window(r,source.window,index,e)||!code(r,e))return false;p::Local local,after_local;p::State before,after;a::Ledger money,after_money;if(!sample(r,op.context,op.binding,local,before,money,e,op.ordered))return false;op.ui_attempted=true;
-    if(op.evidence.release_edit_after->confirmation_required){uintptr_t game=0,game_ap=0;if(!at(r,r.image,0x13df8f0,game,e)||!at(r,game,0,game_ap,e)||game_ap!=r.image+0x1743740)return fail(e,e.empty()?"Release original confirmation Game owner differs":e);
+    if(op.evidence.release_edit_after->confirmation_required){uintptr_t game=0,game_ap=0;if(!at(r,r.image,0x13eb8f0,game,e)||!at(r,game,0,game_ap,e)||game_ap!=r.image+0x1749ae0)return fail(e,e.empty()?"Release original confirmation Game owner differs":e);
         n::String key(std::string("release_reset_custom_changelog")),extra(std::string{}),command(std::string("MessageTo WindowName \"release_hud\" ConfirmResetCustomText"));const auto seh=n::query_reset(r.image,game,key,extra,command);if(seh)return fail(e,"Release original confirmation SEH="+std::to_string(seh)+"; no replay");
         uintptr_t query=0,ap=0;uint8_t visible=0;std::string actual_extra,actual_command;
-        if(!at(r,game,0x1d8,query,e)||!at(r,query,0,ap,e)||ap!=r.image+0x16fd340||!at(r,query,0x45f,visible,e)||visible!=1||!string(r,query+0x508,actual_extra,e)||!string(r,query+0x528,actual_command,e)||!actual_extra.empty()||actual_command!="MessageTo WindowName \"release_hud\" ConfirmResetCustomText")return fail(e,e.empty()?"Release original confirmation registration/readback differs":e);
+        if(!at(r,game,0x1d8,query,e)||!at(r,query,0,ap,e)||ap!=r.image+0x17036e0||!at(r,query,0x45f,visible,e)||visible!=1||!string(r,query+0x508,actual_extra,e)||!string(r,query+0x528,actual_command,e)||!actual_extra.empty()||actual_command!="MessageTo WindowName \"release_hud\" ConfirmResetCustomText")return fail(e,e.empty()?"Release original confirmation registration/readback differs":e);
     }
     // World mutation is already ordered; only the original HUD setup is called here.
     if(index==0){const auto seh=n::refresh(r.image,source.window);if(seh)return fail(e,"Release original custom widgets refresh SEH="+std::to_string(seh));
         const auto type=source.intent.command;
         for(size_t field=2;field<4;++field){const bool reset=type==p::Command::ResetCustom||((type==p::Command::Changelog&&field==3||type==p::Command::Announcement&&field==2)&&source.intent.text.empty());if(!reset)continue;
-            uintptr_t pane=0,ap=0;if(!at(r,source.window,field==2?0x538:0x540,pane,e)||!at(r,pane,0,ap,e)||ap!=r.image+0x1703290||!child(r,source.window,pane,e))return fail(e,e.empty()?"Release original refreshed pane owner differs":e);
+            uintptr_t pane=0,ap=0;if(!at(r,source.window,field==2?0x538:0x540,pane,e)||!at(r,pane,0,ap,e)||ap!=r.image+0x1709630||!child(r,source.window,pane,e))return fail(e,e.empty()?"Release original refreshed pane owner differs":e);
             n::String text(before.text[field]);r.presentation_window=source.window;const auto exception=n::pane_set(r.image,pane,text);r.presentation_window=0;
             if(exception||r.unknown)return fail(e,exception?"Release original text presentation SEH="+std::to_string(exception):r.cause);
             uintptr_t actual=0;std::string value;const auto read_error=pane_text(r.image,pane,actual);if(read_error||!string(r,actual,value,e)||value!=before.text[field])return fail(e,e.empty()?"Release source original text readback differs":e);
@@ -198,15 +198,15 @@ bool presentation(Runtime& r,Operation& op,std::string& e){const auto found=r.pr
 struct UiFixtureCall {bool constructed=false,label=false,attempted=false,returned=false,accepted=false,cleaned=false;uint32_t exception=0,cleanup_exception=0;};
 void invoke_fixture(uintptr_t image,uintptr_t target,const char* command,UiFixtureCall& result)noexcept{
     initial_release::Record record{};
-    __try{reinterpret_cast<initial_release::RecordCtor>(image+0x967370)(&record,command);result.constructed=true;
-        result.label=reinterpret_cast<initial_release::RecordEquals>(image+0x1113d80)(&record,command);
-        if(result.label){result.attempted=true;result.accepted=reinterpret_cast<UI>(image+0x79d8b0)(reinterpret_cast<void*>(target),&record);result.returned=true;}}
+    __try{reinterpret_cast<initial_release::RecordCtor>(image+0x970590)(&record,command);result.constructed=true;
+        result.label=reinterpret_cast<initial_release::RecordEquals>(image+0x111f720)(&record,command);
+        if(result.label){result.attempted=true;result.accepted=reinterpret_cast<UI>(image+0x7a5ab0)(reinterpret_cast<void*>(target),&record);result.returned=true;}}
     __except(EXCEPTION_EXECUTE_HANDLER){result.exception=GetExceptionCode();}
-    if(result.constructed){__try{reinterpret_cast<initial_release::RecordDtor>(image+0x9676a0)(&record);result.cleaned=true;}__except(EXCEPTION_EXECUTE_HANDLER){result.cleanup_exception=GetExceptionCode();}}
+    if(result.constructed){__try{reinterpret_cast<initial_release::RecordDtor>(image+0x9708c0)(&record);result.cleaned=true;}__except(EXCEPTION_EXECUTE_HANDLER){result.cleanup_exception=GetExceptionCode();}}
 }
 }
 bool enable(std::string& e){auto* r=published.load(std::memory_order_acquire);if(!r){r=new Runtime;published.store(r,std::memory_order_release);}if(r->ready){e.clear();return true;}if(r->install_attempted)return fail(e,"Release hook installation already attempted; no replay: "+r->cause);r->install_attempted=true;
-    uint32_t thread=0;std::string sha;if(!native::read_resolver_receipt(r->image,thread,sha,e)||thread!=r->thread||sha!="bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6")return fail(e,"Release exact EXE/Mainthread differs: "+e);
+    uint32_t thread=0;std::string sha;if(!native::read_resolver_receipt(r->image,thread,sha,e)||thread!=r->thread||sha!="7efd8ee7b97f78362e7a2f8116b327fa6b756bdce23114b68143c4c9d2dd50eb")return fail(e,"Release exact EXE/Mainthread differs: "+e);
     const std::array<UI,3> detours{&hud_entry,&planner_entry,&celebration_entry};
     for(size_t i=0;i<r->routes.size();++i){auto& route=r->routes[i];auto& owner=route.owner;owner.entry=r->image+route.rva;owner.detour=uintptr_t(detours[i]);owner.stolen=route.stolen;owner.pristine.resize(route.bytes);
         if(!r->memory.copy(owner.entry,owner.pristine.data(),owner.pristine.size(),e)||mt2mp::sha256(owner.pristine)!=route.sha)return fail(e,e.empty()?"Release original full UI body differs":e);
@@ -214,8 +214,8 @@ bool enable(std::string& e){auto* r=published.load(std::memory_order_acquire);if
         const auto enabled=MH_EnableHook(reinterpret_cast<void*>(owner.entry));if(enabled!=MH_OK)return fail(e,"Release named enable failed status="+std::to_string(enabled)+" original="+hooks::framework::process_backend().error());
         MT2FW_MT2_RouteReceipt receipt{};receipt.size=sizeof receipt;if(!hooks::framework::process_backend().read_route(reinterpret_cast<void*>(owner.entry),receipt))return fail(e,"Release enabled route receipt failed: "+hooks::framework::process_backend().error());owner.generation=receipt.generation;
     }
-    {auto& owner=r->postresolve_owner;owner.entry=r->image+0x4dfed0;owner.detour=uintptr_t(&release_graph_native::postresolve_entry);owner.stolen=6;owner.pristine.resize(1840);
-        if(!r->memory.copy(owner.entry,owner.pristine.data(),owner.pristine.size(),e)||mt2mp::sha256(owner.pristine)!="a1edc1837751699deb1d9ebcd01f53442da8b9ad83733e848720cc0695a58ddd")return fail(e,e.empty()?"Release original PostResolve full body differs":e);
+    {auto& owner=r->postresolve_owner;owner.entry=r->image+0x4e5d90;owner.detour=uintptr_t(&release_graph_native::postresolve_entry);owner.stolen=6;owner.pristine.resize(1840);
+        if(!r->memory.copy(owner.entry,owner.pristine.data(),owner.pristine.size(),e)||mt2mp::sha256(owner.pristine)!="c9b451ab1231afbbdb89576d3333a954f51d396d587715ec0c1eb321319bc880")return fail(e,e.empty()?"Release original PostResolve full body differs":e);
         const auto created=MH_CreateHook(reinterpret_cast<void*>(owner.entry),reinterpret_cast<void*>(owner.detour),reinterpret_cast<void**>(&r->postresolve));
         if(created!=MH_OK||!r->postresolve)return fail(e,"Release PostResolve named prepare failed status="+std::to_string(created)+" original="+hooks::framework::process_backend().error());
         owner.trampoline=uintptr_t(r->postresolve);if(!release_graph_native::set_postresolve_original(r->postresolve,e))return false;
@@ -251,10 +251,10 @@ bool ui_fixture(const nlohmann::json& args,nlohmann::json& out,std::string& e){
         p::Local local,after_local;p::State before,after;a::Ledger money,after_money;if(!sample(*r,c,b,local,before,money,e,true)||before.type!=args.at("expected_type").get<int32_t>()||before.allocated_funds!=args.at("expected_funds").get<int32_t>()||!code(*r,e))return fail(e,e.empty()?"Release UI fixture actual state differs":e);
         const int desired=before.type==2?10000:before.type==3?50000:0;if(command=="AllocatePayment"&&desired==before.allocated_funds)return fail(e,"Release UI fixture requested funds are unchanged");
         if((command=="SetMinor"&&before.type==2)||(command=="SetHotfix"&&before.type==1))return fail(e,"Release UI fixture requested type is unchanged");
-        std::vector<uintptr_t> windows;if(!collection(*r,r->image,0x1a3c470,windows,e))return false;uintptr_t target=0;std::string window_error;for(auto candidate:windows){uintptr_t ap=0;if(!at(*r,candidate,0,ap,e))return false;if(ap!=r->image+r->routes[1].ap)continue;std::string why,name;if(!window(*r,candidate,1,why,command!="Show")){if(window_error.empty())window_error=why;continue;}if(command=="Show"){if(!string(*r,candidate+0x1b0,name,e))return false;if(name!="release_planner")continue;}if(target)return fail(e,"Release UI fixture has multiple matching planner windows");target=candidate;}
+        std::vector<uintptr_t> windows;if(!collection(*r,r->image,0x1a43470,windows,e))return false;uintptr_t target=0;std::string window_error;for(auto candidate:windows){uintptr_t ap=0;if(!at(*r,candidate,0,ap,e))return false;if(ap!=r->image+r->routes[1].ap)continue;std::string why,name;if(!window(*r,candidate,1,why,command!="Show")){if(window_error.empty())window_error=why;continue;}if(command=="Show"){if(!string(*r,candidate+0x1b0,name,e))return false;if(name!="release_planner")continue;}if(target)return fail(e,"Release UI fixture has multiple matching planner windows");target=candidate;}
         if(!target)return fail(e,"Release UI fixture requires one actual matching planner window"+(window_error.empty()?std::string{}:": "+window_error));
-        if(command=="Show"){if(!hud_time_runtime::verify_window_show_hook(r->image+0x81ec20,e))return false;}
-        else for(const auto& guard:initial_release::bytes::guards)if(guard.rva==0x967370||guard.rva==0x9676a0||guard.rva==0x1113d80){std::vector<unsigned char> actual(guard.size);if(!r->memory.copy(r->image+guard.rva,actual.data(),actual.size(),e)||std::memcmp(actual.data(),guard.data,guard.size))return fail(e,e.empty()?"Release UI fixture original record body differs":e);}
+        if(command=="Show"){if(!hud_time_runtime::verify_window_show_hook(r->image+0x827210,e))return false;}
+        else for(const auto& guard:initial_release::bytes::guards)if(guard.rva==0x970590||guard.rva==0x9708c0||guard.rva==0x111f720){std::vector<unsigned char> actual(guard.size);if(!r->memory.copy(r->image+guard.rva,actual.data(),actual.size(),e)||std::memcmp(actual.data(),guard.data,guard.size))return fail(e,e.empty()?"Release UI fixture original record body differs":e);}
         const auto captures=r->captures,rejected_before=r->rejected;const auto management_before=management_runtime::status();out["token"]=token;out["command"]=command;out["desired_funds"]=desired;out["unknown"]=true;r->ui_proofs.emplace(token,out);r->ui_proof_locked=true;r->ui_proof_cause="Release UI fixture call unconfirmed; no replay";out["ui_attempted"]=true;r->ui_proofs[token]=out;
         UiFixtureCall call;bool ok=false;std::string id;e.clear();
         if(command=="Show"){attempted=true;const auto exception=developer_staff::original_show(r->image,target);out["exception"]=exception;out["ui_returned"]=exception==0;ok=!exception&&window(*r,target,1,e)&&!r->pending&&!management_runtime::pending_ui()&&!cycle_runtime.pending;out["shown"]=ok;}

@@ -17,8 +17,8 @@ struct State {
 };
 template<class Read> bool once(Read&& read,uintptr_t image,State& out,std::string& error){
     out={};
-    const auto table=image+0x1a2dd00+59*56;
-    if(!read(image,0x13b9820,out.enabled,error)||!read(table,0x10,out.head,error)||!read(table,0x18,out.count,error))return false;
+    const auto table=image+0x1a34d00+59*56;
+    if(!read(image,0x13c5820,out.enabled,error)||!read(table,0x10,out.head,error)||!read(table,0x18,out.count,error))return false;
     if(out.enabled>1||out.count>256){error="Feature event59 gate/list extent invalid";return false;}
     std::set<uintptr_t> seen;
     auto node=out.head;

@@ -7,7 +7,7 @@ namespace mt2mp::game::wall_pass_cursor {
 using Point=action_session::PathPoint;
 using Bits=std::array<uint32_t,3>;
 using Spline=std::array<uint32_t,12>;
-inline constexpr uintptr_t wall_ap=0x172f8d0,pass_ap=0x172f3c0,cursor_ap=0x1786dd0,path_ap=0x1743f10;
+inline constexpr uintptr_t wall_ap=0x1735c70,pass_ap=0x1735760,cursor_ap=0x178d170,path_ap=0x174a2b0;
 inline bool reject(std::string& error,const std::string& why){error="Wall/Pass native cursor: "+why;return false;}
 inline Bits bits(const Point& point){return {std::bit_cast<uint32_t>(point[0]),std::bit_cast<uint32_t>(point[1]),std::bit_cast<uint32_t>(point[2])};}
 inline bool finite(const Point& point){return mixed_path_native::finite(point);}
@@ -30,7 +30,7 @@ template<class Memory>bool name(Memory& memory,uintptr_t owner,size_t offset,std
 template<class Memory>bool active(Memory& memory,uintptr_t image,uintptr_t receiver,uintptr_t cursor,
                                   uintptr_t expected_ap,std::string& error){
     uintptr_t actual_cursor=0,selected=0;
-    if(!path_native::field(memory,image,0x13df9d0,actual_cursor,error)||
+    if(!path_native::field(memory,image,0x13eb9d0,actual_cursor,error)||
        !path_native::ap(memory,cursor,image,cursor_ap,error)||
        !path_native::field(memory,cursor,0x190,selected,error)||
        !path_native::ap(memory,receiver,image,expected_ap,error))return false;
@@ -68,7 +68,7 @@ bool wall(Memory& memory,uintptr_t image,uintptr_t receiver,uintptr_t cursor,uin
        !path_native::field(memory,receiver,0x298,start,error)||
        !path_native::field(memory,release,0,end,error)||
        !name(memory,receiver,0x190,value.intent.name,error)||
-       !path_native::ap(memory,value.region,image,0x1787930,error)||
+       !path_native::ap(memory,value.region,image,0x178dcd0,error)||
        !path_native::ap(memory,value.ghost,image,path_ap,error)||
        !path_native::field(memory,value.region,0x834,value.intent.region,error))return false;
     uint8_t preview=0,preview_valid=0;uintptr_t owner=0;
@@ -134,8 +134,8 @@ bool pass(Memory& memory,uintptr_t image,uintptr_t receiver,uintptr_t cursor,
        !path_native::field(memory,receiver,0x1d0,start,error)||
        !path_native::field(memory,receiver,0x1dc,end,error)||
        !path_native::ap(memory,value.ghost,image,path_ap,error)||
-       !path_native::ap(memory,value.start_region,image,0x1787930,error)||
-       !path_native::ap(memory,value.end_region,image,0x1787930,error)||
+       !path_native::ap(memory,value.start_region,image,0x178dcd0,error)||
+       !path_native::ap(memory,value.end_region,image,0x178dcd0,error)||
        !path_native::field(memory,value.ghost,0x46e,preview,error)||
        !path_native::field(memory,value.ghost,0x46c,preview_valid,error)||
        !path_native::field(memory,value.ghost,0x178,owner,error)||

@@ -9,7 +9,7 @@ bool presentation_owner(Memory& memory,uintptr_t owner,uintptr_t prototype,std::
     if(count<=0||count>10000||capacity<count||!data||size_t(count)>(UINTPTR_MAX-data)/8)return fail(error,"Ability presentation owner array bounds differ");
     unsigned matches=0;
     for(int32_t i=0;i<count;++i){uintptr_t member=0;if(!field(memory,data,size_t(i)*8,member,error))return false;if(member==prototype)++matches;}
-    if(matches!=1||!field(memory,prototype,0,ap,error)||ap!=state.image+0x171c930||!field(memory,prototype,0x18,uid,error)||!uid)
+    if(matches!=1||!field(memory,prototype,0,ap,error)||ap!=state.image+0x1722cd0||!field(memory,prototype,0x18,uid,error)||!uid)
         return fail(error,error.empty()?"Ability presentation prototype is not one current owned native definition":error);
     return true;
 }
@@ -20,7 +20,7 @@ uint32_t presentation_original(void* receiver,void* button,float seconds,bool an
 uint32_t presentation_restore(uintptr_t prototype,uintptr_t proxy,int32_t display_slot,bool& restored)noexcept{
     restored=false;
     __try{
-        if(*reinterpret_cast<const uintptr_t*>(prototype)!=state.image+0x171c930||
+        if(*reinterpret_cast<const uintptr_t*>(prototype)!=state.image+0x1722cd0||
            *reinterpret_cast<const uintptr_t*>(prototype+0x40)!=proxy||
            *reinterpret_cast<const uintptr_t*>(proxy)!=prototype+0x38)return 0;
         *reinterpret_cast<int32_t*>(prototype+0x208)=display_slot;

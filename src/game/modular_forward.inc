@@ -54,7 +54,7 @@ void tick(){
         else if(!controller.value("pending",true)){auto input=std::move(*queued);queued.reset();if(!typed_action_runtime::submit_modular(input.id,input.intent,e))reject(e);else ++submitted;return;}}
     if(!r||controller.value("pending",true))return;
     for(auto& [id,view]:presentations){if(view.attempted)continue;const auto op=operations.find(id);if(op==operations.end()||!op->second.confirmed||!op->second.retired)continue;view.attempted=true;std::string e;action::Binding binding;bool own=false;
-        if(view.snapshot!=net::current_snapshot_id()||!typed_action_runtime::network_binding(view.snapshot,binding,e)||binding!=view.binding||!scenery_kiss::live_cursor(r->memory.process,r->image,view.receiver,own,e)||!own||!q::typed(r->memory,r->image,view.receiver,0x17414c0,e)||!code(*r,e)){view.cause=e.empty()?"Modular source preview owner retired before NewLayout":e;reject(view.cause);continue;}
+        if(view.snapshot!=net::current_snapshot_id()||!typed_action_runtime::network_binding(view.snapshot,binding,e)||binding!=view.binding||!scenery_kiss::live_cursor(r->memory.process,r->image,view.receiver,own,e)||!own||!q::typed(r->memory,r->image,view.receiver,0x1747860,e)||!code(*r,e)){view.cause=e.empty()?"Modular source preview owner retired before NewLayout":e;reject(view.cause);continue;}
         uintptr_t layout=0;if(!q::at(r->memory,view.receiver,0x378,layout,e)){view.cause=e;reject(e);continue;}if(layout){calls::Work work;work.op=calls::Op::NewLayout;work.object=view.receiver;if(!call(*r,work,e)){view.cause=e;reject(e);continue;}}view.confirmed=true;
     }
 }

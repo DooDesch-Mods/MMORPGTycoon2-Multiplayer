@@ -40,14 +40,14 @@ struct Memory {
     }
     Memory(){
         for(const auto owner:{sequence,step,window,meter,entries})blocks[owner].resize(0x400);
-        put(sequence,0,image+0x16dbd80);put(sequence,0x20,entries);put(sequence,0x28,int32_t(6));put(sequence,0x2c,int32_t(6));
+        put(sequence,0,image+0x16e2120);put(sequence,0x20,entries);put(sequence,0x28,int32_t(6));put(sequence,0x2c,int32_t(6));
         put(sequence,0x48,step);put(sequence,0x50,int32_t(6));put(entries,5*8,step);
-        put(step,0,image+0x16fda00);put(step,0x1a8,window);put(step,0x1b0,meter);
-        put(window,0,image+0x17883d0);put(window,0x69,uint8_t(1));
-        put(meter,0,image+0x174a110);put(meter,0x280,window);put(meter,0x69,uint8_t(0));
+        put(step,0,image+0x1703da0);put(step,0x1a8,window);put(step,0x1b0,meter);
+        put(window,0,image+0x178e770);put(window,0x69,uint8_t(1));
+        put(meter,0,image+0x17504b0);put(meter,0x280,window);put(meter,0x69,uint8_t(0));
         put(meter,0x3a4,0.0f);put(meter,0x3a8,0.0f);put(meter,0x3ac,100.0f);
-        blocks[image+0x840f20]=synthetic_code(11);
-        blocks[image+0x842ff0]=synthetic_code(29);
+        blocks[image+0x8495e0]=synthetic_code(11);
+        blocks[image+0x84b6d0]=synthetic_code(29);
     }
 };
 struct Calls {
@@ -103,12 +103,12 @@ void native_presentation(){
     require(progress::read(memory,image,sequence,6,out,error)&&out.values==MessageProgress{false,0,0,100},"hidden current Host meter was not sampled");
     pass("actual hidden meter shown/value/min/max sampled");
     require(progress::verify_code(memory,image,error,fixture_fingerprints),"complete synthetic code digests rejected");
-    memory.blocks.at(image+0x842ff0).back()^=1;
+    memory.blocks.at(image+0x84b6d0).back()^=1;
     require(!progress::verify_code(memory,image,error,fixture_fingerprints),"modified suffix accepted despite intact prologue");pass("complete-body fingerprint rejects suffix mutation");
     Memory production;
     require(!progress::verify_code(production,image,error)&&error=="tutorial progress native SetLabel body differs","production contract accepted synthetic fixture");
     pass("default production fingerprints reject synthetic test functions");
-    for(const auto address:{image+0x840f20,image+0x842ff0}){
+    for(const auto address:{image+0x8495e0,image+0x84b6d0}){
         Memory truncated;truncated.blocks.at(address).pop_back();
         require(!progress::verify_code(truncated,image,error,fixture_fingerprints)&&error=="fixture unreadable native field","full size or original read failure lost");
     }pass("both complete function sizes required and read cause preserved");
@@ -132,8 +132,8 @@ void native_presentation(){
         Memory invalid;Calls rejected{invalid};attempted=false;
         if(broken==0)invalid.put(sequence,0x48,window);
         if(broken==1)invalid.put(entries,0,step);
-        if(broken==2)invalid.put(meter,0,image+0x174a111);
-        if(broken==3)invalid.put(window,0,image+0x17883d1);
+        if(broken==2)invalid.put(meter,0,image+0x17504b1);
+        if(broken==3)invalid.put(window,0,image+0x178e771);
         if(broken==4)invalid.put(meter,0x280,sequence);
         if(broken==5)invalid.put(meter,0x69,uint8_t(2));
         if(broken==6)invalid.put(sequence,0x50,int32_t(5));

@@ -23,9 +23,9 @@ int main()try{
     auto find=[&](uint64_t uid,uintptr_t& found,std::string& cause){const auto value=full_uids.find(uid);if(value==full_uids.end()){cause="original Dungeon full UID lookup failed";return false;}found=value->second;return true;};
     auto resolve=[&](const identities::Scope& current,uintptr_t object,uint64_t uid,std::string& key,std::string& cause){if(resolve_fail){cause="original confirmed identity resolution failed";return false;}return registry.resolve(current,object,uid,key,cause);};
     const auto setup=[&]{scope.scene=scene.owner.key;memory={};full_uids={{target_uid,target},{sibling_uid,sibling}};resolve_fail=false;registry={};
-        memory.put(manager,image+0x1714100);memory.put(manager+0x80,region);memory.put(region+0x70,shard);memory.put(region+0x988,manager);
-        memory.put(manager+0x38,image+0x16e8b60);memory.put(manager+0x40,data);memory.put(manager+0x48,int32_t(2));memory.put(manager+0x4c,int32_t(2));memory.put(data,target);memory.put(data+8,sibling);
-        for(const auto object:{target,sibling}){memory.put(object,image+0x16c0770);memory.put(object+0x18,object==target?target_uid:sibling_uid);memory.put(object+0x170,shard);memory.put(object+0x178,region);memory.put(object+0x8d0,uintptr_t(0));memory.put(object+0x8d8,uintptr_t(0));}
+        memory.put(manager,image+0x171a4a0);memory.put(manager+0x80,region);memory.put(region+0x70,shard);memory.put(region+0x988,manager);
+        memory.put(manager+0x38,image+0x16eef00);memory.put(manager+0x40,data);memory.put(manager+0x48,int32_t(2));memory.put(manager+0x4c,int32_t(2));memory.put(data,target);memory.put(data+8,sibling);
+        for(const auto object:{target,sibling}){memory.put(object,image+0x16c6b10);memory.put(object+0x18,object==target?target_uid:sibling_uid);memory.put(object+0x170,shard);memory.put(object+0x178,region);memory.put(object+0x8d0,uintptr_t(0));memory.put(object+0x8d8,uintptr_t(0));}
         if(!registry.restore(scope,{{canonical,{scope,target,target_uid,true,false}}},error))throw std::runtime_error(error);
     };
     references::Witness witness;setup();check(references::read(at,find,resolve,image,scope,scene,manager,target,witness,error),error);
@@ -33,8 +33,8 @@ int main()try{
     scene.owner.type=2;scene.owner.instance_index=17;scene.owner.key=std::string(64,'a')+":world:building:7/instance/17";setup();
     check(references::read(at,find,resolve,image,scope,scene,manager,target,witness,error)&&witness.scene==scene.owner.key,error);
     for(int mode=0;mode<15;++mode){setup();
-        if(mode==0)memory.put(manager,image+0x1714101);if(mode==1)memory.put(manager+0x80,region+8);if(mode==2)memory.put(region+0x70,shard+8);
-        if(mode==3)memory.put(region+0x988,manager+8);if(mode==4)memory.put(manager+0x38,image+0x16e8b61);if(mode==5)memory.put(data+8,target);
+        if(mode==0)memory.put(manager,image+0x171a4a1);if(mode==1)memory.put(manager+0x80,region+8);if(mode==2)memory.put(region+0x70,shard+8);
+        if(mode==3)memory.put(region+0x988,manager+8);if(mode==4)memory.put(manager+0x38,image+0x16eef01);if(mode==5)memory.put(data+8,target);
         if(mode==6)memory.put(sibling+0x18,target_uid);if(mode==7)memory.put(target+0x18,sibling_uid);if(mode==8)full_uids[target_uid]=sibling;
         if(mode==9)memory.put(target+0x8d0,uintptr_t(0x27000000));if(mode==10)memory.put(target+0x8d8,uintptr_t(0x28000000));
         if(mode==11)memory.put(target+0x170,root);if(mode==12)memory.put(sibling+0x178,region+8);if(mode==13)memory.changing=manager+0x40;

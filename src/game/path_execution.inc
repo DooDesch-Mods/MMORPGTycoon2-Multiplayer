@@ -1,7 +1,7 @@
 namespace {
-uint32_t cost(uintptr_t image,float length,int32_t& out){__try{out=reinterpret_cast<int32_t(*)(int32_t,float)>(image+0x439720)(path.road,length);return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
-uint32_t release_units(uintptr_t image,uintptr_t road,float& out){__try{out=reinterpret_cast<float(*)(void*)>(image+0x43c4b0)(reinterpret_cast<void*>(road))*(*reinterpret_cast<const float*>(image+0x14f0f90));return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
-uint32_t surface_point(uintptr_t image,uintptr_t shard,action::PathPoint& point,bool& in_bounds){__try{in_bounds=reinterpret_cast<bool(*)(void*,const void*)>(image+0x508540)(reinterpret_cast<void*>(shard),point.data());if(in_bounds)point[1]=reinterpret_cast<float(*)(void*,const void*)>(image+0x508390)(reinterpret_cast<void*>(shard),point.data());return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
+uint32_t cost(uintptr_t image,float length,int32_t& out){__try{out=reinterpret_cast<int32_t(*)(int32_t,float)>(image+0x43e500)(path.road,length);return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
+uint32_t release_units(uintptr_t image,uintptr_t road,float& out){__try{out=reinterpret_cast<float(*)(void*)>(image+0x441290)(reinterpret_cast<void*>(road))*(*reinterpret_cast<const float*>(image+0x14f86b0));return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
+uint32_t surface_point(uintptr_t image,uintptr_t shard,action::PathPoint& point,bool& in_bounds){__try{in_bounds=reinterpret_cast<bool(*)(void*,const void*)>(image+0x50e690)(reinterpret_cast<void*>(shard),point.data());if(in_bounds)point[1]=reinterpret_cast<float(*)(void*,const void*)>(image+0x50e4e0)(reinterpret_cast<void*>(shard),point.data());return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
 bool inverse(region::Runtime& r,const undo::UndoWitness& before,const undo::UndoWitness& after,const Operation& op,std::string& e) {
     if(after.undo.empty())return fail(e,"path original Undo history is empty");
     undo::GraphWitness witness;const auto address=after.undo.back();
@@ -11,8 +11,8 @@ bool inverse(region::Runtime& r,const undo::UndoWitness& before,const undo::Undo
     uintptr_t data=0;if(!region::at(r,address,0x20,data,e))return false;
     std::set<uint64_t> destroyed;unsigned cash=0;
     for(size_t i=0;i<expected;++i){uintptr_t p=0,ap=0;if(!region::at(r,data,i*8,p,e)||!region::at(r,p,0,ap,e))return false;
-        if(ap==r.image+0x16de860){uint64_t uid=0;if(!region::at(r,p,0xb8,uid,e)||!destroyed.insert(uid).second)return fail(e,"path Undo duplicate destroy UID: "+e);}
-        else if(ap==r.image+0x1786fb0){int32_t amount=0;action::PathPoint position{};if(!region::at(r,p,0xb8,amount,e)||!region::at(r,p,0xbc,position,e))return false;
+        if(ap==r.image+0x16e4c00){uint64_t uid=0;if(!region::at(r,p,0xb8,uid,e)||!destroyed.insert(uid).second)return fail(e,"path Undo duplicate destroy UID: "+e);}
+        else if(ap==r.image+0x178d350){int32_t amount=0;action::PathPoint position{};if(!region::at(r,p,0xb8,amount,e)||!region::at(r,p,0xbc,position,e))return false;
             if(amount!=op.evidence.path_after.cost||position!=op.request.path.end)return fail(e,"path Undo cash amount/endpoint differs");++cash;}
         else return fail(e,"path Undo contains unexpected original operation AP="+std::to_string(ap));
     }
@@ -40,7 +40,7 @@ bool enable(std::string& e) {
     if(!native_error(enums(r->image,path.road,path.node),"canonical Road enum lookup",e)||path.road<0||path.road>=11||path.road==2||path.node<0||path.node>=6)return fail(e,"path canonical Road enum outside first-segment family: "+e);
     if(!terrain_settlement::enable(*r,e)||!code(*r,false,e))return false;
     struct Hook{uintptr_t rva;void* entry;void** original;};
-    const Hook hooks[]{{0x5cc2b0,reinterpret_cast<void*>(&press_entry),reinterpret_cast<void**>(&path.press)},{0x43a1b0,reinterpret_cast<void*>(&purchase_entry),reinterpret_cast<void**>(&path.purchase)},{0x7b04b0,reinterpret_cast<void*>(&remove_ui_entry),reinterpret_cast<void**>(&path.remove_ui)}};
+    const Hook hooks[]{{0x5d2a00,reinterpret_cast<void*>(&press_entry),reinterpret_cast<void**>(&path.press)},{0x43ef90,reinterpret_cast<void*>(&purchase_entry),reinterpret_cast<void**>(&path.purchase)},{0x7b8750,reinterpret_cast<void*>(&remove_ui_entry),reinterpret_cast<void**>(&path.remove_ui)}};
     for(const auto& h:hooks){auto s=MH_CreateHook(reinterpret_cast<void*>(r->image+h.rva),h.entry,h.original);if(s!=MH_OK||!*h.original)return fail(e,"path MH_CreateHook RVA="+std::to_string(h.rva)+" status="+std::to_string(s));}
     if(!mt2mp::hooks::enable_prepared_routes(r->image,hooks,"path hook",e))return false;
     if(!code(*r,true,e)||!world_path_runtime::enable(*r,e))return false;
@@ -74,7 +74,7 @@ action::Outcome perform(const action::Binding& binding,const action::Request& re
     if(authority&&!native_error(terrain::seed(before.random,global,*authority),"authority RNG seed",e))return unknown();
     if(!native_error(construct(r->image,op),"private cursor constructor",e))return unknown();
     path.replay=&op;struct Reset{~Reset(){path.replay=nullptr;}} reset;
-    uintptr_t cursor=0;if(!region::at(*r,r->image,0x13df9d0,cursor,e)||!cursor)return unknown();
+    uintptr_t cursor=0;if(!region::at(*r,r->image,0x13eb9d0,cursor,e)||!cursor)return unknown();
     auto call=[&](unsigned step,const action::PathPoint& point){return native_error(native_call(r->image,step,op.receiver,cursor,point),"private cursor input",e);};
     const uintptr_t expected_start=request.path.start_node<0?0:graph_before.nodes[size_t(request.path.start_node)];
     const uintptr_t expected_end=request.path.end_node<0?0:graph_before.nodes[size_t(request.path.end_node)];
@@ -110,7 +110,7 @@ action::Outcome perform(const action::Binding& binding,const action::Request& re
     if(authority&&(op.evidence.after!=authority->after||op.evidence.region_after!=authority->region_after||op.evidence.terrain_after!=authority->terrain_after||op.evidence.path_after!=authority->path_after)){e="path original commit readback differs from Host";return unknown();}
     if(op.ordered){
         mixed_path_native::Census current;uintptr_t map=0;std::vector<mixed_path_identity::Birth> births;
-        if(!region::at(*r,r->image,0x13df8c0,map,e)||
+        if(!region::at(*r,r->image,0x13eb8c0,map,e)||
            !mixed_path_native::read_world(r->memory,r->image,map,before.world.root,current,e)||
            !world_path_runtime::world_path_births(request.action_uuid,mixed_before,current,births,e))return unknown();
         if(births.size()!=op.uids.size()||std::any_of(births.begin(),births.end(),[&](const auto& birth){

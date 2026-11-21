@@ -55,9 +55,9 @@ bool current_capture(const Pending& saved,a::Binding& binding,std::string& error
     return actual==*saved.context||fail(error,"Ordered Character captured Session changed");
 }
 bool reject(const std::string& error){++rejected;if(cause!=error){cause=error;LOG_ERROR("[CharacterRename] {}",error);}return false;}
-constexpr npc_quest_list_ui_codes::Code ui_code{0x689e80,4212,"f007ff46880dc66f06dd5a89f5c875c8a501a28051004c0fc0a216633cd979a8",
+constexpr npc_quest_list_ui_codes::Code ui_code{0x691090,4212,"c79ba5adf6d4ef983774e23a8fe89b5cdd8e2c7f3fc14df9f13948dbda93725d",
     {0x41,0x57,0x41,0x56,0x41,0x55,0x41,0x54,0x55,0x57,0x56,0x53,0x48,0x81,0xec,0x28,
-     0x04,0,0,0x0f,0x11,0xb4,0x24,0,0x04,0,0,0x0f,0x11,0xbc,0x24,0x10}};
+     0x04,0x00,0x00,0x0f,0x11,0xb4,0x24,0x00,0x04,0x00,0x00,0x0f,0x11,0xbc,0x24,0x10}};
 bool code(Memory& m,std::string& error){
     std::string bytes(ui_code.bytes,'\0'),hash;if(!m.copy(state.image+ui_code.rva,bytes.data(),bytes.size(),error)||!quest_bridge::sha256(bytes,hash,error))return false;
     if(original){MT2FW_MT2_RouteReceipt receipt{sizeof receipt};npc_quest_list_ui_codes::Owned owner{uintptr_t(&entry),uintptr_t(original),generation};
@@ -85,13 +85,13 @@ bool stat_read(Memory& memory,uintptr_t object,a::CharacterRenameState& value,st
            count<3||count>10000||capacity<count||!data)return fail(error,error.empty()?"Character original attribute-set bounds differ":error);
         std::set<uintptr_t> pointers;
         for(size_t index=0;index<3;++index){uintptr_t attribute=0,ap=0;if(!field(memory,data,index*8,attribute,error)||!attribute||!pointers.insert(attribute).second||
-               !field(memory,attribute,0,ap,error)||ap!=state.image+0x172e8d0||!field(memory,attribute,0x28,value.attributes[set][index],error)||!std::isfinite(value.attributes[set][index]))
+               !field(memory,attribute,0,ap,error)||ap!=state.image+0x1734c70||!field(memory,attribute,0x28,value.attributes[set][index],error)||!std::isfinite(value.attributes[set][index]))
                 return fail(error,error.empty()?"Character original attribute identity/value differs":error);}}
     uintptr_t phases=0;int32_t capacity=0;
     if(!field(memory,object,0x120,value.speed,error)||!std::isfinite(value.speed)||!field(memory,object,0x160,phases,error)||
        !field(memory,object,0x168,value.boss_phases,error)||!field(memory,object,0x16c,capacity,error)||value.boss_phases<0||value.boss_phases>10000||capacity<value.boss_phases||(value.boss_phases&&!phases))
         return fail(error,error.empty()?"Character original speed/Boss phase owner differs":error);
-    if(value.boss_phases){uintptr_t phase=0,ap=0;if(!field(memory,phases,0,phase,error)||!phase||!field(memory,phase,0,ap,error)||ap!=state.image+0x16ddb00||!field(memory,phase,0x58,value.boss_health,error))
+    if(value.boss_phases){uintptr_t phase=0,ap=0;if(!field(memory,phases,0,phase,error)||!phase||!field(memory,phase,0,ap,error)||ap!=state.image+0x16e3ea0||!field(memory,phase,0x58,value.boss_health,error))
         return fail(error,error.empty()?"Character original first Boss phase health binding differs":error);}
     return true;
 }
@@ -104,7 +104,7 @@ bool read_input(Memory& memory,uintptr_t view,uintptr_t editor,a::CharacterRenam
     return true;
 }
 uint32_t set_stat(uintptr_t slider,float value)noexcept{
-    __try{reinterpret_cast<void(*)(void*,float,bool)>(state.image+0x7bc040)(reinterpret_cast<void*>(slider),value,false);return 0;}
+    __try{reinterpret_cast<void(*)(void*,float,bool)>(state.image+0x7c42e0)(reinterpret_cast<void*>(slider),value,false);return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 bool prepare_stat(Memory& memory,uintptr_t view,const a::CharacterRenameIntent& intent,std::string& error){
@@ -138,8 +138,8 @@ bool sample(Memory& memory,const a::Binding& binding,const std::string& snapshot
     host::Reader reader(memory.process,origin,state.image,state.thread,api);
     if(!reader.current(out.world,true,error)||!action_runtime::bound(out.world,binding,snapshot,error))return false;
     uintptr_t ap=0,owned=0;const auto native_state=uintptr_t(out.world.origin.state);
-    if(!field(memory,state.image,0x13df7a0,out.manager,error)||!field(memory,native_state,0x168,owned,error)||owned!=out.manager||
-       !field(memory,out.manager,0,ap,error)||ap!=state.image+0x1732430)return fail(error,error.empty()?"Character rename current manager ownership differs":error);
+    if(!field(memory,state.image,0x13eb7a0,out.manager,error)||!field(memory,native_state,0x168,owned,error)||owned!=out.manager||
+       !field(memory,out.manager,0,ap,error)||ap!=state.image+0x17387d0)return fail(error,error.empty()?"Character rename current manager ownership differs":error);
     character_definition_identity::Census definitions;
     auto definition_read=[&](uintptr_t object,size_t offset,auto& value,std::string& cause){return field(memory,object,offset,value,cause);};
     if(!character_definition_identity::read(definition_read,state.image,native_state,out.manager,definitions,error))return false;
@@ -150,7 +150,7 @@ bool sample(Memory& memory,const a::Binding& binding,const std::string& snapshot
         out.arrays[size_t(kind)]={data,uintptr_t(count),uintptr_t(capacity)};
         for(int32_t id=0;id<count;++id){uintptr_t object=0,parent=0;uint64_t uid=0;int32_t actual_kind=-1,actual_id=-1,day=0;uint8_t deleted=2,edited=2,released=2;
             std::string name,definition;
-            if(!field(memory,data,size_t(id)*8,object,error)||!object||!pointers.insert(object).second||!field(memory,object,0,ap,error)||ap!=state.image+0x1705990||
+            if(!field(memory,data,size_t(id)*8,object,error)||!object||!pointers.insert(object).second||!field(memory,object,0,ap,error)||ap!=state.image+0x170bd30||
                !field(memory,object,0x18,uid,error)||!field(memory,object,0x2c,actual_kind,error)||!field(memory,object,0x30,actual_id,error)||actual_kind!=kind||actual_id!=id||
                !field(memory,object,0x490,deleted,error)||deleted>1||!field(memory,object,0x491,edited,error)||edited>1||!field(memory,object,0x492,released,error)||released>1||
                !field(memory,object,0x2e0,day,error)||!field(memory,object,0x4a0,parent,error)||
@@ -177,9 +177,9 @@ bool sample(Memory& memory,const a::Binding& binding,const std::string& snapshot
            !field(memory,out.manager,offset+0x14,capacity,error)||uintptr_t(capacity)!=before[2])return fail(error,error.empty()?"Character rename manager census changed":error);}
     native::SimulationState money;uintptr_t random=0,release_manager=0,release=0;
     if(!native::read_simulation_state(money,error)||!undo_probe::read_undo(memory.process,state.image,out.undo,error)||out.undo.active_graph||
-       !field(memory,state.image,0x164b250,random,error)||!field(memory,random,0,out.value.global_random,error)||
-       !field(memory,state.image,0x13df4f0,release_manager,error)||!field(memory,release_manager,0,ap,error)||ap!=state.image+0x1714ed0||
-       !field(memory,release_manager,0x38,release,error)||!field(memory,release,0,ap,error)||ap!=state.image+0x16c12b0||
+       !field(memory,state.image,0x1650830,random,error)||!field(memory,random,0,out.value.global_random,error)||
+       !field(memory,state.image,0x13eb4f0,release_manager,error)||!field(memory,release_manager,0,ap,error)||ap!=state.image+0x171b270||
+       !field(memory,release_manager,0x38,release,error)||!field(memory,release,0,ap,error)||ap!=state.image+0x16c7650||
        !field(memory,release,0x120,out.value.release_edits,error))return fail(error,error.empty()?"Character rename ledger/Undo/release ownership differs":error);
     out.money=ledger(money);out.value.day=money.clock.flat_day;out.value.undo_count=out.undo.undo.size();
     if(ordered_mode())return complete_proof(memory,binding,snapshot,intent,out,rows,others,error);
@@ -187,21 +187,21 @@ bool sample(Memory& memory,const a::Binding& binding,const std::string& snapshot
 }
 uint32_t find_window(uintptr_t& window)noexcept{
     __try{const char* label="info_charactertype";const quest_list::QuestTitleView text{label,18};
-        window=reinterpret_cast<uintptr_t(*)(const quest_list::QuestTitleView&)>(state.image+0x81aa90)(text);return 0;}
+        window=reinterpret_cast<uintptr_t(*)(const quest_list::QuestTitleView&)>(state.image+0x823080)(text);return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 uint32_t name_in_use(uintptr_t manager,const char* text,size_t length,bool& result)noexcept{
-    __try{const quest_list::QuestTitleView name{text,length};result=reinterpret_cast<bool(*)(void*,const quest_list::QuestTitleView&)>(state.image+0x9e690)(reinterpret_cast<void*>(manager),name);return 0;}
+    __try{const quest_list::QuestTitleView name{text,length};result=reinterpret_cast<bool(*)(void*,const quest_list::QuestTitleView&)>(state.image+0x9f390)(reinterpret_cast<void*>(manager),name);return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 uint32_t set_window(uintptr_t window,uintptr_t object,uintptr_t view,uintptr_t edit,const char* text,size_t length)noexcept{
-    __try{reinterpret_cast<void(*)(void*,void*)>(state.image+0x68b8b0)(reinterpret_cast<void*>(window),reinterpret_cast<void*>(object));
-        const quest_list::QuestTitleView title{text,length};reinterpret_cast<void(*)(void*,const quest_list::QuestTitleView&)>(state.image+0x7f1630)(reinterpret_cast<void*>(edit),title);
+    __try{reinterpret_cast<void(*)(void*,void*)>(state.image+0x692ac0)(reinterpret_cast<void*>(window),reinterpret_cast<void*>(object));
+        const quest_list::QuestTitleView title{text,length};reinterpret_cast<void(*)(void*,const quest_list::QuestTitleView&)>(state.image+0x7f9b70)(reinterpret_cast<void*>(edit),title);
         (void)view;return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 bool window(Memory& m,uintptr_t expected,uintptr_t& view,uintptr_t& editor,uintptr_t& outer,std::string& error){
-    const auto seh=find_window(outer);uintptr_t ap=0,selected=0;if(seh||!outer||!field(m,outer,0,ap,error)||ap!=state.image+0x173a7f0||
-       !field(m,outer,0x4e8,view,error)||!field(m,view,0,ap,error)||ap!=state.image+0x1736770||
+    const auto seh=find_window(outer);uintptr_t ap=0,selected=0;if(seh||!outer||!field(m,outer,0,ap,error)||ap!=state.image+0x1740b90||
+       !field(m,outer,0x4e8,view,error)||!field(m,view,0,ap,error)||ap!=state.image+0x173cb10||
        !field(m,view,0x460,selected,error)||(expected&&selected!=expected)||!field(m,view,0x360,editor,error)||!editor)
         return fail(error,error.empty()?"Character rename live named native Window/View/editor binding differs SEH="+std::to_string(seh):error);
     return true;
@@ -217,7 +217,7 @@ struct CaptureDispatch {uint64_t entries=0,rename_labels=0;uintptr_t receiver=0;
 CaptureDispatch capture_dispatch;
 uint32_t native_command_label(void* record,const char* wanted,bool& result)noexcept{
     // Native text commits append a value token; vsRecord equality would compare that token too.
-    __try{result=command_label_matches(reinterpret_cast<TokenLabelEquals>(state.image+0x96e1d0),record,wanted);return 0;}
+    __try{result=command_label_matches(reinterpret_cast<TokenLabelEquals>(state.image+0x977410),record,wanted);return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 bool entry(void* receiver,void* record)try{
@@ -264,7 +264,7 @@ bool same_local(const Sample& before,const Sample& after){return same_world(befo
 bool presentation(void* view,void* selected,uintptr_t caller,bool& handled,std::string& error){
     handled=false;if(!rename_tail.armed)return true;handled=true;
     if(GetCurrentThreadId()!=state.thread||uintptr_t(view)!=rename_tail.view||uintptr_t(selected)!=rename_tail.target||
-       caller!=state.image+0x68a694||rename_tail.calls++||!rename_tail.binding||!rename_tail.request||
+       caller!=state.image+0x6918a4||rename_tail.calls++||!rename_tail.binding||!rename_tail.request||
        !ordered_scope(*rename_tail.binding,*rename_tail.request,error)){
         fault=true;return fail(error,error.empty()?"Character rename scoped presentation receiver/target/caller/thread/count differs":error);}
     return true;
@@ -280,7 +280,7 @@ bool preview_presentation(void* view,void* selected,void(*original_select)(void*
     character_definition_identity::Census definitions;character_membership_reader::Users users;
     if(!character_actor_records::read_current(frame.context,frame.binding,definitions,users,error))return false;
     const auto found=std::find_if(definitions.definitions.begin(),definitions.definitions.end(),[&](const auto& row){return row.object==uintptr_t(selected)&&!row.deleted&&row.uid;});
-    uintptr_t tick=0;if(found==definitions.definitions.end()||!field(memory,state.image+0x1705990,0xb8,tick,error)||tick!=state.image+0x973d0)
+    uintptr_t tick=0;if(found==definitions.definitions.end()||!field(memory,state.image+0x170bd30,0xb8,tick,error)||tick!=state.image+0x980c0)
         return fail(error,error.empty()?"Character preview selected current native definition/Tick differs":error);
     preview::Scope scope(frame,true);const auto seh=preview::call_select(original_select,view,selected);
     if(seh||frame.failed){preview::ingress_fault=true;fault=true;return fail(error,"Character preview original InfoView failed SEH="+std::to_string(seh)+" selector="+preview::selector_cause.data());}

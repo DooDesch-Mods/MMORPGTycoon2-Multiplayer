@@ -6,8 +6,8 @@ struct Storage {uintptr_t data=0;uint64_t extent=0;bool operator==(const Storage
 struct Receipt {uint32_t attempted=0,stored=0;bool confirmed=false;};
 template<class Read>bool read(Read& at,uintptr_t image,uintptr_t object,bool temporary,Storage& value,std::string& e){
     uintptr_t ap=0,secondary=0;
-    if(!at(object,0,ap,e)||ap!=image+(temporary?0x16ebf20:0x16e2100)||!at(object,8,value.data,e)||!at(object,0x10,value.extent,e)){if(e.empty())e="Release prepared demand owner class/storage differs";return false;}
-    if(temporary&&(!at(object,0x18,secondary,e)||secondary!=image+0x16ebf88)){if(e.empty())e="Release temporary demand owner secondary class differs";return false;}
+    if(!at(object,0,ap,e)||ap!=image+(temporary?0x16f22c0:0x16e84a0)||!at(object,8,value.data,e)||!at(object,0x10,value.extent,e)){if(e.empty())e="Release prepared demand owner class/storage differs";return false;}
+    if(temporary&&(!at(object,0x18,secondary,e)||secondary!=image+0x16f2328)){if(e.empty())e="Release temporary demand owner secondary class differs";return false;}
     const auto count=int32_t(uint32_t(value.extent)),capacity=int32_t(uint32_t(value.extent>>32));
     if(count<0||count>4096||capacity<count||capacity>65536||(!value.data&&capacity)||value.data>UINTPTR_MAX-size_t(capacity)*8){e="Release prepared demand storage bounds invalid";return false;}return true;
 }

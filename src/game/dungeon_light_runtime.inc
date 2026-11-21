@@ -3,8 +3,8 @@ namespace {
 using Command=void(*)(void*);
 Command original=nullptr;uint64_t generation=0,captures=0,submitted=0,rejected=0;bool installed=false,ready=false,fault=false,replaying=false;
 uintptr_t replay_receiver=0;uint32_t original_calls=0;std::string cause,last_action;
-constexpr npc_quest_list_ui_codes::Code ui_code{0x6d40b0,713,"1ad8ecbb064ecddeeee5936bb2e67430098874fb29180ac49eb105945a82ed19",
-    {0x56,0x53,0x48,0x81,0xec,0x88,0,0,0,0x0f,0x11,0x74,0x24,0x40,0x0f,0x11,0x7c,0x24,0x50,0x44,0x0f,0x11,0x44,0x24,0x60,0x44,0x0f,0x11,0x4c,0x24,0x70,0x48}};
+constexpr npc_quest_list_ui_codes::Code ui_code{0x6db4d0,713,"7b7dbd2248456a8644c7e339f2a01f9d1ab42d45ab4a97fb05a8f1b1c6bbad39",
+    {0x56,0x53,0x48,0x81,0xec,0x88,0x00,0x00,0x00,0x0f,0x11,0x74,0x24,0x40,0x0f,0x11,0x7c,0x24,0x50,0x44,0x0f,0x11,0x44,0x24,0x60,0x44,0x0f,0x11,0x4c,0x24,0x70,0x48}};
 struct Sample {dungeon_config::Sample dungeon;uintptr_t environment=0;uint8_t dirty=0;a::DungeonLightState value;};
 struct Pending {a::Binding binding;std::string snapshot;a::DungeonLightIntent intent;};
 struct Operation {a::Binding binding;a::Request request;Sample before,after;a::Evidence evidence;bool attempted=false,returned=false,confirmed=false,retired=false,prepared=false,seed_attempted=false;uint32_t calls=0;std::string cause;};
@@ -22,27 +22,27 @@ bool code(Memory& memory,std::string& error){
     if(!quest_bridge::sha256(bytes,hash,error)||hash!=ui_code.sha)return fail(error,error.empty()?"Dungeon light original outer UI transaction body differs":error);
     for(const auto& pin:dungeon_light_codes::helpers){bytes.assign(pin.size,'\0');if(!memory.copy(state.image+pin.rva,bytes.data(),bytes.size(),error))return false;
         if(!hooks::framework::verify_original_hash(state.image+pin.rva,bytes.data(),bytes.size(),pin.sha,error))return fail(error,"Dungeon light original preparation/ownership helper body differs RVA="+std::to_string(pin.rva)+": "+error);}
-    constexpr std::array<std::pair<uintptr_t,uint32_t>,5> constants{{{0x151f6c4,0xbc8efa36},{0x151f6c8,0},{0x151f6cc,0xbf800000},{0x151f6d0,0x3a83126f},{0x151f69c,0x3c23d70a}}};
+    constexpr std::array<std::pair<uintptr_t,uint32_t>,5> constants{{{0x15260e4,0xbc8efa36},{0x15260e8,0},{0x15260ec,0xbf800000},{0x15260f0,0x3a83126f},{0x15260bc,0x3c23d70a}}};
     for(const auto& [rva,expected]:constants){uint32_t value=0;if(!field(memory,state.image,rva,value,error)||value!=expected)return fail(error,error.empty()?"Dungeon light pinned numeric constant differs":error);}return true;
 }
 bool sample(Memory& memory,const a::Binding& binding,const std::string& snapshot,const a::DungeonLightIntent& intent,Sample& out,std::string& error){
     out={};a::DungeonConfigIntent target;target.key=intent.key;if(!dungeon_config::sample(memory,binding,snapshot,target,out.dungeon,error)||!field(memory,out.dungeon.local.dungeon,0x1f0,out.value.light,error))return false;out.value.dungeon=out.dungeon.value;
     for(float x:out.value.light)if(!std::isfinite(x))return fail(error,"Dungeon light actual authored field is non-finite");
-    uintptr_t ap=0;if(!field(memory,state.image,0x13df6c0,out.environment,error))return false;
-    if(out.environment&&(!field(memory,out.environment,0,ap,error)||ap!=state.image+0x172c6a0||!field(memory,out.environment,0x4bc,out.dirty,error)||out.dirty>1))return fail(error,error.empty()?"Dungeon light actual EnvironmentManager/dirty flag differs":error);return true;
+    uintptr_t ap=0;if(!field(memory,state.image,0x13eb6c0,out.environment,error))return false;
+    if(out.environment&&(!field(memory,out.environment,0,ap,error)||ap!=state.image+0x1732a40||!field(memory,out.environment,0x4bc,out.dirty,error)||out.dirty>1))return fail(error,error.empty()?"Dungeon light actual EnvironmentManager/dirty flag differs":error);return true;
 }
-uint32_t find_window(uintptr_t& outer)noexcept{__try{const quest_list::QuestTitleView name{"dungeon_light",13};outer=reinterpret_cast<uintptr_t(*)(const quest_list::QuestTitleView&)>(state.image+0x81aa90)(name);return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
+uint32_t find_window(uintptr_t& outer)noexcept{__try{const quest_list::QuestTitleView name{"dungeon_light",13};outer=reinterpret_cast<uintptr_t(*)(const quest_list::QuestTitleView&)>(state.image+0x823080)(name);return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
 bool window(Memory& memory,uintptr_t& outer,uintptr_t& owner,a::DungeonLightInput& input,dungeon_light_input::Widgets& widgets,std::string& error){
-    const auto seh=find_window(outer);uintptr_t ap=0;if(seh||!outer||!field(memory,outer,0,ap,error)||ap!=state.image+0x172c100||!field(memory,outer,0x4e8,owner,error))return fail(error,error.empty()?"Dungeon light actual named native Window differs SEH="+std::to_string(seh):error);
+    const auto seh=find_window(outer);uintptr_t ap=0;if(seh||!outer||!field(memory,outer,0,ap,error)||ap!=state.image+0x17324a0||!field(memory,outer,0x4e8,owner,error))return fail(error,error.empty()?"Dungeon light actual named native Window differs SEH="+std::to_string(seh):error);
     auto at=[&](uintptr_t base,size_t offset,auto& value,std::string& e){return field(memory,base,offset,value,e);};return dungeon_light_input::read(at,state.image,outer,input,widgets,error);
 }
-uint32_t convert(bool slider,uintptr_t object,int32_t raw,float& result)noexcept{__try{result=reinterpret_cast<float(*)(const void*,int32_t)>(state.image+(slider?0x7b95a0:0x7bf9e0))(reinterpret_cast<const void*>(object),raw);return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
+uint32_t convert(bool slider,uintptr_t object,int32_t raw,float& result)noexcept{__try{result=reinterpret_cast<float(*)(const void*,int32_t)>(state.image+(slider?0x7c1840:0x7c7b20))(reinterpret_cast<const void*>(object),raw);return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
 uint32_t direction(float degrees,std::array<float,3>& result)noexcept{__try{
     alignas(16) std::array<unsigned char,16> angle{};const float radians=degrees*-0.01745329424738884f;
-    reinterpret_cast<void(*)(void*,float)>(state.image+0x9eec90)(angle.data(),radians);
-    constexpr std::array<float,2> forward{0,-1};const auto rotated=reinterpret_cast<uint64_t(*)(const void*,const void*)>(state.image+0x9eefa0)(angle.data(),forward.data());
+    reinterpret_cast<void(*)(void*,float)>(state.image+0x9f90e0)(angle.data(),radians);
+    constexpr std::array<float,2> forward{0,-1};const auto rotated=reinterpret_cast<uint64_t(*)(const void*,const void*)>(state.image+0x9f93f0)(angle.data(),forward.data());
     std::memcpy(&result[0],&rotated,4);result[1]=1;std::memcpy(&result[2],reinterpret_cast<const unsigned char*>(&rotated)+4,4);
-    reinterpret_cast<void(*)(void*)>(state.image+0x9ffd80)(result.data());return 0;
+    reinterpret_cast<void(*)(void*)>(state.image+0xa0a940)(result.data());return 0;
 }__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
 bool calculate(const a::DungeonLightInput& input,const dungeon_light_input::Widgets& widgets,std::array<float,23>& result,std::string& error){
     auto number=[&](bool slider,uintptr_t object,int32_t raw,float& out,std::string& e){const auto seh=convert(slider,object,raw,out);return !seh||fail(e,"Dungeon light original raw input conversion SEH="+std::to_string(seh));};
@@ -51,16 +51,16 @@ bool calculate(const a::DungeonLightInput& input,const dungeon_light_input::Widg
 }
 uint32_t prepare(uintptr_t outer,uintptr_t owner,const a::DungeonLightInput& input,const dungeon_light_input::Widgets& widgets)noexcept{__try{
     *reinterpret_cast<uintptr_t*>(outer+0x4e8)=owner;
-    for(size_t i=0;i<4;++i){reinterpret_cast<void(*)(void*,const void*,bool)>(state.image+0x839d30)(reinterpret_cast<void*>(widgets.colors[i]),input.colors[i].data(),false);
-        reinterpret_cast<void(*)(void*,int32_t)>(state.image+0x7c2c60)(reinterpret_cast<void*>(widgets.spinners[i]),input.spinners[i]);}
-    for(size_t i=0;i<3;++i)reinterpret_cast<void(*)(void*,int32_t,bool)>(state.image+0x7bbdd0)(reinterpret_cast<void*>(widgets.sliders[i]),input.sliders[i],false);return 0;
+    for(size_t i=0;i<4;++i){reinterpret_cast<void(*)(void*,const void*,bool)>(state.image+0x8423c0)(reinterpret_cast<void*>(widgets.colors[i]),input.colors[i].data(),false);
+        reinterpret_cast<void(*)(void*,int32_t)>(state.image+0x7cadc0)(reinterpret_cast<void*>(widgets.spinners[i]),input.spinners[i]);}
+    for(size_t i=0;i<3;++i)reinterpret_cast<void(*)(void*,int32_t,bool)>(state.image+0x7c4070)(reinterpret_cast<void*>(widgets.sliders[i]),input.sliders[i],false);return 0;
 }__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
 bool same_local(const Sample& before,const Sample& after){return dungeon_config::same_local(before.dungeon,after.dungeon)&&before.environment==after.environment;}
 void entry(void* receiver)try{
     if(!original){fault=true;reject("Dungeon light original unavailable");return;}if(!net::session_wire::connected()){original(receiver);return;}
     const auto caller=uintptr_t(_ReturnAddress())-state.image;
-    if(replaying){if(uintptr_t(receiver)!=replay_receiver||caller!=0x6d4438||original_calls){fault=true;reject("Dungeon light original-once receiver/caller/count differs");return;}++original_calls;original(receiver);return;}
-    if(caller!=0x6d4438){original(receiver);return;}
+    if(replaying){if(uintptr_t(receiver)!=replay_receiver||caller!=0x6db858||original_calls){fault=true;reject("Dungeon light original-once receiver/caller/count differs");return;}++original_calls;original(receiver);return;}
+    if(caller!=0x6db858){original(receiver);return;}
     Memory memory;std::string error;const auto controller=typed_action_runtime::controller_status();a::Binding binding;const auto snapshot=net::current_snapshot_id();
     if(!ready||fault||pending||building_status::pending_ui()||quest_list::pending_ui()||character_rename::pending_ui()||ability_edit::pending_ui()||costume_edit::pending_ui()||dungeon_config::pending_ui()||dungeon_sound::pending_ui()||dungeon_gizmo::pending_ui()||dungeon_palette::pending_ui()||GetCurrentThreadId()!=state.thread||!controller.value("started",false)||controller.value("locked",true)||controller.value("pending",true)||!code(memory,error)||!typed_action_runtime::network_binding(snapshot,binding,error)){reject(error.empty()?"Dungeon light capture requires idle bound Mainthread Controller":error);return;}
     uintptr_t outer=0,owner=0,exterior=0;uint64_t uid=0;a::DungeonLightIntent intent;dungeon_light_input::Widgets widgets;
@@ -113,7 +113,7 @@ a::Outcome perform(const a::Binding& binding,const a::Request& request,const a::
     const auto desired_rng=authority?authority->dungeon_light_before.dungeon.global_random:before.value.dungeon.global_random;op.seed_attempted=true;const auto seed=action_runtime::seed(state.image,desired_rng);if(seed)return unknown("Dungeon light Host RNG adoption SEH="+std::to_string(seed));
     if(!sample(memory,binding,request.snapshot_uuid,intent,op.before,error)||op.before.value.dungeon.global_random!=desired_rng)return unknown(error.empty()?"Dungeon light Host RNG readback differs":error);
     op.evidence.before=op.before.dungeon.money;op.evidence.dungeon_light_before=op.before.value;
-    a::ui_diagnostic::Api api;a::ui_diagnostic::Window command_window;command_window.window=outer;if(!a::ui_diagnostic::resolve_api(memory,state.image,exe_sha,api,error))return unknown(error);api.command=reinterpret_cast<a::ui_diagnostic::UiCommand>(state.image+0x6d4380);api.destroy_label="MainLight";
+    a::ui_diagnostic::Api api;a::ui_diagnostic::Window command_window;command_window.window=outer;if(!a::ui_diagnostic::resolve_api(memory,state.image,exe_sha,api,error))return unknown(error);api.command=reinterpret_cast<a::ui_diagnostic::UiCommand>(state.image+0x6db7a0);api.destroy_label="MainLight";
     a::ui_diagnostic::Receipt receipt;op.attempted=true;replaying=true;replay_receiver=outer;original_calls=0;const bool returned=a::ui_diagnostic::process_calls().command(api,command_window,receipt,error);op.calls=original_calls;op.returned=receipt.ui_command_returned;replaying=false;replay_receiver=0;
     if(!returned||!op.returned||op.calls!=1||!receipt.record_cleanup_confirmed)return unknown(error.empty()?"Dungeon light original transaction lacks exact once/cleanup receipt":error);
     if(!sample(memory,binding,request.snapshot_uuid,intent,op.after,error)||!same_local(op.before,op.after)||(!a::dungeon_light_transition(intent,op.before.value,op.after.value)||op.before.dungeon.money!=op.after.dungeon.money||(op.after.environment&&op.after.dirty!=1)))return unknown(error.empty()?"Dungeon light original effect/owner/census/ledger/Undo differs":error);

@@ -22,7 +22,7 @@ bool activity_developers(const tutorial_development::StartingpointSnapshot& s,st
     if(!s.creation||s.creation->developers.empty()||s.creation->developers.size()>50)return fail(e,"Staff activity requires bounded owned Developer census1..50");
     std::set<int32_t> ids;
     for(const auto& dev:s.creation->developers){ActivityDeveloper d;d.address=dev.address;d.job=dev.job;
-        if(!type(d.address,s.image+0x17422e0,e)||!at(d.address,0x4c0,d.id,e)||!at(d.address,0x4d9,d.employed,e)||!at(d.address,0x368,d.on_map,e))return false;
+        if(!type(d.address,s.image+0x1748680,e)||!at(d.address,0x4c0,d.id,e)||!at(d.address,0x4d9,d.employed,e)||!at(d.address,0x368,d.on_map,e))return false;
         if(d.id<0||d.id>=50||!ids.insert(d.id).second||d.employed>1||d.on_map>1)return fail(e,"Staff activity Developer identity/flags invalid");
         if(d.employed&&(d.job!=0&&d.job!=5&&d.job!=6&&d.job!=7))return fail(e,"Staff activity probe supports only actual idle/returning/developing/debugging Developer");
         out.push_back(d);
@@ -41,7 +41,7 @@ struct ActivityManagers {std::array<uintptr_t,2> owner{},data{};std::array<int32
 bool activity_managers(const tutorial_development::StartingpointSnapshot& s,const std::vector<ActivityDeveloper>& developers,ActivityManagers& out,std::string& e){
     int32_t expected_tech=0;
     for(size_t side=0;side<2;++side){
-        if(!at(s.lounge,0x98+side*8,out.owner[side],e)||!type(out.owner[side],s.image+0x16e47f0,e)||
+        if(!at(s.lounge,0x98+side*8,out.owner[side],e)||!type(out.owner[side],s.image+0x16eab90,e)||
            !at(out.owner[side],0x38,out.data[side],e)||!at(out.owner[side],0x40,out.count[side],e)||!at(out.owner[side],0x44,out.capacity[side],e))return false;
         if(out.count[side]<0||out.count[side]>50||out.capacity[side]<out.count[side]||out.capacity[side]>64||!out.data[side])
             return fail(e,"Staff native manager bounds invalid");
@@ -52,8 +52,8 @@ bool activity_managers(const tutorial_development::StartingpointSnapshot& s,cons
         if(actual!=expected)return fail(e,"Staff native manager membership differs from owned Developer census");
     }
     if(out.owner[0]==out.owner[1])return fail(e,"Staff native managers alias");
-    if(!activity_error(activity_count(s.image,0x25ed30,s.lounge,out.active_tech),"GetActiveTechWorkerCount",e)||
-       !activity_error(activity_count(s.image,0x25ead0,s.lounge,out.active_devs),"GetActiveDevCount",e))return false;
+    if(!activity_error(activity_count(s.image,0x261e30,s.lounge,out.active_tech),"GetActiveTechWorkerCount",e)||
+       !activity_error(activity_count(s.image,0x261bd0,s.lounge,out.active_devs),"GetActiveDevCount",e))return false;
     return (out.active_tech==expected_tech&&out.active_devs==expected_tech+out.count[1])||fail(e,"Staff original active counts differ from owned manager census");
 }
 struct ActivityFormatCalls {
@@ -65,7 +65,7 @@ struct ActivityFormatCalls {
     bool format(const char* key,std::string& e){return activity_error(activity_format(image,format_value.bytes,key,arg_value.bytes),"LocFormat",e);}
     bool read_format(json& out,std::string& e){return activity_loc(reinterpret_cast<uintptr_t>(format_value.bytes),out,e);}
     bool release_format(std::string& e){return activity_release(image,format_value,e);}
-    bool release_arg(std::string& e){return activity_error(activity_destroy(image,0xc6c9b0,arg_value.bytes),"LocArg destruction",e);}
+    bool release_arg(std::string& e){return activity_error(activity_destroy(image,0xc780e0,arg_value.bytes),"LocArg destruction",e);}
     bool release_name(std::string& e){return activity_release(image,name_value,e);}
 };
 bool activity_sample(const Request& request,json& result,std::string& e){

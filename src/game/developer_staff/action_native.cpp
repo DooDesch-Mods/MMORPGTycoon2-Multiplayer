@@ -52,14 +52,14 @@ struct Runtime {
 std::atomic<Runtime*> published{nullptr};
 bool fail(std::string& e,const std::string& cause){e=cause;return false;}
 void rejected(Runtime& r,const std::string& cause){++r.rejected;if(r.cause!=cause){r.cause=cause;LOG_ERROR("[DeveloperStaff] UI rejected cause={}",cause);}}
-bool entry(Runtime& r,std::string& e){return verify_owned_ui(r.owner,r.image+0x6c7b70,[&](auto p,auto out,auto n,auto& error){return r.memory.copy(p,out,n,error);},[](const auto& bytes){return mt2mp::sha256(bytes);},e);}
+bool entry(Runtime& r,std::string& e){return verify_owned_ui(r.owner,r.image+0x6cef90,[&](auto p,auto out,auto n,auto& error){return r.memory.copy(p,out,n,error);},[](const auto& bytes){return mt2mp::sha256(bytes);},e);}
 bool full_code(Runtime& r,std::string& e){
     if(!entry(r,e))return false;
-    try{for(const auto& b:original_bodies){if(b.rva==0x6c7b70)continue;std::vector<unsigned char> bytes(b.size);
+    try{for(const auto& b:original_bodies){if(b.rva==0x6cef90)continue;std::vector<unsigned char> bytes(b.size);
         if(!r.memory.copy(r.image+b.rva,bytes.data(),bytes.size(),e))return false;
         if(mt2mp::sha256(bytes)!=b.sha256)return fail(e,"Developer original native body differs RVA="+std::to_string(b.rva));}
-        std::vector<unsigned char> count(656);if(!r.memory.copy(r.image+0x25eed0,count.data(),count.size(),e))return false;
-        if(mt2mp::sha256(count)!="65f97a9e0f4e2853f55018ae69afd70841fb3803774682f0e605afee71d279dd")return fail(e,"Developer original SetDevCount complete body differs");
+        std::vector<unsigned char> count(656);if(!r.memory.copy(r.image+0x261fd0,count.data(),count.size(),e))return false;
+        if(mt2mp::sha256(count)!="d3abd420455f3e45633202c38cf33bc32cccce847d8abfecdd90f8b703a80268")return fail(e,"Developer original SetDevCount complete body differs");
     }catch(const std::exception& ex){return fail(e,std::string("Developer original body hash: ")+ex.what());}
     return true;
 }
@@ -164,7 +164,7 @@ bool ui_command(void* window,void* record){
         const auto controller=typed_action_runtime::controller_status();
         if(!r->ready||!controller.value("initialized",false)||!controller.value("started",false)){++r->forwarded;return original(window,record);}
         uintptr_t ap=0;std::string error;
-        if(!window||!r->memory.copy(reinterpret_cast<uintptr_t>(window),&ap,sizeof ap,error)||ap!=r->image+0x1722e60){++r->forwarded;return original(window,record);}
+        if(!window||!r->memory.copy(reinterpret_cast<uintptr_t>(window),&ap,sizeof ap,error)||ap!=r->image+0x1729200){++r->forwarded;return original(window,record);}
         bool project_handled=false,project_accepted=false;
         if(!general_project_runtime::capture_ui(window,record,project_handled,project_accepted)||project_handled)return project_accepted;
         uint32_t fault=0;const auto intent=classify(r->image,record,fault);CaptureCalls calls{*r,window,record};IntentReceipt receipt;
@@ -186,12 +186,12 @@ bool retire_lobby(std::string& e){
 }
 bool verify_entry(uintptr_t target,std::string& e){
     auto* r=published.load(std::memory_order_acquire);
-    if(r&&r->owner.enabled){if(target!=r->image+0x6c7b70)return fail(e,"Developer UI hook target differs");return entry(*r,e);}
+    if(r&&r->owner.enabled){if(target!=r->image+0x6cef90)return fail(e,"Developer UI hook target differs");return entry(*r,e);}
     const auto image=uintptr_t(GetModuleHandleW(nullptr));
-    if(!image||target!=image+0x6c7b70)return fail(e,"Developer UI original target differs");
+    if(!image||target!=image+0x6cef90)return fail(e,"Developer UI original target differs");
     placement_ui_probe::ProcessMemory memory;std::vector<unsigned char> body(2560);
     if(!memory.copy(target,body.data(),body.size(),e))return false;
-    try{return mt2mp::sha256(body)=="d204e8e24dc14d66e170adae7b4b60433fa82baa6eecb81f65353f32d8c5a2af"||fail(e,"Developer UI original full body differs");}
+    try{return mt2mp::sha256(body)=="63b0c84b87fcb7262ea9793b352282fd8153671426b63d531eae661707a8a634"||fail(e,"Developer UI original full body differs");}
     catch(const std::exception& ex){return fail(e,std::string("Developer UI original body hash: ")+ex.what());}
 }
 bool enable(std::string& e){
@@ -201,12 +201,12 @@ bool enable(std::string& e){
     if(r->install_attempted)return fail(e,"Developer UI hook installation previously failed: "+r->install_cause);
     r->install_attempted=true;struct Cause{Runtime& r;std::string& e;~Cause(){if(!e.empty())r.install_cause=e;}} cause{*r,e};
     uint32_t thread=0;std::string sha;if(!native::read_resolver_receipt(r->image,thread,sha,e))return false;
-    if(thread!=r->thread||r->image!=uintptr_t(GetModuleHandleW(nullptr))||sha!="bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6")return fail(e,"Developer UI hook actual EXE/process/thread differs");
-    std::vector<unsigned char> body(2560);if(!r->memory.copy(r->image+0x6c7b70,body.data(),body.size(),e))return false;
-    if(mt2mp::sha256(body)!="d204e8e24dc14d66e170adae7b4b60433fa82baa6eecb81f65353f32d8c5a2af")return fail(e,"Developer UI original full body differs before hook");
-    initial_release::UiCommand original=nullptr;const auto created=MH_CreateHook(reinterpret_cast<void*>(r->image+0x6c7b70),reinterpret_cast<void*>(&ui_command),reinterpret_cast<void**>(&original));
+    if(thread!=r->thread||r->image!=uintptr_t(GetModuleHandleW(nullptr))||sha!="7efd8ee7b97f78362e7a2f8116b327fa6b756bdce23114b68143c4c9d2dd50eb")return fail(e,"Developer UI hook actual EXE/process/thread differs");
+    std::vector<unsigned char> body(2560);if(!r->memory.copy(r->image+0x6cef90,body.data(),body.size(),e))return false;
+    if(mt2mp::sha256(body)!="63b0c84b87fcb7262ea9793b352282fd8153671426b63d531eae661707a8a634")return fail(e,"Developer UI original full body differs before hook");
+    initial_release::UiCommand original=nullptr;const auto created=MH_CreateHook(reinterpret_cast<void*>(r->image+0x6cef90),reinterpret_cast<void*>(&ui_command),reinterpret_cast<void**>(&original));
     if(created!=MH_OK||!original)return fail(e,"Developer UI MinHook create failed status="+std::to_string(created));
-    r->original.store(original,std::memory_order_release);r->owner={r->image+0x6c7b70,reinterpret_cast<uintptr_t>(&ui_command),reinterpret_cast<uintptr_t>(original),true,false};
+    r->original.store(original,std::memory_order_release);r->owner={r->image+0x6cef90,reinterpret_cast<uintptr_t>(&ui_command),reinterpret_cast<uintptr_t>(original),true,false};
     const auto result=MH_EnableHook(reinterpret_cast<void*>(r->owner.target));if(result!=MH_OK)return fail(e,"Developer UI MinHook enable failed status="+std::to_string(result));
     r->owner.enabled=true;if(!entry(*r,e))return false;r->ready=true;e.clear();return true;
 }
@@ -328,7 +328,7 @@ bool ui_fixture(const json& args,json& out,std::string& e){
            args.at("generation").get<uint64_t>()!=before.pin.origin.generation||args.at("expected_count").get<int32_t>()!=pool.count)
             return fail(e,"Developer UI fixture stale native Origin/count");
         uintptr_t window=0;if(!read_window([&](auto p,auto target,auto n,auto& cause){return r->memory.copy(p,target,n,cause);},before,window,e))return false;
-        if(command=="Show"&&!hud_time_runtime::verify_window_show_hook(r->image+0x81ec20,e))return false;
+        if(command=="Show"&&!hud_time_runtime::verify_window_show_hook(r->image+0x827210,e))return false;
         const auto captured=r->captured;out["token"]=token;out["command"]=command;out["before"]=encode(before);out["unknown"]=true;
         r->ui_proofs.emplace(token,out);r->ui_proof_locked=true;r->ui_proof_cause="Developer UI fixture native call outstanding; no replay";attempted=true;out["ui_attempted"]=true;
         NativeReceipt native;

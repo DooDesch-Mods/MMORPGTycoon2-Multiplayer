@@ -15,7 +15,7 @@ bool gm_world(Runtime& r,const a::Context& context,const a::Binding& binding,bui
 bool gm_census(Runtime& r,const a::Context& context,const a::Binding& binding,const Local& local,ticket::Census& out,building_mixed_identity::opened_file::CurrentWorld& world,std::string& error){
     if(!gm_world(r,context,binding,world,error))return false;
     live::apply_timing::PageReadScope census_pages(!live::apply_timing::PageReadScope::reader_active());
-    uintptr_t queue=0;if(!at(r,r.image,0x13df360,queue,error))return false;
+    uintptr_t queue=0;if(!at(r,r.image,0x13eb360,queue,error))return false;
     auto read=[&](uintptr_t object,size_t offset,auto& value,std::string& cause){return at(r,object,offset,value,cause);};
     auto find=[&](uint64_t uid,uintptr_t& object,std::string& cause){live::apply_timing::PageReadScope original_call(live::apply_timing::PageBoundary::OriginalCall);const auto exception=uid_lookup(r.image,uid,object);return !exception||fail(cause,"GM current FindUID SEH="+std::to_string(exception));};
     return ticket::read(read,find,r.image,queue,uintptr_t(world.map)+0x1c0,local.gm_rows,out,error);
@@ -23,11 +23,11 @@ bool gm_census(Runtime& r,const a::Context& context,const a::Binding& binding,co
 bool gm_key(Runtime& r,const a::Context& context,const a::Binding& binding,const Local& local,uintptr_t object,std::string& out,std::string& error){
     out.clear();building_mixed_identity::opened_file::CurrentWorld world;if(!gm_world(r,context,binding,world,error))return false;
     for(size_t i=0;i<local.gm_rows.size();++i)if(local.gm_rows[i]==object){uint64_t uid=0;int32_t slot=-1;uintptr_t registered=0;
-        if(!ap(r,object,0x16e5070,error)||!at(r,object,0x18,uid,error)||uid!=local.gm_uids[i]||!at(r,object,0x4ac,slot,error)||slot!=int32_t(i))return fail(error,error.empty()?"GM current external fixed-slot/full UID changed":error);
+        if(!ap(r,object,0x16eb410,error)||!at(r,object,0x18,uid,error)||uid!=local.gm_uids[i]||!at(r,object,0x4ac,slot,error)||slot!=int32_t(i))return fail(error,error.empty()?"GM current external fixed-slot/full UID changed":error);
         const auto exception=uid_lookup(r.image,uid,registered);if(exception||registered!=object)return fail(error,"GM external fixed slot FindUID differs SEH="+std::to_string(exception));out="gm:"+std::to_string(i);return true;}
     MarketingMemory memory(r);ticket::reference::native::ReferenceWorld references{r.image,uintptr_t(world.state),uintptr_t(world.map)};
     uintptr_t table=0;if(!at(r,object,0,table,error))return false;
-    const auto kind=table==r.image+0x1744e90?ticket::reference::native::ReferenceKind::SubscriberToon:ticket::reference::native::ReferenceKind::RootRegion;
+    const auto kind=table==r.image+0x174b230?ticket::reference::native::ReferenceKind::SubscriberToon:ticket::reference::native::ReferenceKind::RootRegion;
     return ticket::reference::identify(memory,references,object,kind,out,error);
 }
 bool gm_resolve(Runtime& r,const a::Context& context,const a::Binding& binding,const Local& local,const std::string& key,uintptr_t& out,std::string& error){

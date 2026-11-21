@@ -9,10 +9,10 @@ struct Memory {
     std::array<unsigned char,0x380> cursor{};std::array<unsigned char,0x400> checkbox{};std::array<std::array<unsigned char,0x380>,4> swatches{};
     std::array<unsigned char,0x90> theme{};std::array<std::array<float,4>,4> theme_colors{};std::array<unsigned char,0x200> dungeon{};std::array<uint32_t,5> palette{1,2,3,4,0xfeedcafe};
     template<class T>static void put(auto& bytes,size_t offset,const T& value){std::memcpy(bytes.data()+offset,&value,sizeof value);}
-    Memory(){put(cursor,0,uintptr_t(0x173ea20));put(cursor,0x18,uintptr_t(0x173eba8));put(cursor,0x308,uintptr_t(checkbox.data()));put(cursor,0x2c8,uintptr_t(theme.data()));
-        put(checkbox,0,uintptr_t(0x16d98c0));put(checkbox,0x346,uint8_t(1));put(theme,0,uintptr_t(0x16ff4d0));put(theme,0x80,uintptr_t(theme_colors.data()));put(theme,0x88,int32_t(4));put(theme,0x8c,int32_t(4));
-        for(size_t i=0;i<4;++i){put(cursor,0x2e8+i*8,uintptr_t(swatches[i].data()));put(swatches[i],0,uintptr_t(0x17224a0));put(swatches[i],0x2c8,std::array<float,4>{.1f,.2f,.3f,.4f});theme_colors[i]={float(i),.5f,.6f,1.f};}
-        put(dungeon,0x1a0,uintptr_t(0x172bf80));put(dungeon,0x1c0,uintptr_t(palette.data()));put(dungeon,0x1c8,int32_t(5));put(dungeon,0x1cc,int32_t(5));put(dungeon,0x1d0,uint8_t(0));
+    Memory(){put(cursor,0,uintptr_t(0x1744dc0));put(cursor,0x18,uintptr_t(0x1744f48));put(cursor,0x308,uintptr_t(checkbox.data()));put(cursor,0x2c8,uintptr_t(theme.data()));
+        put(checkbox,0,uintptr_t(0x16dfc60));put(checkbox,0x346,uint8_t(1));put(theme,0,uintptr_t(0x1705870));put(theme,0x80,uintptr_t(theme_colors.data()));put(theme,0x88,int32_t(4));put(theme,0x8c,int32_t(4));
+        for(size_t i=0;i<4;++i){put(cursor,0x2e8+i*8,uintptr_t(swatches[i].data()));put(swatches[i],0,uintptr_t(0x1728840));put(swatches[i],0x2c8,std::array<float,4>{.1f,.2f,.3f,.4f});theme_colors[i]={float(i),.5f,.6f,1.f};}
+        put(dungeon,0x1a0,uintptr_t(0x1732320));put(dungeon,0x1c0,uintptr_t(palette.data()));put(dungeon,0x1c8,int32_t(5));put(dungeon,0x1cc,int32_t(5));put(dungeon,0x1d0,uint8_t(0));
     }
     bool operator()(uintptr_t base,size_t offset,auto& value,std::string&){std::memcpy(&value,reinterpret_cast<const void*>(base+offset),sizeof value);return true;}
 };

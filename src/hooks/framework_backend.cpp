@@ -11,7 +11,7 @@ struct Target { const char* name; uintptr_t rva; bool shared; };
 constexpr Target catalog[]{
 #include "framework_catalog.inc"
 };
-constexpr char game_sha[]="bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6";
+constexpr char game_sha[]="7efd8ee7b97f78362e7a2f8116b327fa6b756bdce23114b68143c4c9d2dd50eb";
 const Target* find(uintptr_t image, uintptr_t target) {
     if(target<image)return nullptr;
     for(const auto& entry:catalog)if(entry.rva==target-image)return &entry;
@@ -113,7 +113,7 @@ bool Backend::bind_ownership(const MT2FW_MT2_OwnershipV1& value) {
     if(!current("bind_ownership"))return false;
     if(ownership_bound_){fail("bind_ownership",MH_ERROR_ALREADY_INITIALIZED,"Framework ownership service cannot rebind");return false;}
     // Extension context is a different service owner, obtained with the same exact Host.
-    if(value.size!=sizeof value||value.version!=MT2FW_MT2_OWNERSHIP_VERSION||!value.context||image_>(std::numeric_limits<uintptr_t>::max)()-0x1c52a70||
+    if(value.size!=sizeof value||value.version!=MT2FW_MT2_OWNERSHIP_VERSION||!value.context||image_>(std::numeric_limits<uintptr_t>::max)()-0x1c59a70||
        !value.hook_disable||!value.hook_resume||!value.free_prepare||!value.free_enable||
        !value.free_disable||!value.free_read||!value.free_remove){
         fail("bind_ownership",MH_ERROR_NOT_INITIALIZED,"Framework ownership service is incomplete or differs");return false;
@@ -318,7 +318,7 @@ bool Backend::free_fail(const char* operation,const std::string& why,std::string
 }
 bool Backend::free_receipt(const MT2FW_MT2_FreeReceipt& value,uint32_t state,uintptr_t replacement)const {
     if(value.size!=sizeof value||value.state!=state||!value.generation||!equal(value.game_sha256,game_sha)||
-       value.slot!=image_+0x1c52a00||value.malloc_slot!=image_+0x1c52a70||!value.original||!value.malloc_original||
+       value.slot!=image_+0x1c59a00||value.malloc_slot!=image_+0x1c59a70||!value.original||!value.malloc_original||
        value.replacement!=replacement||value.original==replacement||!value.live_confirmed||!value.initial_protection||
        value.current_protection!=value.initial_protection||
        value.current!=(state==MT2FW_MT2_ROUTE_ENABLED?replacement:value.original))return false;

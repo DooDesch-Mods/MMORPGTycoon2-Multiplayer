@@ -26,11 +26,11 @@ struct Memory {
         const auto it=objects.find(uid);found=it==objects.end()?0:it->second;return true;
     }
     Memory(){
-        put(region+0x70,root);put(region+0x990,manager);put(manager,image+0x16fa780);
-        put(manager+0x68,region);put(manager+0x38,image+0x172dfa0);put(manager+0x40,fixture_data);
-        put(manager+0x48,int32_t(3));put(manager+0x4c,int32_t(4));put(image+0x1743040+0x438,image+0x3976f0);
+        put(region+0x70,root);put(region+0x990,manager);put(manager,image+0x1700b20);
+        put(manager+0x68,region);put(manager+0x38,image+0x1734340);put(manager+0x40,fixture_data);
+        put(manager+0x48,int32_t(3));put(manager+0x4c,int32_t(4));put(image+0x17493e0+0x438,image+0x39c1f0);
         for(uint64_t i=0;i<3;++i){const auto object=uintptr_t(0x50000+i*0x1000);const uint64_t uid=200+i;
-            put(fixture_data+size_t(i)*8,object);put(object,image+0x1743040);put(object+0x18,uid);
+            put(fixture_data+size_t(i)*8,object);put(object,image+0x17493e0);put(object+0x18,uid);
             put(object+0x170,root);put(object+0x178,region);objects[uid]=object;}
     }
     bool capture(cb::Pool& out,std::string& error){
@@ -61,9 +61,9 @@ int main(){try{
     need(!cb::removed(before,after,{middle,middle},error),"duplicate selected destruction accepted");
     need(!cb::removed(before,after,{{0x77777,999}},error),"absent selected destruction accepted");
     const std::array<std::pair<uintptr_t,uintptr_t>,8> invalid{{
-        {region+0x70,root+8},{manager,image+0x1714100},{manager+0x68,region+8},
-        {manager+0x38,image+0x172dfa8},{0x50000,image+0x16c0770},
-        {0x50000+0x170,root+8},{0x50000+0x178,region+8},{image+0x1743040+0x438,image+0x3b9e20}}};
+        {region+0x70,root+8},{manager,image+0x171a4a0},{manager+0x68,region+8},
+        {manager+0x38,image+0x1734348},{0x50000,image+0x16c6b10},
+        {0x50000+0x170,root+8},{0x50000+0x178,region+8},{image+0x17493e0+0x438,image+0x3be930}}};
     for(const auto& [address,value]:invalid){Memory changed;changed.put(address,value);cb::Pool result;
         need(!changed.capture(result,error),"wrong native Boss ownership or notification accepted address="+std::to_string(address));}
     for(const int32_t count:{-1,100001}){Memory changed;changed.put(manager+0x48,count);cb::Pool result;

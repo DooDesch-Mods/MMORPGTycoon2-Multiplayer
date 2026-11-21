@@ -15,16 +15,16 @@ constexpr uintptr_t image=0x140000000,manager=0x200000,buffer=0x300000,first=0x4
 constexpr uint64_t first_uid=0x100000007,second_uid=0x200000007;
 const std::string digest(64,'a');
 Memory memory(){
-    Memory m;const auto prop=image+0x13bef60;
-    m.put(prop,image+0x1710190);m.put(prop+0x38,uint64_t(0x18));m.put(manager,image+0x1719080);
-    m.put(manager+0x18,image+0x172d8e0);m.put(manager+0x20,buffer);m.put(manager+0x28,int32_t(2));m.put(manager+0x2c,int32_t(2));
+    Memory m;const auto prop=image+0x13caf60;
+    m.put(prop,image+0x1716530);m.put(prop+0x38,uint64_t(0x18));m.put(manager,image+0x171f420);
+    m.put(manager+0x18,image+0x1733c80);m.put(manager+0x20,buffer);m.put(manager+0x28,int32_t(2));m.put(manager+0x2c,int32_t(2));
     m.put(buffer,first);m.put(buffer+8,second);
-    for(const auto object:{first,second}){m.put(object,image+0x16da000);m.put(object+8,context);}
+    for(const auto object:{first,second}){m.put(object,image+0x16e03a0);m.put(object+8,context);}
     m.put(first+0x18,first_uid);m.put(second+0x18,second_uid);return m;
 }
 bool links(uintptr_t p,int32_t& id,std::string&){id=p==first?17:0;return true;}
 void observer(){
-    auto m=memory();std::string e;const auto prop=image+0x13bef60;saved::SaveFrame frame;saved::Pool out;
+    auto m=memory();std::string e;const auto prop=image+0x13caf60;saved::SaveFrame frame;saved::Pool out;
     need(saved::begin_save(m,image,prop,manager,reader,context,links,frame,e),e);
     need(saved::finish_save(m,image,frame,prop,manager,reader,context,true,links,out,e),e);
     need(out.records.size()==2&&out.records[1].child==1,"original child lost");

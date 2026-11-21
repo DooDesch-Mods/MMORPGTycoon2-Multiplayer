@@ -36,7 +36,7 @@ bool pin(const Producer& p,std::string& e){
     if(GetCurrentThreadId()!=p.thread)return fail(e,"VIP Host witness requires bound Mainthread");
     if(!native::read_resolver_receipt(image,thread,sha,e)||!action_session::selected_session().current(actual,e)||
        !native_open_runtime::read_current_world(world,e))return false;
-    if(image!=p.image||thread!=p.thread||sha!="bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6"||
+    if(image!=p.image||thread!=p.thread||sha!="7efd8ee7b97f78362e7a2f8116b327fa6b756bdce23114b68143c4c9d2dd50eb"||
        actual!=p.context||!same_world(world,p.world)||world.world_epoch!=p.binding.native_epoch||
        world.generation!=p.binding.native_generation||net::current_world_epoch()!=p.transitions.origin().epoch)
         return fail(e,"VIP Host current resolver/Session/World binding differs");
@@ -181,7 +181,7 @@ void host_update(uintptr_t receiver,float dt,uintptr_t caller,HostUpdate origina
     const auto observe=[&](bool pre,const std::optional<std::string>& message){
         std::string e;
         try{
-            if(caller!=producer.image+0x4f43f5){latch(producer,"VIP Host Update caller differs from original ScenarioLog");return;}
+            if(caller!=producer.image+0x4fa375){latch(producer,"VIP Host Update caller differs from original ScenarioLog");return;}
             if(!enter(producer,e,true)){latch(producer,e);return;}
             Busy busy(producer);
             if(!collect(producer,receiver,e,message)){latch(producer,e);return;}

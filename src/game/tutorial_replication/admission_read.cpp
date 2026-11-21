@@ -27,11 +27,11 @@ bool read_research_admission(initial_release::Memory& m,uintptr_t image,uintptr_
         if(actual!=guard.bytes)return fail(e,"startingpoint admission code differs RVA="+std::to_string(guard.rva));
     }
     uintptr_t global_state=0,manager=0,global_manager=0;
-    if(!at(m,image,0x13df2a0,global_state,e)||!ap(m,state,image+0x16de920,e)||
-       !at(m,state,0x190,manager,e)||!at(m,image,0x13df4f0,global_manager,e))return false;
+    if(!at(m,image,0x13eb2a0,global_state,e)||!ap(m,state,image+0x16e4cc0,e)||
+       !at(m,state,0x190,manager,e)||!at(m,image,0x13eb4f0,global_manager,e))return false;
     if(state!=global_state||!manager||manager!=global_manager)return fail(e,"startingpoint admission current State/ReleaseManager differs");
-    if(!ap(m,manager,image+0x1714ed0,e)||!at(m,manager,0x38,out.release,e)||
-       !ap(m,out.release,image+0x16c12b0,e)||!ap(m,tech,image+0x16dc330,e))return false;
+    if(!ap(m,manager,image+0x171b270,e)||!at(m,manager,0x38,out.release,e)||
+       !ap(m,out.release,image+0x16c7650,e)||!ap(m,tech,image+0x16e26d0,e))return false;
     uintptr_t key=0;uint64_t key_size=0;std::array<char,14> name{};
     if(!at(m,tech,0x20,key,e)||!at(m,tech,0x28,key_size,e))return false;
     if(key_size!=selected.size())return fail(e,"startingpoint admission Tech key length differs");
@@ -39,9 +39,9 @@ bool read_research_admission(initial_release::Memory& m,uintptr_t image,uintptr_
     if(std::memcmp(name.data(),selected.c_str(),selected.size()+1))return fail(e,"startingpoint admission Tech key differs");
     if(!at(m,tech,0xf9,out.repeatable,e)||!at(m,tech,0x160,out.modifiers,e)||
        !at(m,tech,0xe0,out.art_pack_bytes,e)||!at(m,tech,0x210,out.item_feature,e)||
-       !at(m,image,0x13b9820,out.events_enabled,e))return false;
+       !at(m,image,0x13c5820,out.events_enabled,e))return false;
     uintptr_t head=0;uint64_t count=0;
-    constexpr uintptr_t bucket=0x1a2dd00+0x38*0x38;
+    constexpr uintptr_t bucket=0x1a34d00+0x38*0x38;
     if(!at(m,image,bucket+0x10,head,e)||!at(m,image,bucket+0x18,count,e))return false;
     if(count>64)return fail(e,"startingpoint admission event38 listener count exceeds64");
     std::set<uintptr_t> nodes,values;
@@ -61,7 +61,7 @@ bool read_research_admission(initial_release::Memory& m,uintptr_t image,uintptr_
     // exhaustive subscription receipt, and another Release could mutate too.
     if(out.listeners.size()!=1)return fail(e,"startingpoint admission event38 requires exactly current Release listener");
     const auto& row=out.listeners.front();
-    if(row.address!=out.release+0x18||row.address_point!=image+0x16c1370||row.handler!=image+0x4e4cf0)
+    if(row.address!=out.release+0x18||row.address_point!=image+0x16c7710||row.handler!=image+0x4eabb0)
         return fail(e,"startingpoint admission event38 listener is not current Release subobject/thunk");
     return true;
 }

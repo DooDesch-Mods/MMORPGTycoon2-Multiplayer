@@ -44,9 +44,9 @@ bool settle_loaded_client(const action_session::Context& context,const action_se
         if(!settle.empty()){
             struct Body{uintptr_t rva;size_t size;const char* sha;};
             constexpr Body bodies[]={
-                {0x3b3740,32,"3ef8984fc7bcd2c89ab2f9d39bea0ff2a211505c3220437090b60256d90710db"},
-                {0x3b3210,192,"7148fdbcbc456e6c0f4c369e2b9e67245199dc2f5fd13e05d55219b132f29381"},
-                {0xc406b0,16,"02c14027a44e6a99f18861a97e86af62149d93ac17fa1dde7a71984e3b394290"}};
+                {0x3b8250,32,"3ef8984fc7bcd2c89ab2f9d39bea0ff2a211505c3220437090b60256d90710db"},
+                {0x3b7d20,192,"88790231ce59beaf4ecfd8d1f29ff1bb11d7c0b7c1b92f26a9c1761c316f63d2"},
+                {0xc4cf60,16,"02c14027a44e6a99f18861a97e86af62149d93ac17fa1dde7a71984e3b394290"}};
             for(const auto& body:bodies){std::vector<unsigned char> bytes(body.size);
                 if(!memory.copy(before.image+body.rva,bytes.data(),bytes.size(),e))return false;
                 if(mt2mp::sha256(bytes)!=body.sha)return fail(e,"Loaded Client movement original body differs RVA="+std::to_string(body.rva));}

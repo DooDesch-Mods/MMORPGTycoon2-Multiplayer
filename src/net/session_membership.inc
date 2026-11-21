@@ -4,7 +4,7 @@ std::array<uint64_t,5> remote_instances{};
 bool refresh_allowed=false,restart_pending=false;
 uint64_t discarded_epoch_packets=0,discarded_unknown_packets=0;
 membership::Slots observed_slots{};
-constexpr const char* executable_sha="bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6";
+constexpr const char* executable_sha="7efd8ee7b97f78362e7a2f8116b327fa6b756bdce23114b68143c4c9d2dd50eb";
 
 uint64_t nonce(){
     uint64_t value=0;

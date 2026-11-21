@@ -37,14 +37,14 @@ template<class Memory>
 bool read_native(Memory& memory,uintptr_t image,uintptr_t daily,
                  NativeState& out,std::string& error){
     out={};uintptr_t ap=0,array_ap=0;
-    if(!daily||daily>UINTPTR_MAX-0x69||image>UINTPTR_MAX-0x1749370)
+    if(!daily||daily>UINTPTR_MAX-0x69||image>UINTPTR_MAX-0x174f710)
         return reject(error,"DailyCount address invalid");
     if(!memory.copy(daily,&ap,sizeof(ap),error)||
        !memory.copy(daily+0x38,&array_ap,sizeof(array_ap),error)||
        !memory.copy(daily+0x40,&out.data,sizeof(out.data),error)||
        !memory.copy(daily+0x48,out.words.data(),sizeof(out.words),error)||
        !memory.copy(daily+0x68,&out.warning,sizeof(out.warning),error))return false;
-    if(ap!=image+0x16e4710||array_ap!=image+0x1749370)
+    if(ap!=image+0x16eaab0||array_ap!=image+0x174f710)
         return reject(error,"DailyCount or history AP differs");
     const int32_t count=out.words[0],capacity=out.words[1];
     if(out.words[5]!=10||count<0||count>10||capacity<count||capacity>100000||

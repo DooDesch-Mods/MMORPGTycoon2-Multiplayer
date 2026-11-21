@@ -10,8 +10,8 @@ namespace {
 size_t checks=0;
 void need(bool value,const std::string& cause){++checks;if(!value)throw std::runtime_error(cause);}
 constexpr uintptr_t image=0x10000000;
-constexpr std::array<uintptr_t,13> record_entries={0xa02670,0xa01260,0x9667c0,0x9676a0,0x11c0260,0x11bd1e0,
-    0x964920,0x96d370,0x96d360,0x964b50,0x96d380,0x96d3a0,0x96d390};
+constexpr std::array<uintptr_t,13> record_entries={0xa0d230,0xa0be20,0x96f9e0,0x9708c0,0x11cbc00,0x11c8b80,
+    0x96db40,0x976590,0x976580,0x96dd70,0x9765a0,0x9765c0,0x9765b0};
 struct Memory final:mt2mp::subscriber_lifecycle::Memory {
     std::map<uintptr_t,std::array<unsigned char,16>> code;
     std::vector<uintptr_t> reads;
@@ -41,10 +41,10 @@ int main(){try{
     std::set<uintptr_t> expected_reads;for(const auto rva:record_entries)expected_reads.insert(image+rva);
     need(memory.reads.size()==13&&std::set<uintptr_t>(memory.reads.begin(),memory.reads.end())==expected_reads,"record resolver read unrelated bytes or skipped a function");
     need(api::resolve_append_api(memory,image,append,error)&&pointers(append.records)==actual&&append.context_construct&&append.calls.array_load,"unchanged full Append API failed");
-    memory.code[image+0x89e0f0][0]^=0xff;memory.reads.clear();
+    memory.code[image+0x8a7210][0]^=0xff;memory.reads.clear();
     need(api::resolve_record_api(memory,image,records,error)&&pointers(records)==actual,"installed ContextLookup hook blocked record-only use");
     need(memory.reads.size()==13&&std::set<uintptr_t>(memory.reads.begin(),memory.reads.end())==expected_reads,"record resolver touched ContextLookup after hook");
-    need(!api::resolve_append_api(memory,image,append,error)&&error=="Subscriber append native code mismatch RVA="+std::to_string(0x89e0f0)&&empty(append.records)&&!append.context_construct,"full Append accepted modified ContextLookup or published partial pointers");
+    need(!api::resolve_append_api(memory,image,append,error)&&error=="Subscriber append native code mismatch RVA="+std::to_string(0x8a7210)&&empty(append.records)&&!append.context_construct,"full Append accepted modified ContextLookup or published partial pointers");
     for(const auto rva:record_entries){
         for(const size_t byte:{size_t(0),size_t(15)}){
             Memory changed;changed.code[image+rva][byte]^=0x01;records=api::DecodeApi{};records.allocate=reinterpret_cast<api::Allocate>(1);

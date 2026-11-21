@@ -24,7 +24,7 @@ class Reader {
         uintptr_t ap=0,name_method=0,target=0;int32_t refs=0;
         if(!at(out.toon,0,ap,e)||!at(ap,0xa8,name_method,e)||!at(out.toon,0x18,out.uid,e)||
            !at(out.toon,0x28,out.proxy,e)||!text(out.toon,0x38,out.name,e))return false;
-        if(!out.uid||name_method!=o.image+0xe3f530)return vip::fail(e,"VIP live Toon UID/name accessor differs");
+        if(!out.uid||name_method!=o.image+0xe4b020)return vip::fail(e,"VIP live Toon UID/name accessor differs");
         if(out.proxy){
             if(!at(out.proxy,0,target,e)||!at(out.proxy,8,refs,e))return false;
             if(target!=out.toon+0x20||refs<0)return vip::fail(e,"VIP live Toon weak owner differs");
@@ -41,7 +41,7 @@ public:
         alert_probe::Reader reader(memory_,o.image,size);
         if(!reader.read_ui(o.mode,o.state,out,e))return false;
         if(!out.present)return vip::fail(e,out.absent.c_str());
-        return (out.window_ap==o.image+0x17883d0&&out.window_name=="alerts_hud")||vip::fail(e,"VIP actual alerts_hud Window class/name differs");
+        return (out.window_ap==o.image+0x178e770&&out.window_name=="alerts_hud")||vip::fail(e,"VIP actual alerts_hud Window class/name differs");
     }
     bool subject(const Owner& o,int32_t id,const std::string& name,Subject& out,std::string& e){
         Subject a,b;if(!subject_once(o,id,a,e)||!subject_once(o,id,b,e))return false;
@@ -58,7 +58,7 @@ public:
         if(!at(alert,0,ap,e)||!at(ap,8,d0,e)||!at(alert,0x18,type,e)||!at(alert,0xf0,extra,e)||
            !at(alert,0x130,selector,e)||!at(alert,0x138,shown,e)||!text(alert,0x88,name,e)||
            !at(alert,0x68,toon,e)||!at(alert,0x70,proxy,e))return false;
-        if(ap!=o.image+0x1749770||d0!=o.image+0x234c70||type!=8||extra||name!=held.name||shown>1||
+        if(ap!=o.image+0x174fb10||d0!=o.image+0x237a50||type!=8||extra||name!=held.name||shown>1||
            (expected_shown>=0&&shown!=expected_shown)||contains(graph_now.owned,alert))
             return vip::fail(e,"VIP retained Alert type/name/lifetime/ownership differs");
         if(shown){

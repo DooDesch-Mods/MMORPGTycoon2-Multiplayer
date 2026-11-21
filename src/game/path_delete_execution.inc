@@ -1,19 +1,19 @@
 namespace {
 uint32_t delete_token(uintptr_t image,void* record,uintptr_t& text){
-    __try{text=uintptr_t(reinterpret_cast<const void*(*)(void*)>(image+0x96d880)(record));return 0;}
+    __try{text=uintptr_t(reinterpret_cast<const void*(*)(void*)>(image+0x976aa0)(record));return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 uint32_t delete_quote(uintptr_t image,uintptr_t road,int32_t& price,action::PathPoint& position){
-    __try{price=reinterpret_cast<int32_t(*)(void*)>(image+0x43c680)(reinterpret_cast<void*>(road));
-        reinterpret_cast<void*(*)(void*,void*)>(image+0x43c470)(position.data(),reinterpret_cast<void*>(road));return 0;}
+    __try{price=reinterpret_cast<int32_t(*)(void*)>(image+0x441460)(reinterpret_cast<void*>(road));
+        reinterpret_cast<void*(*)(void*,void*)>(image+0x441250)(position.data(),reinterpret_cast<void*>(road));return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 uint32_t delete_original(uintptr_t image,uintptr_t road,bool& returned){
     const region::NativeString command{"Destroy",7,{}},edit{"Destroy path",12,{}};
     __try{
-        reinterpret_cast<void(*)(const void*)>(image+0x265300)(&edit);
-        returned=reinterpret_cast<bool(*)(void*,const void*)>(image+0x43a2e0)(reinterpret_cast<void*>(road),&command);
-        reinterpret_cast<void(*)()>(image+0x265650)();return 0;
+        reinterpret_cast<void(*)(const void*)>(image+0x268400)(&edit);
+        returned=reinterpret_cast<bool(*)(void*,const void*)>(image+0x43f0c0)(reinterpret_cast<void*>(road),&command);
+        reinterpret_cast<void(*)()>(image+0x268750)();return 0;
     }__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 bool delete_binding(const Graph& g,const action::PathDeleteIntent& p,std::string& e){
@@ -89,8 +89,8 @@ bool delete_inverse(region::Runtime& r,const undo::UndoWitness& before,const und
     uintptr_t data=0;if(!region::at(r,address,0x20,data,e))return false;
     std::set<uint64_t> made;unsigned cash=0;
     for(size_t i=0;i<expected;++i){uintptr_t p=0,ap=0;if(!region::at(r,data,i*8,p,e)||!region::at(r,p,0,ap,e))return false;
-        if(ap==r.image+0x16e49c0||ap==r.image+0x172bf40){uint64_t uid=0;if(!region::at(r,p,0xb8,uid,e)||!made.insert(uid).second)return fail(e,"path delete inverse duplicate UID: "+e);if((uid==op.uids.front())!=(ap==r.image+0x16e49c0))return fail(e,"path delete inverse road/node type differs");}
-        else if(ap==r.image+0x1786fb0){int32_t amount=0;action::PathPoint point{};if(!region::at(r,p,0xb8,amount,e)||!region::at(r,p,0xbc,point,e))return false;
+        if(ap==r.image+0x16ead60||ap==r.image+0x17322e0){uint64_t uid=0;if(!region::at(r,p,0xb8,uid,e)||!made.insert(uid).second)return fail(e,"path delete inverse duplicate UID: "+e);if((uid==op.uids.front())!=(ap==r.image+0x16ead60))return fail(e,"path delete inverse road/node type differs");}
+        else if(ap==r.image+0x178d350){int32_t amount=0;action::PathPoint point{};if(!region::at(r,p,0xb8,amount,e)||!region::at(r,p,0xbc,point,e))return false;
             if(int64_t(amount)!=-int64_t(op.evidence.path_after.cost)||point!=position)return fail(e,"path delete inverse cash amount/position differs");++cash;}
         else return fail(e,"path delete inverse contains unexpected operation AP="+std::to_string(ap));
     }
@@ -99,37 +99,37 @@ bool delete_inverse(region::Runtime& r,const undo::UndoWitness& before,const und
 uint32_t delete_default(uintptr_t image,const path_delete_tool::Pin& pin,path_delete_tool::Calls& receipt){
     __try{
         struct NativeCalls {uintptr_t image;const path_delete_tool::Pin& pin;
-            void cancel(){reinterpret_cast<void(*)(void*,void*)>(image+0xbf63f0)(reinterpret_cast<void*>(pin.current),reinterpret_cast<void*>(pin.cursor));}
-            void switch_default(){reinterpret_cast<void(*)(void*,void*)>(image+0x5854e0)(reinterpret_cast<void*>(pin.cursor),nullptr);}
+            void cancel(){reinterpret_cast<void(*)(void*,void*)>(image+0xc02ac0)(reinterpret_cast<void*>(pin.current),reinterpret_cast<void*>(pin.cursor));}
+            void switch_default(){reinterpret_cast<void(*)(void*,void*)>(image+0x58bca0)(reinterpret_cast<void*>(pin.cursor),nullptr);}
         } calls{image,pin};path_delete_tool::sequence(receipt,calls);return 0;
     }__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 bool delete_default_code(region::Runtime& r,std::string& e){
     namespace guards=native_tool_prepare::code;
     for(const auto& guard:guards::guards){
-        if(guard.rva!=0x5854e0&&guard.rva!=0x589da0&&guard.rva!=0x58a2c0&&guard.rva!=0xbf6500)continue;
+        if(guard.rva!=0x58bca0&&guard.rva!=0x5905b0&&guard.rva!=0x590ab0&&guard.rva!=0xc02bd0)continue;
         std::vector<unsigned char> actual(guard.size);if(!r.memory.copy(r.image+guard.rva,actual.data(),actual.size(),e))return false;
-        if(guard.rva==0x5854e0){if(!hooks::framework::verify_original_bytes(r.image+guard.rva,actual.data(),guard.bytes,guard.size,e))return false;}
+        if(guard.rva==0x58bca0){if(!hooks::framework::verify_original_bytes(r.image+guard.rva,actual.data(),guard.bytes,guard.size,e))return false;}
         else if(std::memcmp(actual.data(),guard.bytes,guard.size))return fail(e,"path delete Default full native code differs RVA="+std::to_string(guard.rva));
     }
     std::array<unsigned char,16> cancel{};
-    return r.memory.copy(r.image+0xbf63f0,cancel.data(),cancel.size(),e)&&
+    return r.memory.copy(r.image+0xc02ac0,cancel.data(),cancel.size(),e)&&
         (cancel==native_tool_prepare::buy_region::cancel_code||fail(e,"path delete base Cancel full native code differs"));
 }
 uint32_t delete_select(uintptr_t image,uintptr_t manager,uintptr_t road){
     __try{
-        reinterpret_cast<void(*)(void*,void*)>(image+0x2d5c60)(reinterpret_cast<void*>(manager),reinterpret_cast<void*>(road));
-        reinterpret_cast<void(*)(void*)>(image+0x2d28b0)(reinterpret_cast<void*>(manager));return 0;
+        reinterpret_cast<void(*)(void*,void*)>(image+0x2d9350)(reinterpret_cast<void*>(manager),reinterpret_cast<void*>(road));
+        reinterpret_cast<void(*)(void*)>(image+0x2d6010)(reinterpret_cast<void*>(manager));return 0;
     }__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 struct DeleteUIReceipt {bool constructed=false,attempted=false,returned=false,accepted=false,cleaned=false;uint32_t fault=0,cleanup_fault=0;};
 uint32_t delete_ui_command(uintptr_t image,uintptr_t window,DeleteUIReceipt& out){
     alignas(8) unsigned char record[0x78]{};
     __try{
-        reinterpret_cast<void(*)(void*,const char*)>(image+0x967370)(record,"Destroy");out.constructed=true;
-        out.attempted=true;out.accepted=reinterpret_cast<RemoveUI>(image+0x7b04b0)(reinterpret_cast<void*>(window),record);out.returned=true;
+        reinterpret_cast<void(*)(void*,const char*)>(image+0x970590)(record,"Destroy");out.constructed=true;
+        out.attempted=true;out.accepted=reinterpret_cast<RemoveUI>(image+0x7b8750)(reinterpret_cast<void*>(window),record);out.returned=true;
     }__except(EXCEPTION_EXECUTE_HANDLER){out.fault=GetExceptionCode();}
-    if(out.constructed){__try{reinterpret_cast<void(*)(void*)>(image+0x9676a0)(record);out.cleaned=true;}__except(EXCEPTION_EXECUTE_HANDLER){out.cleanup_fault=GetExceptionCode();}}
+    if(out.constructed){__try{reinterpret_cast<void(*)(void*)>(image+0x9708c0)(record);out.cleaned=true;}__except(EXCEPTION_EXECUTE_HANDLER){out.cleanup_fault=GetExceptionCode();}}
     return out.fault?out.fault:out.cleanup_fault;
 }
 }
@@ -140,7 +140,7 @@ bool native_delete(const json& args,json& out,std::string& e){
     auto* r=runtime(e);if(!r||!path.ready||unresolved()||!code(*r,true,e))return fail(e,"path delete UI runtime unavailable: "+e);
     const auto controller=typed_action_runtime::status();if(!controller.value("started",false)||controller.value("pending",true)||controller.value("locked",true))return fail(e,"path delete UI requires idle bound Controller");
     region::LocalView view;Graph before;action::Ledger money_before,money_after;undo::UndoWitness undo_before,undo_after;uintptr_t manager=0,handler=0,window=0,target=0,proxy=0,live=0;
-    if(!region::read(*r,int32_t(id),0,view,e)||!graph(*r,view,before,e)||size_t(index)>=before.paths.size()||!region::ledger(money_before,e)||!undo::read_undo(r->memory,r->image,undo_before,e)||!region::at(*r,r->image,0x13df630,manager,e)||!native::ap(r->memory,manager,r->image,0x17205d0,e))return fail(e,"path delete UI target/before read failed: "+e);
+    if(!region::read(*r,int32_t(id),0,view,e)||!graph(*r,view,before,e)||size_t(index)>=before.paths.size()||!region::ledger(money_before,e)||!undo::read_undo(r->memory,r->image,undo_before,e)||!region::at(*r,r->image,0x13eb630,manager,e)||!native::ap(r->memory,manager,r->image,0x1726970,e))return fail(e,"path delete UI target/before read failed: "+e);
     auto& job=path.jobs[token];job={{"token",token},{"id",id},{"path_index",index},{"attempted",true},{"submitted",false},{"confirmed",false},{"ui_command_attempted",false},{"ui_command_returned",false},{"selection_attempted",false},{"selection_returned",false},{"unknown",false}};out=job;bool native_attempted=false;
     auto failed=[&]{job["cause"]=e;job["unknown"]=native_attempted;out=job;return false;};
     const auto road=before.paths[size_t(index)];
@@ -151,9 +151,9 @@ bool native_delete(const json& args,json& out,std::string& e){
        !path_delete_tool::inspect(r->image,path.road,path.node,manager,at,tool_before,e)||!delete_default_code(*r,e)){
         if(e.empty())e="path delete cleanup requires idle native Undo";return failed();}
     uintptr_t random=0;std::array<uint64_t,4> random_before{},random_after{};int32_t extra_before=0,extra_after=0;
-    if(!at(r->image,0x164b250,random,e)||!at(random,0,random_before,e)||!at(random,0x20,extra_before,e))return failed();
+    if(!at(r->image,0x1650830,random,e)||!at(random,0,random_before,e)||!at(random,0x20,extra_before,e))return failed();
     uint32_t cleanup_fault=0;if(tool_before.road){native_attempted=true;cleanup_fault=delete_default(r->image,tool_before,cleanup);}
-    job["tool_cleanup"]={{"current_ap_before",tool_before.current_ap},{"target_ap",r->image+0x17391a0},
+    job["tool_cleanup"]={{"current_ap_before",tool_before.current_ap},{"target_ap",r->image+0x173f540},
         {"cancel_attempted",cleanup.cancel_attempted},{"cancel_returned",cleanup.cancel_returned},
         {"switch_attempted",cleanup.switch_attempted},{"switch_returned",cleanup.switch_returned},
         {"exception",cleanup_fault},{"confirmed",false}};
@@ -165,7 +165,7 @@ bool native_delete(const json& args,json& out,std::string& e){
     if(!current_capture(context,net::current_snapshot_id(),binding,e)||
        !region::read(*r,int32_t(id),view.region,clean_view,e)||!graph(*r,clean_view,clean_graph,e)||
        !region::ledger(clean_money,e)||!undo::read_undo(r->memory,r->image,clean_undo,e)||
-       !at(r->image,0x164b250,same_random,e)||same_random!=random||!at(random,0,random_after,e)||!at(random,0x20,extra_after,e)){
+       !at(r->image,0x1650830,same_random,e)||same_random!=random||!at(random,0,random_after,e)||!at(random,0x20,extra_after,e)){
         if(e.empty())e="path delete cleanup current owner changed";return failed();}
     if(before.state!=clean_graph.state||before.rows!=clean_graph.rows||before.paths!=clean_graph.paths||before.nodes!=clean_graph.nodes||
        before.path_uids!=clean_graph.path_uids||before.node_uids!=clean_graph.node_uids||money_before!=clean_money||undo_before!=clean_undo||
@@ -182,10 +182,10 @@ bool native_delete(const json& args,json& out,std::string& e){
     if(!at(tool_before.cursor,0x190,current,e)||!at(current,0,current_ap,e)||!at(road,0,target_ap,e)||
        !at(manager,0x30,selection_count,e)||!at(manager,0xb8,handler,e))return failed();
     job["selection"]={{"current_ap",current_ap},{"target_ap",target_ap},{"count",selection_count},{"handler",handler}};
-    if(current!=tool_before.desired||current_ap!=r->image+0x17391a0||target_ap!=r->image+0x1743f10||selection_count!=1||!handler){
+    if(current!=tool_before.desired||current_ap!=r->image+0x173f540||target_ap!=r->image+0x174a2b0||selection_count!=1||!handler){
         e="path delete native selection rejected current_ap="+std::to_string(current_ap)+" target_ap="+std::to_string(target_ap)+
             " count="+std::to_string(selection_count)+" required=1 handler="+std::to_string(handler);return failed();}
-    if(!region::at(*r,handler,0x10,window,e)||!native::ap(r->memory,window,r->image,0x1714810,e)||!region::at(*r,window,0x4f0,target,e)||!region::at(*r,window,0x4f8,proxy,e)||!proxy||!region::at(*r,proxy,0,live,e)||target!=road||live!=road+0x20){
+    if(!region::at(*r,handler,0x10,window,e)||!native::ap(r->memory,window,r->image,0x171abb0,e)||!region::at(*r,window,0x4f0,target,e)||!region::at(*r,window,0x4f8,proxy,e)||!proxy||!region::at(*r,proxy,0,live,e)||target!=road||live!=road+0x20){
         e="path delete native InfoWindow target differs current_ap="+std::to_string(current_ap)+" target_ap="+std::to_string(target_ap)+
             " count="+std::to_string(selection_count)+" handler="+std::to_string(handler)+" original="+e;return failed();}
     path.token=token;struct ResetToken{~ResetToken(){path.token.clear();}} reset_token;
@@ -216,7 +216,7 @@ action::Outcome perform_remove(const action::Binding& binding,const action::Requ
     path.replay=&op;struct Reset{~Reset(){path.replay=nullptr;}} reset;bool returned=false;
     if(!native_error(delete_original(r->image,road,returned),"delete original Command",e)||!returned){if(e.empty())e="path delete original Command returned false";return unknown();}
     region::LocalView after;Graph current;undo::UndoWitness undo_after;uintptr_t after_global=0,selection=0,focused=0;
-    if(!region::read(*r,request.path_delete.region,before.region,after,e)||!region::bound(after,binding,request.snapshot_uuid,e)||!graph(*r,after,current,e)||!delete_delta(old,current,request.path_delete,op.uids,e)||!region::ledger(op.evidence.after,e)||!terrain::terrain_state(*r,after,op.evidence.terrain_after,after_global,e)||!undo::read_undo(r->memory,r->image,undo_after,e)||!region::at(*r,r->image,0x13df630,selection,e)||!native::ap(r->memory,selection,r->image,0x17205d0,e)||!region::at(*r,selection,0x80,focused,e))return unknown();
+    if(!region::read(*r,request.path_delete.region,before.region,after,e)||!region::bound(after,binding,request.snapshot_uuid,e)||!graph(*r,after,current,e)||!delete_delta(old,current,request.path_delete,op.uids,e)||!region::ledger(op.evidence.after,e)||!terrain::terrain_state(*r,after,op.evidence.terrain_after,after_global,e)||!undo::read_undo(r->memory,r->image,undo_after,e)||!region::at(*r,r->image,0x13eb630,selection,e)||!native::ap(r->memory,selection,r->image,0x1726970,e)||!region::at(*r,selection,0x80,focused,e))return unknown();
     if(focused==road){e="path delete target remains focused";return unknown();}
     for(size_t off:{size_t(0x8),size_t(0x20),size_t(0x38),size_t(0x50)}){std::vector<uintptr_t> list;
         if(!native::array(r->memory,selection,off+8,off+16,off+20,1000000,list,e))return unknown();

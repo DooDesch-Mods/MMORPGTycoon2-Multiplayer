@@ -44,7 +44,7 @@ bool quest_batch_run(QuestEditBatch& batch,Work& world,local::SaveScopeBody body
     receipt={};
     if(!batch.scope.enter_returned){
         batch.world.original=world.original;
-        const local::SaveScopeApi save{reinterpret_cast<local::SaveScopeCall>(image_base+0x4a03a0),reinterpret_cast<local::SaveScopeCall>(image_base+0x49f6f0)};
+        const local::SaveScopeApi save{reinterpret_cast<local::SaveScopeCall>(image_base+0x4a5890),reinterpret_cast<local::SaveScopeCall>(image_base+0x4a4be0)};
         if(!local::begin_save_scope(save,world.original.origin.mode,batch.scope,e)){
             receipt.unknown=batch.scope.unknown;return false;
         }
@@ -125,7 +125,7 @@ bool with_quest_edits(const std::string& origin,const FrameBinding& frame,
             }catch(const std::exception& ex){batch.scope.cleanup_cause=std::string("Quest batch exit C++: ")+ex.what();}
             catch(...){batch.scope.cleanup_cause="Quest batch exit unknown C++ exception";}
         }else batch.scope.cleanup_cause="Quest batch helper exit guard failed; original leave not replayed";
-        const local::SaveScopeApi save{reinterpret_cast<local::SaveScopeCall>(image_base+0x4a03a0),reinterpret_cast<local::SaveScopeCall>(image_base+0x49f6f0)};
+        const local::SaveScopeApi save{reinterpret_cast<local::SaveScopeCall>(image_base+0x4a5890),reinterpret_cast<local::SaveScopeCall>(image_base+0x4a4be0)};
         ok=local::finish_save_scope(save,batch.world.original.origin.mode,ok,guard_ok,batch.scope,e);
         if(ok){
             try{

@@ -1,7 +1,7 @@
 #include "move_contract.h"
 namespace mt2mp::game::ui_move_runtime::contract {
 bool cleaned(uintptr_t image,const move_kiss::Intent& i,const CleanupView& c,std::string& e){
-    if(c.addresspoint!=image+0x172f1f0){e="move cleanup behaviour identity changed";return false;}
+    if(c.addresspoint!=image+0x1735590){e="move cleanup behaviour identity changed";return false;}
     if(c.records!=i.record||c.capacity<1){e="move cleanup record storage changed";return false;}
     if(c.count!=0||c.owned_first||c.owned_second||c.options){e="move native Deactivate/records/D0 cleanup not returned";return false;}
     if(c.current_behaviour==i.behaviour){e="move native Cursor still owns captured behaviour";return false;}

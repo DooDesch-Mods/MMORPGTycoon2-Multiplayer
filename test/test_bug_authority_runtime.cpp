@@ -28,14 +28,14 @@ const std::string action_id="22222222-2222-4222-8222-222222222222";
 const std::string key="action:"+action_id;
 template<class T>void put(uintptr_t ptr,const T& value){const auto* bytes=reinterpret_cast<const unsigned char*>(&value);for(size_t n=0;n<sizeof(T);++n)memory[ptr+n]=bytes[n];}
 void sync(){auto& r=bugs::runtime();int32_t count=static_cast<int32_t>(live.size());put(r.tracker+0x18,data);put(r.tracker+0x20,count);put(r.tracker+0x24,count);
- size_t index=0;for(const auto& [ptr,bug]:live){put(data+8*index++,ptr);put(ptr,uintptr_t(r.image+0x1742200));put(ptr+0x50,bug.anchor);put(ptr+0x48,bug.job);}}
+ size_t index=0;for(const auto& [ptr,bug]:live){put(data+8*index++,ptr);put(ptr,uintptr_t(r.image+0x17485a0));put(ptr+0x50,bug.anchor);put(ptr+0x48,bug.job);}}
 void add(uintptr_t pointer,const bugs::Value& v){create::Bug b;b.pointer=pointer;b.anchor=parent;b.value={v.type,v.created,v.discovered,v.toons,v.variant,v.reproducibility,v.known,v.manual,v.debugged};live.emplace(pointer,b);collections[collection].push_back(pointer);sync();}
 bugs::Row row(bugs::BirthKind kind=bugs::BirthKind::Action,uint64_t occurrence=1){return {bugs::ParentKind::Building,key,{kind,kind==bugs::BirthKind::Snapshot?std::string(64,'a'):(kind==bugs::BirthKind::Action?action_id:snapshot),kind==bugs::BirthKind::Publication?5u:0u,occurrence},{1,1,-1,0,2,.1f,false,false,false}};}
 void reset(){memory.clear();parents.clear();collections.clear();live.clear();jobs.clear();creation_inputs.clear();effects=0;scalar_failure=ledger_drift=false;active=true;next_bug=0x50000;
  auto& r=bugs::runtime();r.image=0x100000000;r.thread=GetCurrentThreadId();r.ready=true;r.locked=false;r.cause.clear();r.snapshot_armed=false;r.snapshot_sealed=true;r.snapshot_host=false;r.snapshot_uuid=snapshot;r.snapshot_sha=std::string(64,'a');r.lifetimes.clear();r.saved.clear();r.jobs.clear();r.saved_jobs.clear();r.frame_work.reset();r.frame_bugs={};r.frame_publication=0;r.job_occurrence=r.job_publication=r.job_action_occurrence=0;r.action.clear();r.publication=0;r.random_occurrence=r.specific_occurrence=r.record_occurrence=0;r.confirmed_actions={action_id};
  context={};context.snapshot_uuid=snapshot;context.role=action::Role::Client;binding={};binding.native_epoch=7;binding.native_generation=9;r.context=context;r.binding=binding;r.lounge=lounge;r.tracker=lounge+0x100;
  capture={};capture.image=r.image;capture.thread=r.thread;capture.local.lounge=lounge;capture.pin.origin.world_epoch=7;capture.pin.origin.generation=9;capture.pin.time_scale=0;capture.pin.pause_scale=0;
- parents[key]=parent;collections[collection]={};put(parent,uintptr_t(r.image+0x1710000));put(parent+0x18,uint64_t(42));put(parent+0xbd8,collection);put(r.image+0x13df2e0,r.tracker);put(r.image+0x13df630,uintptr_t(0x70000));sync();
+ parents[key]=parent;collections[collection]={};put(parent,uintptr_t(r.image+0x1710000));put(parent+0x18,uint64_t(42));put(parent+0xbd8,collection);put(r.image+0x13eb2e0,r.tracker);put(r.image+0x13eb630,uintptr_t(0x70000));sync();
 }
 int checks=0;
 void require(bool value,const char* reason){++checks;if(!value)throw std::runtime_error(reason);}
@@ -111,7 +111,7 @@ void run(){using fixture::require;std::string error;bool attempted=false,unknown
  require(bugs::capture(host,fixture::binding,5,observed,error)&&observed.rows.size()==1&&observed.rows[0].birth.kind==bugs::BirthKind::Publication,"Host birth uses existing publication");
  require(observed.rows[0].birth.sequence==5&&observed.rows[0].birth.source==fixture::snapshot,"publication identity owner exact");
  fixture::reset();const auto npc_key="action:33333333-3333-4333-8333-333333333333";const uintptr_t npc=0x21000,npc_collection=0x31000;
- fixture::parents[npc_key]=npc;fixture::collections[npc_collection]={};fixture::put(npc,bugs::runtime().image+0x1742980);fixture::put(npc+0x18,uint64_t(43));fixture::put(npc+0x848,npc_collection);
+ fixture::parents[npc_key]=npc;fixture::collections[npc_collection]={};fixture::put(npc,bugs::runtime().image+0x1748d20);fixture::put(npc+0x18,uint64_t(43));fixture::put(npc+0x848,npc_collection);
  auto npc_row=fixture::row(bugs::BirthKind::Action,2);npc_row.parent_kind=bugs::ParentKind::Npc;npc_row.parent_key=npc_key;target.rows={fixture::row(),npc_row};
  require(bugs::adopt_frame(fixture::context,fixture::binding,5,target,attempted,unknown,error),"complete frame covers Building and NPC collections");
  require(fixture::collections[fixture::collection].size()==1&&fixture::collections[npc_collection].size()==1,"each birth uses actual canonical parent collection");
@@ -149,7 +149,7 @@ void run(){using fixture::require;std::string error;bool attempted=false,unknown
  require(fixture::live.begin()->second.value.manual&&fixture::live.begin()->second.value.debugged,"new Bug final scalar flags differ");
  auto prepare_job=[&](uintptr_t native_job){fixture::reset();fixture::context.role=action::Role::Host;bugs::runtime().context=fixture::context;
      fixture::add(pointer,fixture::row().value);error.clear();require(bugs::witness_birth(fixture::collection,pointer,1,error),"original Bug witness setup");
-     fixture::live.at(pointer).job=native_job;fixture::sync();fixture::put(native_job,bugs::runtime().image+0x17427a0);fixture::put(native_job+8,uintptr_t(0xa0000));
+     fixture::live.at(pointer).job=native_job;fixture::sync();fixture::put(native_job,bugs::runtime().image+0x1748b40);fixture::put(native_job+8,uintptr_t(0xa0000));
      fixture::put(native_job+0x18,int32_t(7));fixture::put(native_job+0x38,pointer);};
  constexpr uintptr_t native_job=0x90000;prepare_job(native_job);
  require(bugs::work_birth(pointer,native_job,error)&&bugs::runtime().jobs.rows().size()==1,"original MakeJob witness rejected");
@@ -159,7 +159,7 @@ void run(){using fixture::require;std::string error;bool attempted=false,unknown
  require(bugs::work_birth(pointer,native_job,error)&&bugs::runtime().jobs.rows()[0].row.birth==bugs::Birth{bugs::BirthKind::Action,fixture::action_id,0,1},"MakeJob action birth differs");
  for(int wrong=0;wrong<5;++wrong){prepare_job(native_job);
      if(wrong==0)fixture::put(pointer+0x48,uintptr_t(native_job+1));if(wrong==1)fixture::put(native_job+0x38,uintptr_t(pointer+1));
-     if(wrong==2)fixture::put(pointer+0x50,uintptr_t(fixture::parent+1));if(wrong==3)fixture::put(native_job,bugs::runtime().image+0x1742200);if(wrong==4)fixture::put(native_job+0x18,int32_t(0));
+     if(wrong==2)fixture::put(pointer+0x50,uintptr_t(fixture::parent+1));if(wrong==3)fixture::put(native_job,bugs::runtime().image+0x17485a0);if(wrong==4)fixture::put(native_job+0x18,int32_t(0));
      require(!bugs::work_birth(pointer,native_job,error)&&bugs::runtime().jobs.rows().empty(),"wrong MakeJob reciprocal/parent/type admitted");}
  prepare_job(native_job);bugs::runtime().job_publication=5;bugs::runtime().job_occurrence=UINT64_MAX;
  require(!bugs::work_birth(pointer,native_job,error)&&bugs::runtime().jobs.rows().empty(),"Job publication occurrence overflow accepted");

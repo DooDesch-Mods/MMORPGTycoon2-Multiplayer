@@ -16,7 +16,7 @@ bool reject(const std::string& error){++rejected;if(cause!=error){cause=error;LO
 bool code(Memory& memory,std::string& error){
     for(const auto& pin:character_membership_codes::helpers){std::vector<unsigned char> bytes(pin.bytes);
         if(!memory.copy(state.image+pin.rva,bytes.data(),bytes.size(),error))return false;
-        if(pin.rva==0x684250&&original){MT2FW_MT2_RouteReceipt receipt{sizeof receipt};
+        if(pin.rva==0x68b460&&original){MT2FW_MT2_RouteReceipt receipt{sizeof receipt};
             if(!quest_list::read_route(state.image+pin.rva,receipt,error))return false;
             if(receipt.detour!=uintptr_t(&confirm_entry)||receipt.trampoline!=uintptr_t(original)||receipt.generation!=generation||receipt.state!=MT2FW_MT2_ROUTE_ENABLED)
                 return fail(error,"Character confirmed-delete active original route ownership differs");
@@ -27,14 +27,14 @@ bool code(Memory& memory,std::string& error){
             if(!std::equal(receipt.pristine,receipt.pristine+copied,trampoline.begin())||
                !std::equal(continuation.begin(),continuation.end(),trampoline.begin()+copied)||resume!=state.image+pin.rva+copied)
                 return fail(error,"Character confirmed-delete exact original instruction boundary differs");}
-        if(pin.rva==0x3c8d50&&!interventions::actors::live::normalize_npc_body(state.image+pin.rva,bytes,error))return false;
+        if(pin.rva==0x3cd860&&!interventions::actors::live::normalize_npc_body(state.image+pin.rva,bytes,error))return false;
         if(!hooks::framework::verify_original_hash(state.image+pin.rva,bytes.data(),bytes.size(),pin.sha,error))
             return fail(error,"Character membership original body differs RVA="+std::to_string(pin.rva)+" original="+error);
     }return true;
 }
 uint32_t name_used(uintptr_t manager,const std::string& text,bool& used)noexcept{
     __try{const quest_list::QuestTitleView value{text.data(),text.size()};
-        used=reinterpret_cast<bool(*)(void*,const quest_list::QuestTitleView&)>(state.image+0x9e690)(reinterpret_cast<void*>(manager),value);return 0;}
+        used=reinterpret_cast<bool(*)(void*,const quest_list::QuestTitleView&)>(state.image+0x9f390)(reinterpret_cast<void*>(manager),value);return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 bool next_name(uintptr_t manager,const std::string& base,std::string& name,std::string& error){
@@ -61,7 +61,7 @@ bool queue(uintptr_t view,a::CharacterMembershipCommand command,std::string& err
        !code(memory,error)||!typed_action_runtime::network_binding(snapshot,binding,error))
         return fail(error,error.empty()?"Character membership capture requires idle bound Mainthread Controller":error);
     uintptr_t ap=0,object=0;a::CharacterMembershipIntent intent;intent.command=command;
-    if(!field(memory,view,0,ap,error)||ap!=state.image+0x1736770||!field(memory,view,command==a::CharacterMembershipCommand::CreateVariant?0x458:0x460,object,error)||
+    if(!field(memory,view,0,ap,error)||ap!=state.image+0x173cb10||!field(memory,view,command==a::CharacterMembershipCommand::CreateVariant?0x458:0x460,object,error)||
        !object||!field(memory,object,0x2c,intent.kind,error)||!field(memory,object,0x30,intent.id,error))return fail(error,error.empty()?"Character membership current native View/selected type differs":error);
     Sample before;if(!sample(memory,binding,snapshot,intent,before,error))return false;
     if(before.selected!=object||before.value.selected.deleted)return fail(error,"Character membership captured View selected type lifetime differs");
@@ -77,16 +77,16 @@ void confirm_entry(void* receiver)try{
 catch(...){fault=true;reject("Character confirmed delete non-standard exception");}
 uint32_t create_original(uintptr_t object,const std::string& text,int32_t& ordinal)noexcept{
     __try{const quest_list::QuestTitleView value{text.data(),text.size()};
-        ordinal=reinterpret_cast<int32_t(*)(void*,const quest_list::QuestTitleView&)>(state.image+0x97a90)(reinterpret_cast<void*>(object),value);return 0;}
+        ordinal=reinterpret_cast<int32_t(*)(void*,const quest_list::QuestTitleView&)>(state.image+0x98780)(reinterpret_cast<void*>(object),value);return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 uint32_t destroy_original(uintptr_t collection,uintptr_t object)noexcept{
-    __try{reinterpret_cast<void(*)(void*,void*)>(state.image+0x9bb90)(reinterpret_cast<void*>(collection),reinterpret_cast<void*>(object));return 0;}
+    __try{reinterpret_cast<void(*)(void*,void*)>(state.image+0x9c870)(reinterpret_cast<void*>(collection),reinterpret_cast<void*>(object));return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 uint32_t show_created(uintptr_t view,uintptr_t object)noexcept{
-    __try{reinterpret_cast<void(*)(void*,void*)>(state.image+0x689100)(reinterpret_cast<void*>(view),reinterpret_cast<void*>(object));
-        reinterpret_cast<void(*)(void*)>(state.image+0x683c50)(reinterpret_cast<void*>(view));return 0;}
+    __try{reinterpret_cast<void(*)(void*,void*)>(state.image+0x690310)(reinterpret_cast<void*>(view),reinterpret_cast<void*>(object));
+        reinterpret_cast<void(*)(void*)>(state.image+0x68ae60)(reinterpret_cast<void*>(view));return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 bool same_create(const Sample& before,const Sample& after,int32_t created,std::string& error){
@@ -99,7 +99,7 @@ bool same_create(const Sample& before,const Sample& after,int32_t created,std::s
     }return true;
 }
 uint32_t remove_npc_original(uintptr_t manager,uintptr_t object)noexcept{
-    __try{reinterpret_cast<void(*)(void*,void*)>(state.image+0x297110)(reinterpret_cast<void*>(manager),reinterpret_cast<void*>(object));return 0;}
+    __try{reinterpret_cast<void(*)(void*,void*)>(state.image+0x29a550)(reinterpret_cast<void*>(manager),reinterpret_cast<void*>(object));return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 bool complete_npcs(Memory& memory,const Sample& before,character_membership_npc_completion::Receipt& receipt,std::string& error){
@@ -118,7 +118,7 @@ bool complete_npcs(Memory& memory,const Sample& before,character_membership_npc_
             if(!field(memory,row.pointer,0,ap,error)||!field(memory,row.pointer,0x18,uid,error)||!field(memory,row.pointer,0x178,region,error)||
                !field(memory,row.pointer,0x80c,type,error)||!field(memory,row.pointer,0x894,queued,error)||!field(memory,ap,8,destroy,error))return false;
             const auto seh=lookup(before.api.find,row.uid,registered);
-            if(seh||registered!=row.pointer||uid!=row.uid||region!=pool.region||type!=row.type||ap!=state.image+0x1742980||destroy!=state.image+0x3c65c0||queued>1)
+            if(seh||registered!=row.pointer||uid!=row.uid||region!=pool.region||type!=row.type||ap!=state.image+0x1748d20||destroy!=state.image+0x3cb0d0||queued>1)
                 return fail(error,"Character deferred NPC exact current Region/type/AP/D0/full UID differs SEH="+std::to_string(seh));
             marked=queued==1;return true;
         }
@@ -168,10 +168,10 @@ bool enable(std::string& error){
     if(ready){for(const auto& [id,op]:operations)if(!op.retired)return fail(error,"Character membership retained unretired original operation="+id);
         if(fault||pending_ui())return fail(error,"Character membership retained unresolved capture");Memory memory;if(!code(memory,error)||!enable_import(error))return false;operations.clear();local_views.clear();return true;}
     if(installed)return fail(error,"Character membership previous installation failed: "+cause);installed=true;Memory memory;if(!code(memory,error))return false;
-    auto status=MH_CreateHook(reinterpret_cast<void*>(state.image+0x684250),reinterpret_cast<void*>(&confirm_entry),reinterpret_cast<void**>(&original));
+    auto status=MH_CreateHook(reinterpret_cast<void*>(state.image+0x68b460),reinterpret_cast<void*>(&confirm_entry),reinterpret_cast<void**>(&original));
     if(status!=MH_OK||!original)return fail(error,"Character confirmed-delete prepare failed status="+std::to_string(status)+" cause="+mt2mp::hooks::framework::process_backend().error());
-    MT2FW_MT2_RouteReceipt receipt{sizeof receipt};if(!quest_list::read_route(state.image+0x684250,receipt,error))return false;generation=receipt.generation;
-    status=MH_EnableHook(reinterpret_cast<void*>(state.image+0x684250));if(status!=MH_OK)return fail(error,"Character confirmed-delete enable failed status="+std::to_string(status));
+    MT2FW_MT2_RouteReceipt receipt{sizeof receipt};if(!quest_list::read_route(state.image+0x68b460,receipt,error))return false;generation=receipt.generation;
+    status=MH_EnableHook(reinterpret_cast<void*>(state.image+0x68b460));if(status!=MH_OK)return fail(error,"Character confirmed-delete enable failed status="+std::to_string(status));
     if(!code(memory,error)||!enable_import(error))return false;ready=true;return true;
 }
 bool retire_lobby(std::string& error){
@@ -222,7 +222,7 @@ a::Outcome perform(const a::Binding& binding,const a::Request& request,const a::
         if(op.ordinal!=int32_t(op.before.value.selected.variants.size())||!op.after.value.created||!same_create(op.before,op.after,op.after.value.created->id,error))return unknown(error.empty()?"Character original variant ordinal or preserved users differs":error);
         const auto view=local_views.find(request.action_uuid);
         if(view!=local_views.end()){uintptr_t ap=0,base=0;
-            if(!field(memory,view->second,0,ap,error)||ap!=state.image+0x1736770||!field(memory,view->second,0x458,base,error)||base!=op.before.selected)
+            if(!field(memory,view->second,0,ap,error)||ap!=state.image+0x173cb10||!field(memory,view->second,0x458,base,error)||base!=op.before.selected)
                 return unknown(error.empty()?"Character initiating native View lifetime changed before selecting its new variant":error);
             const auto created=std::find_if(op.after.definitions.definitions.begin(),op.after.definitions.definitions.end(),[&](const auto& value){return value.kind==intent.kind&&value.id==op.after.value.created->id;});
             if(created==op.after.definitions.definitions.end())return unknown("Character original new global slot absent before native UI selection");

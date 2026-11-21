@@ -3,22 +3,22 @@ namespace {
 namespace gl=dungeon_gizmo_live;
 uint32_t live_clip(uintptr_t actor,int32_t index,gl::Clip& out)noexcept{
     __try{out={};if(index<0)return 0;
-        out.length=std::bit_cast<uint32_t>(reinterpret_cast<float(*)(uintptr_t,int32_t)>(state.image+0x23860)(actor,index));
-        if(reinterpret_cast<bool(*)(uintptr_t,int32_t)>(state.image+0x23820)(actor,index)){
-            out.time=std::bit_cast<uint32_t>(reinterpret_cast<float(*)(uintptr_t,int32_t)>(state.image+0x23890)(actor,index));
-            out.paused=reinterpret_cast<bool(*)(uintptr_t,int32_t)>(state.image+0x23840)(actor,index);
-            out.speed=std::bit_cast<uint32_t>(reinterpret_cast<float(*)(uintptr_t,int32_t)>(state.image+0x238b0)(actor,index));}
+        out.length=std::bit_cast<uint32_t>(reinterpret_cast<float(*)(uintptr_t,int32_t)>(state.image+0x23a00)(actor,index));
+        if(reinterpret_cast<bool(*)(uintptr_t,int32_t)>(state.image+0x239c0)(actor,index)){
+            out.time=std::bit_cast<uint32_t>(reinterpret_cast<float(*)(uintptr_t,int32_t)>(state.image+0x23a30)(actor,index));
+            out.paused=reinterpret_cast<bool(*)(uintptr_t,int32_t)>(state.image+0x239e0)(actor,index);
+            out.speed=std::bit_cast<uint32_t>(reinterpret_cast<float(*)(uintptr_t,int32_t)>(state.image+0x23a50)(actor,index));}
         return 0;
     }__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 uint32_t live_clip(uintptr_t actor,int32_t index,const gl::Clip& value)noexcept{
     __try{if(index<0)return 0xe0010003;
-        if(value.time){reinterpret_cast<void(*)(uintptr_t,int32_t)>(state.image+0x235f0)(actor,index);
-            reinterpret_cast<void(*)(uintptr_t,int32_t,float)>(state.image+0x237a0)(actor,index,std::bit_cast<float>(value.speed));
-            reinterpret_cast<void(*)(uintptr_t,int32_t,bool)>(state.image+0x23770)(actor,index,value.paused);
-            reinterpret_cast<void(*)(uintptr_t,int32_t,float)>(state.image+0x237e0)(actor,index,std::bit_cast<float>(*value.time));
-        }else reinterpret_cast<void(*)(uintptr_t,int32_t)>(state.image+0x23a30)(actor,index);
-        reinterpret_cast<void(*)(uintptr_t)>(state.image+0x21df0)(actor);
+        if(value.time){reinterpret_cast<void(*)(uintptr_t,int32_t)>(state.image+0x23790)(actor,index);
+            reinterpret_cast<void(*)(uintptr_t,int32_t,float)>(state.image+0x23940)(actor,index,std::bit_cast<float>(value.speed));
+            reinterpret_cast<void(*)(uintptr_t,int32_t,bool)>(state.image+0x23910)(actor,index,value.paused);
+            reinterpret_cast<void(*)(uintptr_t,int32_t,float)>(state.image+0x23980)(actor,index,std::bit_cast<float>(*value.time));
+        }else reinterpret_cast<void(*)(uintptr_t,int32_t)>(state.image+0x23bd0)(actor,index);
+        reinterpret_cast<void(*)(uintptr_t)>(state.image+0x21f80)(actor);
         return 0;
     }__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
@@ -30,7 +30,7 @@ uint32_t live_cas(uintptr_t address,unsigned size,uint32_t before,uint32_t after
     }__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 uint32_t live_on_map(uintptr_t object,bool value)noexcept{
-    __try{reinterpret_cast<void(*)(uintptr_t,bool)>(state.image+0x147f90)(object,value);return 0;}
+    __try{reinterpret_cast<void(*)(uintptr_t,bool)>(state.image+0x148fc0)(object,value);return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 struct LiveSample {dungeon_scene_identity_runtime::Census census;gl::State value;std::map<std::string,gl::Local> locals;};

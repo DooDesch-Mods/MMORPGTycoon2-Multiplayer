@@ -68,7 +68,7 @@ bool verify_code(uintptr_t entry,const void* bytes,size_t count,std::string& e){
     return mt2mp::hooks::framework::process_backend().verify_code(entry,bytes,count,e);
 }
 bool checkbox_original(uintptr_t entry,std::string& bytes,std::string& e){
-    if(entry!=state.image+0x6a1780||bytes.size()!=153)return fail(e,"Quest checkbox original body extent or entry differs");
+    if(entry!=state.image+0x6a8a80||bytes.size()!=153)return fail(e,"Quest checkbox original body extent or entry differs");
     MT2FW_MT2_RouteReceipt receipt{sizeof receipt};
     if(!read_route(entry,receipt,e))return false;
     if(std::memcmp(bytes.data(),receipt.current,32))return fail(e,"Quest checkbox live prefix differs from authenticated route");
@@ -79,7 +79,7 @@ bool checkbox_original(uintptr_t entry,std::string& bytes,std::string& e){
 bool inner_codes(Memory& m,std::string& e){
     for(const auto& code:npc_quest_list_codes::values){std::string bytes(code.size,'\0'),sha;
         if(!m.copy(state.image+code.rva,bytes.data(),bytes.size(),e))return false;
-        if(code.rva==0x6a1780&&!checkbox_original(state.image+code.rva,bytes,e))return false;
+        if(code.rva==0x6a8a80&&!checkbox_original(state.image+code.rva,bytes,e))return false;
         if(!quest_bridge::sha256(bytes,sha,e))return false;
         if(sha!=code.sha)return fail(e,"Quest list original transaction body differs RVA="+std::to_string(code.rva));}
     return true;
@@ -99,7 +99,7 @@ bool bind_owner(Memory& m,const a::Binding& binding,const std::string& snapshot,
 json link_json(const vr::Link& link){return {{"state",int(link.state)},{"key",link.diagnostic_key}};}
 bool references(Memory& m,const a::Binding& binding,const std::string& snapshot,const qr::Witness& witness,References& out,std::string& e){
     out={};uintptr_t ap=0;int32_t count=0,capacity=0;
-    if(!field(m,state.image,0x13df690,out.manager,e)||!field(m,out.manager,0,ap,e)||ap!=state.image+0x1725f40||
+    if(!field(m,state.image,0x13eb690,out.manager,e)||!field(m,out.manager,0,ap,e)||ap!=state.image+0x172c2e0||
        !field(m,out.manager,0x40,out.data,e)||!field(m,out.manager,0x48,count,e)||!field(m,out.manager,0x4c,capacity,e)||
        count<0||capacity<count||count>1000000||(count&&!out.data))return fail(e,e.empty()?"Quest list Subscriber census differs":e);
     a::Context context;std::vector<action_runtime::StateOwner> owners;
@@ -118,7 +118,7 @@ bool references(Memory& m,const a::Binding& binding,const std::string& snapshot,
     std::map<int32_t,json> rows;std::set<uintptr_t> unique;
     for(int32_t i=0;i<count;++i){uintptr_t subscriber=0,toon=0;int32_t id=-1;
         if(!field(m,out.data,size_t(i)*8,subscriber,e)||!subscriber||!unique.insert(subscriber).second||
-           !field(m,subscriber,0,ap,e)||ap!=state.image+0x16e75f0||!field(m,subscriber,0x20,id,e)||id<0||
+           !field(m,subscriber,0,ap,e)||ap!=state.image+0x16ed990||!field(m,subscriber,0x20,id,e)||id<0||
            !field(m,subscriber,0x80,toon,e)||rows.contains(id))return fail(e,e.empty()?"Quest list Subscriber identity duplicated or differs":e);
         out.local.push_back({subscriber,toon,uintptr_t(id)});
         json row={{"id",id},{"online",bool(toon)},{"progress",json::array()}};
@@ -135,7 +135,7 @@ bool references(Memory& m,const a::Binding& binding,const std::string& snapshot,
     }
     for(const auto& [id,row]:rows){(void)id;out.rows.push_back(row);}
     uintptr_t manager=0,data=0;int32_t final_count=0;
-    if(!field(m,state.image,0x13df690,manager,e)||manager!=out.manager||!field(m,manager,0x40,data,e)||data!=out.data||
+    if(!field(m,state.image,0x13eb690,manager,e)||manager!=out.manager||!field(m,manager,0x40,data,e)||data!=out.data||
        !field(m,manager,0x48,final_count,e)||final_count!=count)return fail(e,e.empty()?"Quest list Subscriber census changed during read":e);
     for(size_t i=0;i<out.local.size();++i){uintptr_t pointer=0,toon=0;int32_t id=-1;
         if(!field(m,data,i*8,pointer,e)||pointer!=out.local[i][0]||!field(m,pointer,0x80,toon,e)||toon!=out.local[i][1]||
@@ -189,12 +189,12 @@ bool supported(const a::NpcQuestListIntent& intent,const a::NpcQuestListState& v
 }
 bool selector(Memory& m,uintptr_t window,uintptr_t npc,uintptr_t quest,uintptr_t& selected,std::string& e){
     uintptr_t list=0,ap=0,data=0,owner=0,proxy=0,weak=0;int32_t count=0,capacity=0;selected=0;
-    if(!field(m,window,0x530,list,e)||!field(m,list,0,ap,e)||ap!=state.image+0x16e02b0||
+    if(!field(m,window,0x530,list,e)||!field(m,list,0,ap,e)||ap!=state.image+0x16e6650||
        !field(m,list,0x360,owner,e)||owner!=npc||!field(m,list,0x368,proxy,e)||!field(m,proxy,0,weak,e)||weak!=npc+0x20||
        !field(m,list,0x340,data,e)||!field(m,list,0x348,count,e)||!field(m,list,0x34c,capacity,e)||count<1||count>6||capacity<count||capacity>100000||!data)
         return fail(e,e.empty()?"Quest list original owner/List bounds differ":e);
     for(int32_t i=0;i<count;++i){uintptr_t row=0,target=0;
-        if(!field(m,data,size_t(i)*8,row,e)||!field(m,row,0,ap,e)||ap!=state.image+0x17088a0||!field(m,row,0x3e0,target,e))return fail(e,e.empty()?"Quest list original selector class differs":e);
+        if(!field(m,data,size_t(i)*8,row,e)||!field(m,row,0,ap,e)||ap!=state.image+0x170ec40||!field(m,row,0x3e0,target,e))return fail(e,e.empty()?"Quest list original selector class differs":e);
         if(target!=quest)continue;
         if(selected||!field(m,row,0x320,owner,e)||owner!=list||!field(m,row,0x3e8,proxy,e)||!field(m,proxy,0,weak,e)||weak!=quest+0x18)
             return fail(e,e.empty()?"Quest list selected row duplicate or weak binding differs":e);
@@ -221,7 +221,7 @@ bool edit_args(const json& args,a::NpcQuestListIntent& out,std::string& e)try{
     return true;
 }catch(const std::exception& x){return fail(e,std::string("Quest editor arguments: ")+x.what());}
 uint32_t external_value(uintptr_t slider,int32_t raw,float& value)noexcept{
-    __try{value=reinterpret_cast<float(*)(void*,int32_t)>(state.image+0x7b95a0)(reinterpret_cast<void*>(slider),raw);return 0;}
+    __try{value=reinterpret_cast<float(*)(void*,int32_t)>(state.image+0x7c1840)(reinterpret_cast<void*>(slider),raw);return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 bool read_edit(Memory& m,uintptr_t row,a::NpcQuestListIntent& intent,std::string& e){
@@ -246,11 +246,11 @@ struct QuestTitleView {const char* data;uint64_t size,capacity=0,padding=0;};
 uint32_t set_edit_controls(uintptr_t row,const a::NpcQuestListIntent* intent,uintptr_t first,uintptr_t second,uintptr_t third)noexcept{
     __try{
         if(intent->edit==a::QuestListEdit::Title){const QuestTitleView text{intent->title.c_str(),intent->title.size()};
-            reinterpret_cast<void(*)(void*,const QuestTitleView&)>(state.image+0x7f1630)(reinterpret_cast<void*>(first),text);}
-        else if(intent->edit==a::QuestListEdit::Kills)reinterpret_cast<void(*)(void*,float,bool)>(state.image+0x7bc040)(reinterpret_cast<void*>(first),float(intent->kills),false);
-        else {reinterpret_cast<void(*)(void*,bool)>(state.image+0x6a1780)(reinterpret_cast<void*>(first),intent->defaults);
-            if(!intent->defaults){reinterpret_cast<void(*)(void*,int32_t)>(state.image+0x7853a0)(reinterpret_cast<void*>(second),intent->xp);
-                reinterpret_cast<void(*)(void*,int32_t)>(state.image+0x7853a0)(reinterpret_cast<void*>(third),intent->gold);}}
+            reinterpret_cast<void(*)(void*,const QuestTitleView&)>(state.image+0x7f9b70)(reinterpret_cast<void*>(first),text);}
+        else if(intent->edit==a::QuestListEdit::Kills)reinterpret_cast<void(*)(void*,float,bool)>(state.image+0x7c42e0)(reinterpret_cast<void*>(first),float(intent->kills),false);
+        else {reinterpret_cast<void(*)(void*,bool)>(state.image+0x6a8a80)(reinterpret_cast<void*>(first),intent->defaults);
+            if(!intent->defaults){reinterpret_cast<void(*)(void*,int32_t)>(state.image+0x78d170)(reinterpret_cast<void*>(second),intent->xp);
+                reinterpret_cast<void(*)(void*,int32_t)>(state.image+0x78d170)(reinterpret_cast<void*>(third),intent->gold);}}
         (void)row;return 0;
     }__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }

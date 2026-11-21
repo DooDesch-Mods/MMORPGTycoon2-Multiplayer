@@ -15,7 +15,7 @@ uint64_t captures=0,submitted=0,rejections=0;
 void reject(const std::string& error){++rejections;if(cause!=error){cause=error;LOG_ERROR("[DistrictText] {}",error);}}
 std::string desired(const action::DistrictTextIntent& intent){return intent.kind==action::DistrictTextKind::Name&&intent.text.empty()?"{district_unnamed}":intent.text;}
 uint32_t contains_call(uintptr_t image,uintptr_t shape,uintptr_t point,bool& result){
-    __try{result=reinterpret_cast<bool(__fastcall*)(const void*,const void*)>(image+0xf0dc0)(reinterpret_cast<const void*>(shape),reinterpret_cast<const void*>(point));return 0;}
+    __try{result=reinterpret_cast<bool(__fastcall*)(const void*,const void*)>(image+0xf1e30)(reinterpret_cast<const void*>(shape),reinterpret_cast<const void*>(point));return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 bool sample(Runtime& r,const action::Binding& binding,const district_saved_identity::Current& target,
@@ -54,14 +54,14 @@ bool capture(Runtime& r,uintptr_t object,action::DistrictTextIntent intent,std::
 }
 void name_entry(void* object,const Text* value){
     auto* r=published.load(std::memory_order_acquire);
-    if(!net::session_wire::connected()||!r||uintptr_t(_ReturnAddress())!=r->image+0x6cb6af){set_name(object,value);return;}
+    if(!net::session_wire::connected()||!r||uintptr_t(_ReturnAddress())!=r->image+0x6d2acf){set_name(object,value);return;}
     try{action::DistrictTextIntent intent;std::string error;
         if(!prop_text::text(*r,uintptr_t(value),intent.text,error)||!capture(*r,uintptr_t(object),std::move(intent),error))reject(error);
     }catch(const std::exception& x){reject(std::string("District Name capture: ")+x.what());}
 }
 void description_entry(void* object,const Text* value){
     auto* r=published.load(std::memory_order_acquire);
-    if(!net::session_wire::connected()||!r||uintptr_t(_ReturnAddress())!=r->image+0x6cb852){set_description(object,value);return;}
+    if(!net::session_wire::connected()||!r||uintptr_t(_ReturnAddress())!=r->image+0x6d2c72){set_description(object,value);return;}
     try{action::DistrictTextIntent intent;intent.kind=action::DistrictTextKind::Description;std::string error;
         if(!prop_text::text(*r,uintptr_t(value),intent.text,error)||!capture(*r,uintptr_t(object),std::move(intent),error))reject(error);
     }catch(const std::exception& x){reject(std::string("District Description capture: ")+x.what());}
@@ -79,11 +79,11 @@ bool enable(std::string& error){
     if(!r||!r->image||r->thread!=GetCurrentThreadId()){error=install_cause="District text hook requires bound Mainthread";return false;}
     constexpr std::array<uint8_t,16> expected{0x41,0x57,0x41,0x56,0x41,0x55,0x41,0x54,0x55,0x57,0x56,0x53,0x48,0x83,0xec,0x68};
     std::array<uint8_t,16> actual{};
-    if(!r->memory.read(r->image+0xf0dc0,actual.data(),actual.size(),error)||actual!=expected){
+    if(!r->memory.read(r->image+0xf1e30,actual.data(),actual.size(),error)||actual!=expected){
         install_cause=error=error.empty()?"District original title containment code differs":error;return false;}
     struct Hook{uintptr_t rva;void* entry;void** original;};
-    const Hook hooks[]{{0x418360,reinterpret_cast<void*>(&name_entry),reinterpret_cast<void**>(&set_name)},
-        {0x4173b0,reinterpret_cast<void*>(&description_entry),reinterpret_cast<void**>(&set_description)}};
+    const Hook hooks[]{{0x41d0a0,reinterpret_cast<void*>(&name_entry),reinterpret_cast<void**>(&set_name)},
+        {0x41c0f0,reinterpret_cast<void*>(&description_entry),reinterpret_cast<void**>(&set_description)}};
     for(const auto& hook:hooks){const auto result=MH_CreateHook(reinterpret_cast<void*>(r->image+hook.rva),hook.entry,hook.original);
         if(result!=MH_OK||!*hook.original){error=install_cause="District text hook create RVA="+std::to_string(hook.rva)+" status="+std::to_string(result)+" "+mt2mp::hooks::framework::process_backend().error();return false;}}
     if(!mt2mp::hooks::enable_prepared_routes(r->image,hooks,"District text hook",error)){install_cause=error;return false;}

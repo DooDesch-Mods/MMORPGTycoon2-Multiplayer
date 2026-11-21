@@ -16,11 +16,11 @@
 
 namespace mt2mp::game::global_catalog {
 namespace {
-constexpr uintptr_t map_slot=0x13df8c0;
+constexpr uintptr_t map_slot=0x13eb8c0;
 constexpr uint32_t max_regions=16384, max_slots=1000000;
 // Vtable constants point to the first virtual function, after the Itanium header.
-constexpr uintptr_t map_vt=0x1742860, region_vt=0x1787930, shard_vt=0x174ad20;
-constexpr uintptr_t manager_vt=0x17183c0, array_vt=0x172d7c0;
+constexpr uintptr_t map_vt=0x1748c00, region_vt=0x178dcd0, shard_vt=0x17510c0;
+constexpr uintptr_t manager_vt=0x171e760, array_vt=0x1733b60;
 struct Backend {
     uintptr_t base=0;
     void* user=nullptr;
@@ -51,14 +51,14 @@ bool reject(State& state,const char* reason,const std::string& detail={}) {
 bool prologues(const Backend& b,State& state) {
     struct Guard {uintptr_t rva; const char* bytes; size_t size;};
     const Guard guards[]={
-        {0x334acd,"\x48\x8d\xbb\xc0\x01\x00\x00",7},
-        {0x334adb,"\x48\x89\xf9\xe8\xbd\x35\x1d\x00",8},
-        {0x24d740,"\x8b\x81\x18\x04\x00\x00\xc3",7},
-        {0x24d7e0,"\x56\x53\x48\x83\xec\x28\x48\x63\xda\x48\x89\xce\x85\xdb\x78\x08",16},
-        {0x24e9fa,"\x8b\x81\x18\x04\x00\x00\x48\x89\x91\x50\x04\x00\x00\x48\x89\xce\x4c\x89\x81\x58\x04\x00\x00",23},
-        {0x356e89,"\x48\x8b\x8b\x50\x09\x00\x00",7},
-        {0x47ce20,"\x53\x45\x31\xc0\x48\x85\xc9\x74\x31\x48\x83\x3d\xa7\x95\x5b\x01",16},
-        {0x12654f0,"\x41\x54\x55\x57\x56\x53\x48\x83\xec\x70\x48\x89\xcb\x48\x89\xd5",16}};
+        {0x338bcd,"\x48\x8d\xbb\xc0\x01\x00\x00",7},
+        {0x338bdb,"\x48\x89\xf9\xe8\x0d\x56\x1d\x00",8},
+        {0x250680,"\x8b\x81\x18\x04\x00\x00\xc3",7},
+        {0x250720,"\x56\x53\x48\x83\xec\x28\x48\x63\xda\x48\x89\xce\x85\xdb\x78\x08",16},
+        {0x25193a,"\x8b\x81\x18\x04\x00\x00\x48\x89\x91\x50\x04\x00\x00\x48\x89\xce\x4c\x89\x81\x58\x04\x00\x00",23},
+        {0x35b6a9,"\x48\x8b\x8b\x50\x09\x00\x00",7},
+        {0x481f60,"\x53\x45\x31\xc0\x48\x85\xc9\x74\x31\x48\x83\x3d\x67\xb4\x5b\x01",16},
+        {0x1270eb0,"\x41\x54\x55\x57\x56\x53\x48\x83\xec\x70\x48\x89\xcb\x48\x89\xd5",16}};
     unsigned char bytes[32]{};
     for(const auto& g:guards) {
         if(!b.read(b.user,b.base+g.rva,bytes,g.size)||std::memcmp(bytes,g.bytes,g.size))
@@ -82,7 +82,7 @@ bool scan(const Backend& b,State& state,std::string& error) {
     if(map>(std::numeric_limits<uintptr_t>::max)()-0x1c0){reject(state,"map_address_overflow");return finish();}
     root_shard=map+0x1c0;
     if(!read(b,root_shard,0,actual_vtable)) {reject(state,"embedded_root_shard_vtable_unreadable");return finish();}
-    if(actual_vtable!=b.base+shard_vt) {reject(state,"embedded_root_shard_vtable_mismatch","expected_image_rva=0x174ad20 actual_image_rva="+image_rva(b,actual_vtable));return finish();}
+    if(actual_vtable!=b.base+shard_vt) {reject(state,"embedded_root_shard_vtable_mismatch","expected_image_rva=0x17510c0 actual_image_rva="+image_rva(b,actual_vtable));return finish();}
     int32_t root_type=-1;
     if(!read(b,root_shard,0x48,root_type)) {reject(state,"embedded_root_shard_type_unreadable");return finish();}
     if(root_type!=0) {reject(state,"root_shard_type_not0","actual_type="+std::to_string(root_type)+" required_type=0 embedded_map_root");return finish();}
@@ -175,7 +175,7 @@ bool process_read(void*,uintptr_t address,void* output,size_t size) {
 bool process_guard(void*,std::string& error) {
     if(!native::ready()) {error="exact-build resolver unavailable";return false;}
     const auto base=reinterpret_cast<uintptr_t>(GetModuleHandleW(nullptr));
-    if(reinterpret_cast<uintptr_t>(native::entrypoint(native::EntryPoint::GameUpdate))!=base+0x463ce0) {error="resolver module mismatch";return false;}
+    if(reinterpret_cast<uintptr_t>(native::entrypoint(native::EntryPoint::GameUpdate))!=base+0x468d00) {error="resolver module mismatch";return false;}
     native::WorldStatus world;
     if(!native::read_world_status(world,error)) return false;
     if(!native::in_game()||!world.world_present||world.quitting||world.in_game_state!=4) {error="active world required";return false;}
@@ -183,15 +183,15 @@ bool process_guard(void*,std::string& error) {
 }
 DWORD raw_count(uintptr_t manager,int32_t& value) {
     const auto base=reinterpret_cast<uintptr_t>(GetModuleHandleW(nullptr));
-    __try {value=reinterpret_cast<int32_t(__fastcall*)(void*)>(base+0x24d740)(reinterpret_cast<void*>(manager));return 0;}
+    __try {value=reinterpret_cast<int32_t(__fastcall*)(void*)>(base+0x250680)(reinterpret_cast<void*>(manager));return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER) {return GetExceptionCode();}
 }
 DWORD raw_lookup(uint64_t uid,uintptr_t& value) {
     const auto base=reinterpret_cast<uintptr_t>(GetModuleHandleW(nullptr));
     __try {
-        auto* object=reinterpret_cast<void*(__fastcall*)(uint64_t)>(base+0x47ce20)(uid);
-        value=object?reinterpret_cast<uintptr_t>(reinterpret_cast<void*(__fastcall*)(void*,const void*,const void*,ptrdiff_t)>(base+0x12654f0)(
-            object,reinterpret_cast<void*>(base+0x1673900),reinterpret_cast<void*>(base+0x1655090),0)):0;
+        auto* object=reinterpret_cast<void*(__fastcall*)(uint64_t)>(base+0x481f60)(uid);
+        value=object?reinterpret_cast<uintptr_t>(reinterpret_cast<void*(__fastcall*)(void*,const void*,const void*,ptrdiff_t)>(base+0x1270eb0)(
+            object,reinterpret_cast<void*>(base+0x1678ee0),reinterpret_cast<void*>(base+0x165a670),0)):0;
         return 0;
     } __except(EXCEPTION_EXECUTE_HANDLER) {return GetExceptionCode();}
 }

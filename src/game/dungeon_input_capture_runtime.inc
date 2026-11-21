@@ -2,7 +2,7 @@ namespace dungeon_input {
 namespace {
 bool purchase_entry(const dungeon_input_calls::Text& type,const void* point)try{
     const auto caller=uintptr_t(_ReturnAddress());
-    if(replaying||!net::session_wire::connected()||(caller!=state.image+0x5a34b2&&caller!=state.image+0x5a636a&&caller!=state.image+0x5b7f9a))
+    if(replaying||!net::session_wire::connected()||(caller!=state.image+0x5a9c62&&caller!=state.image+0x5acb1a&&caller!=state.image+0x5be73a))
         return original_purchase(type,point);
     std::string error;Memory memory;Pending value;value.snapshot=net::current_snapshot_id();
     if(stroke||!idle(value.binding,value.snapshot,error)||!code(memory,error))return reject(error.empty()?"Dungeon input cannot replace an active Paint collection":error);
@@ -32,16 +32,16 @@ catch(...){fault=true;return reject("Dungeon input Purchase capture non-standard
 
 bool current_tool(Memory& memory,uintptr_t receiver,uintptr_t expected,uintptr_t supplied_cursor,uintptr_t& cursor,std::string& error){
     uintptr_t ap=0,active=0;
-    if(!field(memory,state.image,0x13df9d0,cursor,error)||!field(memory,cursor,0,ap,error))return false;
-    if((supplied_cursor&&supplied_cursor!=cursor)||ap!=state.image+0x1786dd0)return fail(error,"Dungeon input actual native Cursor owner differs");
+    if(!field(memory,state.image,0x13eb9d0,cursor,error)||!field(memory,cursor,0,ap,error))return false;
+    if((supplied_cursor&&supplied_cursor!=cursor)||ap!=state.image+0x178d170)return fail(error,"Dungeon input actual native Cursor owner differs");
     if(!field(memory,cursor,0x190,active,error)||!field(memory,receiver,0,ap,error))return false;
     return active==receiver&&ap==state.image+expected||fail(error,"Dungeon input receiver is not its exact active native behaviour");
 }
 void monster_release_entry(void* receiver,void* supplied_cursor,const void* point)try{
     if(replaying||!net::session_wire::connected()){original_monster_release(receiver,supplied_cursor,point);return;}
     Memory memory;std::string error;uintptr_t cursor=0,preview=0,definition=0;uint8_t warp=2,pressed=2;
-    if(uintptr_t(_ReturnAddress())!=state.image+0x587e6c||!code(memory,error)||
-       !current_tool(memory,uintptr_t(receiver),0x1741060,uintptr_t(supplied_cursor),cursor,error)||
+    if(uintptr_t(_ReturnAddress())!=state.image+0x58e62c||!code(memory,error)||
+       !current_tool(memory,uintptr_t(receiver),0x1747400,uintptr_t(supplied_cursor),cursor,error)||
        !field(memory,uintptr_t(receiver),0x338,preview,error)||!field(memory,uintptr_t(receiver),0x3d9,warp,error)){
         reject(error.empty()?"Dungeon input Monster Release lacks original Cursor dispatcher ownership":error);return;}
     if(warp==1||!preview){original_monster_release(receiver,supplied_cursor,point);return;}
@@ -69,7 +69,7 @@ catch(...){fault=true;reject("Dungeon input Monster Release capture non-standard
 
 bool paint_owner(Memory& memory,uintptr_t receiver,uintptr_t& canvas,std::string& mode,std::string& error){
     uintptr_t cursor=0,current_stroke=0,graph=0;
-    if(!current_tool(memory,receiver,0x173f1d0,0,cursor,error)||!field(memory,receiver,0x178,canvas,error)||
+    if(!current_tool(memory,receiver,0x1745570,0,cursor,error)||!field(memory,receiver,0x178,canvas,error)||
        !field(memory,receiver,0x930,current_stroke,error)||!field(memory,receiver,0x948,graph,error)||
        !npc_quest_records::read_string(memory,receiver,0x150,"Dungeon input original Paint mode",mode,error))return false;
     if(!canvas||current_stroke||graph)return fail(error,"Dungeon input normal Paint capture has an existing native stroke/edit graph");

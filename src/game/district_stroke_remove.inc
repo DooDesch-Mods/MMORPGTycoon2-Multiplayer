@@ -6,7 +6,7 @@ bool local_target(Runtime& runtime,uintptr_t manager,uintptr_t object,remove_ui:
     if(!typed_action_runtime::network_binding(snapshot_id,binding,error)||!bound_world(runtime,binding,world,0,error)||world.selection!=manager)
         return q::fail(error,error.empty()?"District Remove current selection manager differs":error);
     uint64_t uid=0;uintptr_t actual=0;
-    if(!q::typed(runtime.memory,runtime.image,object,0x16da000,error)||!q::at(runtime.memory,object,0x18,uid,error)||
+    if(!q::typed(runtime.memory,runtime.image,object,0x16e03a0,error)||!q::at(runtime.memory,object,0x18,uid,error)||
        !group_edit::find(runtime,uid,actual,error)||actual!=object)return q::fail(error,error.empty()?"District Remove full current UID differs":error);
     std::string key;
     if(remove_replay){

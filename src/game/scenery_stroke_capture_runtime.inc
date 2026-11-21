@@ -69,7 +69,7 @@ bool input_admission(std::string& e){
 }
 bool source_world(Runtime& r,uintptr_t receiver,Kind kind,host::WorldState& out,std::string& e){
     host::NativeOrigin origin;host::LookupApi lookup;
-    if(!host::resolve_lookup(r.memory.process,r.image,"bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6",lookup,e))return false;
+    if(!host::resolve_lookup(r.memory.process,r.image,"7efd8ee7b97f78362e7a2f8116b327fa6b756bdce23114b68143c4c9d2dd50eb",lookup,e))return false;
     host::Reader reader(r.memory.process,origin,r.image,r.thread,lookup);
     if(!reader.current(out,false,e))return false;uint8_t own_edit=0;
     if(kind==Kind::Paint){uintptr_t scope=0;if(!q::at(r.memory,receiver,0x360,scope,e)||(scope&&!q::at(r.memory,scope,0,own_edit,e)))return false;
@@ -140,7 +140,7 @@ bool finish_capture(Runtime& r,uintptr_t receiver,Kind kind,std::string& e){
         if(e.empty())e=failed;else e+="; source graph: "+failed;return false;}
     if(!scenery_stroke_capture::finish(r.memory,value.local,value.intent,input_error)&&e.empty())e=input_error;
     uintptr_t cursor=0;
-    if((!q::at(r.memory,r.image,0x13df9d0,cursor,input_error)||!q::typed(r.memory,r.image,cursor,0x1786dd0,input_error)||
+    if((!q::at(r.memory,r.image,0x13eb9d0,cursor,input_error)||!q::typed(r.memory,r.image,cursor,0x178d170,input_error)||
         !q::at(r.memory,cursor,0x1e4,value.intent.finish_position,input_error))&&e.empty())e=input_error;
     bool entered=false,returned=false;const auto code=calls::finish(reinterpret_cast<calls::Finish>(originals[kind==Kind::Paint?1:3]),receiver,entered,returned);
     if(code){const auto cleanup="Scenery original empty source Finish SEH="+std::to_string(code);if(e.empty())e=cleanup;else e+="; source cleanup: "+cleanup;return false;}

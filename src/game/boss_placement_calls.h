@@ -5,21 +5,21 @@
 namespace mt2mp::game::boss_placement_calls {
 inline uint32_t purchase(uintptr_t image,const std::array<uint32_t,3>& position,bool& paid){
     paid=false;
-    __try{paid=reinterpret_cast<bool(*)(const void*)>(image+0x399ac0)(position.data());return 0;}
+    __try{paid=reinterpret_cast<bool(*)(const void*)>(image+0x39e5c0)(position.data());return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 inline uint32_t region(uintptr_t image,uintptr_t map,const std::array<uint32_t,3>& point,uintptr_t& result){
     result=0;
-    __try{result=reinterpret_cast<uintptr_t(*)(void*,const void*,void*)>(image+0x32a990)(reinterpret_cast<void*>(map),point.data(),nullptr);return 0;}
+    __try{result=reinterpret_cast<uintptr_t(*)(void*,const void*,void*)>(image+0x32ea20)(reinterpret_cast<void*>(map),point.data(),nullptr);return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 inline uint32_t add(uintptr_t image,uintptr_t manager,int32_t type,const std::array<unsigned char,0x6c>& pose,uintptr_t& result){
     result=0;
-    __try{result=reinterpret_cast<uintptr_t(*)(void*,int32_t,const void*)>(image+0x239410)(reinterpret_cast<void*>(manager),type,pose.data());return 0;}
+    __try{result=reinterpret_cast<uintptr_t(*)(void*,int32_t,const void*)>(image+0x23c280)(reinterpret_cast<void*>(manager),type,pose.data());return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 inline uint32_t cancel(uintptr_t image,uintptr_t cursor){
-    __try{reinterpret_cast<void(*)(void*,void*)>(image+0x5854e0)(reinterpret_cast<void*>(cursor),nullptr);return 0;}
+    __try{reinterpret_cast<void(*)(void*,void*)>(image+0x58bca0)(reinterpret_cast<void*>(cursor),nullptr);return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 // This is the exact final store in original HandleRelease_Left. It changes

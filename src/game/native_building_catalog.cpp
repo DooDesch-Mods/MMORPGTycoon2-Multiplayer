@@ -15,11 +15,11 @@
 
 namespace mt2mp::game::native_catalog {
 namespace {
-constexpr uintptr_t map_slot=0x13df8c0, shard_manager_slot=0x13df440;
+constexpr uintptr_t map_slot=0x13eb8c0, shard_manager_slot=0x13eb440;
 constexpr uint32_t max_regions=16384, max_slots=1000000;
 // Vtable constants point to the first virtual function, after the Itanium header.
-constexpr uintptr_t map_vt=0x1742860, region_vt=0x1787930, shard_vt=0x174ad20;
-constexpr uintptr_t manager_vt=0x17183c0, array_vt=0x172d7c0, shard_manager_vt=0x1702b00;
+constexpr uintptr_t map_vt=0x1748c00, region_vt=0x178dcd0, shard_vt=0x17510c0;
+constexpr uintptr_t manager_vt=0x171e760, array_vt=0x1733b60, shard_manager_vt=0x1708ea0;
 struct Backend {
     uintptr_t base=0;
     void* user=nullptr;
@@ -50,15 +50,15 @@ bool reject(State& state,const char* reason,const std::string& detail={}) {
 bool prologues(const Backend& b,State& state) {
     struct Guard {uintptr_t rva; const char* bytes; size_t size;};
     const Guard guards[]={
-        {0x24d740,"\x8b\x81\x18\x04\x00\x00\xc3",7},
-        {0x24d7e0,"\x56\x53\x48\x83\xec\x28\x48\x63\xda\x48\x89\xce\x85\xdb\x78\x08",16},
-        {0x24e9fa,"\x8b\x81\x18\x04\x00\x00\x48\x89\x91\x50\x04\x00\x00\x48\x89\xce\x4c\x89\x81\x58\x04\x00\x00",23},
-        {0x356e89,"\x48\x8b\x8b\x50\x09\x00\x00",7},
-        {0x509ce1,"\x48\x89\x1d\x58\x57\xed\x00",7},
-        {0x509d1e,"\x48\x8d\x05\xdb\x8d\x1f\x01",7},
-        {0x509d39,"\x48\x89\x03",3},
-        {0x47ce20,"\x53\x45\x31\xc0\x48\x85\xc9\x74\x31\x48\x83\x3d\xa7\x95\x5b\x01",16},
-        {0x12654f0,"\x41\x54\x55\x57\x56\x53\x48\x83\xec\x70\x48\x89\xcb\x48\x89\xd5",16}};
+        {0x250680,"\x8b\x81\x18\x04\x00\x00\xc3",7},
+        {0x250720,"\x56\x53\x48\x83\xec\x28\x48\x63\xda\x48\x89\xce\x85\xdb\x78\x08",16},
+        {0x25193a,"\x8b\x81\x18\x04\x00\x00\x48\x89\x91\x50\x04\x00\x00\x48\x89\xce\x4c\x89\x81\x58\x04\x00\x00",23},
+        {0x35b6a9,"\x48\x8b\x8b\x50\x09\x00\x00",7},
+        {0x50fe31,"\x48\x89\x1d\x08\xb6\xed\x00",7},
+        {0x50fe6e,"\x48\x8d\x05\x2b\x90\x1f\x01",7},
+        {0x50fe89,"\x48\x89\x03",3},
+        {0x481f60,"\x53\x45\x31\xc0\x48\x85\xc9\x74\x31\x48\x83\x3d\x67\xb4\x5b\x01",16},
+        {0x1270eb0,"\x41\x54\x55\x57\x56\x53\x48\x83\xec\x70\x48\x89\xcb\x48\x89\xd5",16}};
     unsigned char bytes[32]{};
     for(const auto& g:guards) {
         if(!b.read(b.user,b.base+g.rva,bytes,g.size)||std::memcmp(bytes,g.bytes,g.size))
@@ -82,11 +82,11 @@ bool scan(const Backend& b,State& state,std::string& error) {
     if(!read(b,b.base,shard_manager_slot,shard_manager)) {reject(state,"shard_manager_singleton_unreadable");return finish();}
     if(!shard_manager) {reject(state,"shard_manager_missing");return finish();}
     if(!read(b,shard_manager,0,actual_vtable)) {reject(state,"shard_manager_vtable_unreadable");return finish();}
-    if(actual_vtable!=b.base+shard_manager_vt) {reject(state,"shard_manager_vtable_mismatch","expected_image_rva=0x1702b00 actual_image_rva="+image_rva(b,actual_vtable));return finish();}
+    if(actual_vtable!=b.base+shard_manager_vt) {reject(state,"shard_manager_vtable_mismatch","expected_image_rva=0x1708ea0 actual_image_rva="+image_rva(b,actual_vtable));return finish();}
     if(!read(b,shard_manager,0x60,root_shard)) {reject(state,"view_shard_unreadable");return finish();}
     if(!root_shard) {reject(state,"view_shard_missing");return finish();}
     if(!read(b,root_shard,0,actual_vtable)) {reject(state,"view_shard_vtable_unreadable");return finish();}
-    if(actual_vtable!=b.base+shard_vt) {reject(state,"view_shard_vtable_mismatch","expected_image_rva=0x174ad20 actual_image_rva="+image_rva(b,actual_vtable));return finish();}
+    if(actual_vtable!=b.base+shard_vt) {reject(state,"view_shard_vtable_mismatch","expected_image_rva=0x17510c0 actual_image_rva="+image_rva(b,actual_vtable));return finish();}
     int32_t root_type=-1;
     if(!read(b,root_shard,0x48,root_type)) {reject(state,"view_shard_type_unreadable");return finish();}
     if(root_type!=0) {reject(state,"root_shard_type_not0","actual_type="+std::to_string(root_type)+" required_type=0 root_map_view");return finish();}
@@ -174,7 +174,7 @@ bool process_read(void*,uintptr_t address,void* output,size_t size) {
 bool process_guard(void*,std::string& error) {
     if(!native::ready()) {error="exact-build resolver unavailable";return false;}
     const auto base=reinterpret_cast<uintptr_t>(GetModuleHandleW(nullptr));
-    if(reinterpret_cast<uintptr_t>(native::entrypoint(native::EntryPoint::GameUpdate))!=base+0x463ce0) {error="resolver module mismatch";return false;}
+    if(reinterpret_cast<uintptr_t>(native::entrypoint(native::EntryPoint::GameUpdate))!=base+0x468d00) {error="resolver module mismatch";return false;}
     native::WorldStatus world;
     if(!native::read_world_status(world,error)) return false;
     if(!native::in_game()||!world.world_present||world.quitting) {error="active world required";return false;}
@@ -182,15 +182,15 @@ bool process_guard(void*,std::string& error) {
 }
 DWORD raw_count(uintptr_t manager,int32_t& value) {
     const auto base=reinterpret_cast<uintptr_t>(GetModuleHandleW(nullptr));
-    __try {value=reinterpret_cast<int32_t(__fastcall*)(void*)>(base+0x24d740)(reinterpret_cast<void*>(manager));return 0;}
+    __try {value=reinterpret_cast<int32_t(__fastcall*)(void*)>(base+0x250680)(reinterpret_cast<void*>(manager));return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER) {return GetExceptionCode();}
 }
 DWORD raw_lookup(uint64_t uid,uintptr_t& value) {
     const auto base=reinterpret_cast<uintptr_t>(GetModuleHandleW(nullptr));
     __try {
-        auto* object=reinterpret_cast<void*(__fastcall*)(uint64_t)>(base+0x47ce20)(uid);
-        value=object?reinterpret_cast<uintptr_t>(reinterpret_cast<void*(__fastcall*)(void*,const void*,const void*,ptrdiff_t)>(base+0x12654f0)(
-            object,reinterpret_cast<void*>(base+0x1673900),reinterpret_cast<void*>(base+0x1655090),0)):0;
+        auto* object=reinterpret_cast<void*(__fastcall*)(uint64_t)>(base+0x481f60)(uid);
+        value=object?reinterpret_cast<uintptr_t>(reinterpret_cast<void*(__fastcall*)(void*,const void*,const void*,ptrdiff_t)>(base+0x1270eb0)(
+            object,reinterpret_cast<void*>(base+0x1678ee0),reinterpret_cast<void*>(base+0x165a670),0)):0;
         return 0;
     } __except(EXCEPTION_EXECUTE_HANDLER) {return GetExceptionCode();}
 }

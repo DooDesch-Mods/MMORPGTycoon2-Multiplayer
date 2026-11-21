@@ -19,7 +19,7 @@ import time
 import uuid
 
 ROOT = Path(__file__).resolve().parents[1]
-EXPECTED_EXE_SHA256 = "bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6"
+EXPECTED_EXE_SHA256 = "7efd8ee7b97f78362e7a2f8116b327fa6b756bdce23114b68143c4c9d2dd50eb"
 MOD_UI_ASSETS = ("entry.win", "lobby.win", "browser.win", "multiplayer.png",
                  "materials/mt2mp_desktop_multiplayer.mat")
 STEAM_APP_ID = "486860"

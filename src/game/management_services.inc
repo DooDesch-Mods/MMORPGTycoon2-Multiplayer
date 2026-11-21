@@ -18,18 +18,18 @@ bool read_services(Runtime& r,const a::Context& context,const a::Binding& bindin
     a::ManagementServices services;services.building_key=intent.key;
     if(!service_array(r,target.object,0x9d0,1024,local.service_rows,e)||size_t(intent.service_ordinal)>=local.service_rows.size())return fail(e,e.empty()?"Management requested service slot absent":e);
     local.service_object=local.service_rows[size_t(intent.service_ordinal)];
-    uintptr_t manager=0;if(!at(r,r.image,0x13df840,manager,e))return false;services.config_present=manager!=0;
+    uintptr_t manager=0;if(!at(r,r.image,0x13eb840,manager,e))return false;services.config_present=manager!=0;
     std::vector<uintptr_t> configs;
-    if(manager&&(!ap(r,manager,0x173fba0,e)||!service_array(r,manager,0x18,4096,configs,e)))return false;
+    if(manager&&(!ap(r,manager,0x1745f40,e)||!service_array(r,manager,0x18,4096,configs,e)))return false;
     for(const auto config:configs){a::ManagementServiceConfig row;
-        if(!ap(r,config,0x1736660,e)||!text(r,config+0x18,row.key,256,e)||!ap(r,config+0x38,0x174ab50,e)||!at(r,config,0x50,row.price,e))return false;
+        if(!ap(r,config,0x173ca00,e)||!text(r,config+0x18,row.key,256,e)||!ap(r,config+0x38,0x1750ef0,e)||!at(r,config,0x50,row.price,e))return false;
         services.configs.push_back(std::move(row));
     }
     for(const auto service:local.service_rows){a::ManagementService row;uintptr_t building=0,prototype=0,config=0;uint8_t sync=2,allow=1;
-        if(!ap(r,service,0x1718480,e)||!at(r,service,0x148,building,e)||building!=target.object||!at(r,service,0x20,row.type,e)||
-           !text(r,service+0x158,row.config_key,256,e)||!ap(r,service+0x28,0x174ab50,e)||!at(r,service,0x40,row.price,e)||
+        if(!ap(r,service,0x171e820,e)||!at(r,service,0x148,building,e)||building!=target.object||!at(r,service,0x20,row.type,e)||
+           !text(r,service+0x158,row.config_key,256,e)||!ap(r,service+0x28,0x1750ef0,e)||!at(r,service,0x40,row.price,e)||
            !at(r,service,0x48,sync,e)||sync>1||!at(r,service,0x178,prototype,e)||!at(r,service,0x150,config,e))return fail(e,e.empty()?"Management service class/Building owner/Price/sync differs":e);
-        if(prototype&&(!ap(r,prototype,0x173be20,e)||!at(r,prototype,0x41,allow,e)||allow>1))return fail(e,e.empty()?"Management actual service prototype sync policy invalid":e);
+        if(prototype&&(!ap(r,prototype,0x17421c0,e)||!at(r,prototype,0x41,allow,e)||allow>1))return fail(e,e.empty()?"Management actual service prototype sync policy invalid":e);
         if(config){auto found=std::find(configs.begin(),configs.end(),config);
             if(found==configs.end()||services.configs[size_t(found-configs.begin())].key!=row.config_key)return fail(e,"Management service config pointer/key not in actual current manager");}
         row.synced=sync!=0;row.allow_sync=allow!=0;services.rows.push_back(std::move(row));
@@ -42,19 +42,19 @@ bool read_services(Runtime& r,const a::Context& context,const a::Binding& bindin
 }
 void service_capture(Runtime& r,void* receiver,a::ManagementIntent intent){
     std::string e;uintptr_t building=0,selection=0;
-    if(!ap(r,uintptr_t(receiver),0x1718480,e)||!at(r,uintptr_t(receiver),0x148,building,e)||!at(r,r.image,0x13df630,selection,e)){reject(r,e);return;}
+    if(!ap(r,uintptr_t(receiver),0x171e820,e)||!at(r,uintptr_t(receiver),0x148,building,e)||!at(r,r.image,0x13eb630,selection,e)){reject(r,e);return;}
     remove_diagnostics::LocalTarget target;if(!remove_diagnostics::resolve_local_target(selection,building,target,e)||!target.normal_building){reject(r,e.empty()?"Management service source Building identity unavailable":e);return;}
     std::vector<uintptr_t> rows;if(!service_array(r,building,0x9d0,1024,rows,e)){reject(r,e);return;}
     const auto found=std::find(rows.begin(),rows.end(),uintptr_t(receiver));if(found==rows.end()){reject(r,"Management native service receiver not in current Building array");return;}
     intent.key=target.record_key;intent.service_ordinal=int32_t(found-rows.begin());capture(r,receiver,intent,uintptr_t(receiver));
 }
 void service_price_entry(void* receiver,const void* price){auto* r=published.load(std::memory_order_acquire);
-    if(r->replay||!net::session_wire::connected()||uintptr_t(_ReturnAddress())!=r->image+0x66dc1e){r->service_price(receiver,price);return;}
+    if(r->replay||!net::session_wire::connected()||uintptr_t(_ReturnAddress())!=r->image+0x674dee){r->service_price(receiver,price);return;}
     std::string e;std::array<int32_t,2> value;
-    if(!ap(*r,uintptr_t(price),0x174ab50,e)||!at(*r,uintptr_t(price),0x18,value,e)){reject(*r,e);return;}
+    if(!ap(*r,uintptr_t(price),0x1750ef0,e)||!at(*r,uintptr_t(price),0x18,value,e)){reject(*r,e);return;}
     a::ManagementIntent intent;intent.op=a::ManagementOp::SetServicePrice;intent.currency=value[0];intent.value=value[1];service_capture(*r,receiver,intent);
 }
 void service_sync_entry(void* receiver,bool sync){auto* r=published.load(std::memory_order_acquire);
-    if(r->replay||!net::session_wire::connected()||uintptr_t(_ReturnAddress())!=r->image+0x66dcbc){r->service_sync(receiver,sync);return;}
+    if(r->replay||!net::session_wire::connected()||uintptr_t(_ReturnAddress())!=r->image+0x674e8c){r->service_sync(receiver,sync);return;}
     a::ManagementIntent intent;intent.op=a::ManagementOp::SetServiceSync;intent.value=sync?1:0;service_capture(*r,receiver,intent);
 }

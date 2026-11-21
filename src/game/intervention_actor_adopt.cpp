@@ -143,7 +143,7 @@ struct Backend {
     }
     bool present(const Row& first,const Row&,Receipt& receipt,std::string& error){
         Row before;Local physical;if(!current(first,before,physical,error))return false;uintptr_t slot=0,screen=0,array=0,expected_scene=0,scene=0,camera=0;int32_t count=-1;
-        if(!at(image,0x164b420,slot,error)||!slot||!at(slot,0,screen,error)||!screen||!at(screen,0x30,count,error)||count<=0||count>1048576||!at(screen,0x10,array,error)||!array||!at(array,0,expected_scene,error)||!expected_scene)return fail(error,error.empty()?"Actor presentation current local Screen/Scene absent":error);
+        if(!at(image,0x1650a00,slot,error)||!slot||!at(slot,0,screen,error)||!screen||!at(screen,0x30,count,error)||count<=0||count>1048576||!at(screen,0x10,array,error)||!array||!at(array,0,expected_scene,error)||!expected_scene)return fail(error,error.empty()?"Actor presentation current local Screen/Scene absent":error);
         auto code=native::scene(image,screen,scene);if(code||scene!=expected_scene||!at(scene,0x40,camera,error)||!camera)return fail(error,error.empty()?"Actor presentation actual Scene/camera differs SEH="+std::to_string(code):error);
         receipt.attempted=true;++receipt.attempted_stores;code=native::present(image,first.target.family,physical.object,physical.render);
         if(code)return fail(error,"Actor original local presentation failed SEH="+std::to_string(code)+"; no replay");++receipt.stores;

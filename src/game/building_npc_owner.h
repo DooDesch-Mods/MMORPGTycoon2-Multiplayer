@@ -21,7 +21,7 @@ bool read(Read& at,Find& find,const Scope& scope,const building_npc_lifecycle::P
     if(!at(parent.object,0,ap,error)||!at(parent.object,0x18,uid,error)||!at(parent.object,0x170,root,error)||
        !at(parent.object,0x178,region,error)||!at(parent.object,0xa30,child_uid,error)||
        !at(scope.region,0x70,reverse,error)||!at(scope.region,0x834,saved,error)||!at(scope.region,0x998,manager,error))return false;
-    if(ap!=scope.image+0x16d93c0||uid!=parent.uid||root!=scope.root||region!=scope.region||reverse!=scope.root||
+    if(ap!=scope.image+0x16df760||uid!=parent.uid||root!=scope.root||region!=scope.region||reverse!=scope.root||
        saved!=parent.saved_region||manager!=census.manager)return fail(error,"Building child NPC parent class/full UID/Region/census owner differs");
     const npc_census::Row* selected=nullptr;std::set<uintptr_t> objects;std::set<uint64_t> uids;
     for(const auto& row:census.rows){uintptr_t actor_owner=0;
@@ -75,10 +75,10 @@ bool make_npc_inverse(Read& at,Text& text,uintptr_t image,uintptr_t node,const b
        !at(node,0xe8,shard,error)||!at(node,0xf0,region,error)||!at(node,0xf8,transform,error)||!at(node,0x164,level,error)||
        !at(node,0x168,character,error)||!at(node,0x170,array_ap,error)||!at(node,0x178,data,error)||!at(node,0x180,count,error)||!at(node,0x184,capacity,error))return false;
     const auto& row=before.child.row;
-    if(ap!=image+0x16de8a0||uid!=row.local_uid||name!=before.original_display_name||type!=row.type||shard!=before.original_shard||region!=before.original_region||
+    if(ap!=image+0x16e4c40||uid!=row.local_uid||name!=before.original_display_name||type!=row.type||shard!=before.original_shard||region!=before.original_region||
        transform!=before.original_transform||level!=row.level||character!=std::array<int32_t,2>{row.character_type,row.character_slot})
         return fail(error,"Original Building child MakeNPC inverse field differs from complete before witness");
-    if(array_ap!=image+0x17469a0||count!=0||capacity!=4||!data)
+    if(array_ap!=image+0x174cd40||count!=0||capacity!=4||!data)
         return fail(error,"Original MakeNPC constructor QuestData array is not its empty exact native array");
     out={node,uid,before.original_character_uid};error.clear();return true;
 }

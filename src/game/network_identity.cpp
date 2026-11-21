@@ -25,10 +25,10 @@
 
 namespace mt2mp::game::network_identity {
 namespace {
-constexpr uintptr_t capture_rva=0xddda40,node_property=0x13bf740,property_vtable=0x1710270;
-constexpr uintptr_t map_slot=0x13df8c0,map_vtable=0x1742860,region_vtable=0x1787930;
-constexpr uintptr_t manager_vtable=0x17141e0,array_vtable=0x172db20,node_vtable=0x16fc700,shard_vtable=0x174ad20;
-constexpr uintptr_t contains_rva=0x89e690,lookup_rva=0x47ce20,owns_rva=0x2a4730,context_lookup_rva=0x89e0f0;
+constexpr uintptr_t capture_rva=0xde9350,node_property=0x13cb740,property_vtable=0x1716610;
+constexpr uintptr_t map_slot=0x13eb8c0,map_vtable=0x1748c00,region_vtable=0x178dcd0;
+constexpr uintptr_t manager_vtable=0x171a580,array_vtable=0x1733ec0,node_vtable=0x1702aa0,shard_vtable=0x17510c0;
+constexpr uintptr_t contains_rva=0x8a77b0,lookup_rva=0x481f60,owns_rva=0x2a7bd0,context_lookup_rva=0x8a7210;
 std::atomic<uintptr_t> image{0};
 std::atomic<bool> capture_active{false},client_active{false},export_mode{false};
 std::atomic<uint64_t> selector_reads{0},non_node_callbacks{0},client_generation{0};
@@ -47,7 +47,7 @@ struct Roots { void* map=nullptr; void* shard=nullptr; void** array=nullptr; int
 struct WriterBinding { void* stream=nullptr; void* consumer=nullptr; void* file=nullptr; void* task=nullptr; };
 struct Pending { std::vector<Binding> pipes;const void* property=nullptr; const void* manager=nullptr; void* writer=nullptr; WriterBinding file_binding; void* context=nullptr; DWORD thread=0; std::vector<Binding> nodes; };
 // PE SizeOfImage for the exact supported executable bounds diagnostic RVAs.
-constexpr uintptr_t diagnostic_image_bytes=30986240;
+constexpr uintptr_t diagnostic_image_bytes=30597120;
 struct ContextProbe {
     uint64_t caller_rva=0,typed_vtable_rva=0,mode_vtable_rva=0;
     uint32_t context_ordinal=0;
@@ -257,20 +257,20 @@ enum class WriterScope { Own, Foreign, Invalid };
 WriterScope writer_scope(const Shared& s,void* writer,WriterBinding& binding,std::string& cause) {
     auto& stream=binding.stream; auto& consumer=binding.consumer; auto& file=binding.file; auto& task=binding.task;
     uintptr_t consumer_vptr=0;
-    if(!read_at(writer,8,stream)||!vtable(stream,0x1736320)||!read_at(stream,0x18,consumer)||!read_at(consumer,0,consumer_vptr)) {
+    if(!read_at(writer,8,stream)||!vtable(stream,0x173c6c0)||!read_at(stream,0x18,consumer)||!read_at(consumer,0,consumer_vptr)) {
         cause="save writer serialiser/consumer chain unreadable or vtable differs"; return WriterScope::Invalid;
     }
-    if(consumer_vptr==image.load()+0x1742fd0) { cause="metadata direct-file writer"; return WriterScope::Foreign; }
-    if(consumer_vptr!=image.load()+0x1720790||!read_at(consumer,8,file)||!read_at(consumer,0x10,task)) {
+    if(consumer_vptr==image.load()+0x1749370) { cause="metadata direct-file writer"; return WriterScope::Foreign; }
+    if(consumer_vptr!=image.load()+0x1726b30||!read_at(consumer,8,file)||!read_at(consumer,0x10,task)) {
         cause="save writer compressed consumer/file chain unreadable or vtable differs"; return WriterScope::Invalid;
     }
     if(file&&task) { cause="save writer direct file and task both present"; return WriterScope::Invalid; }
     if(!file) {
         uint8_t active=0;
-        if(!task||!vtable(task,0x1733bb0)||!read_at(task,0x48,active)||active!=1) { cause="save writer task vtable/producer lifetime differs"; return WriterScope::Invalid; }
+        if(!task||!vtable(task,0x1739f50)||!read_at(task,0x48,active)||active!=1) { cause="save writer task vtable/producer lifetime differs"; return WriterScope::Invalid; }
         if(!read_at(task,0x10,file)||!file) { cause="save writer active task file absent/unreadable"; return WriterScope::Invalid; }
     }
-    if(!vtable(file,0x1742fd0)) { cause="save writer owned file vtable differs"; return WriterScope::Invalid; }
+    if(!vtable(file,0x1749370)) { cause="save writer owned file vtable differs"; return WriterScope::Invalid; }
     const char* text=nullptr; size_t bytes=0; int32_t mode=-1;
     if(!read_at(file,8,text)||!read_at(file,0x10,bytes)) { cause="native save filename header unreadable"; return WriterScope::Invalid; }
     if(bytes!=s.filename.size()) { cause="foreign native filename length"; return WriterScope::Foreign; }
@@ -331,12 +331,12 @@ bool initialize(std::string& error) {
 #else
     const auto base=reinterpret_cast<uintptr_t>(GetModuleHandleW(nullptr));
 #endif
-    if(!base||native::entrypoint(native::EntryPoint::GameUpdate)!=reinterpret_cast<void*>(base+0x463ce0)) return fail_locked(s,"native module/entrypoint mismatch",&error);
+    if(!base||native::entrypoint(native::EntryPoint::GameUpdate)!=reinterpret_cast<void*>(base+0x468d00)) return fail_locked(s,"native module/entrypoint mismatch",&error);
     struct Guard { uintptr_t rva; const char* bytes; };
     const Guard guards[]={
         {capture_rva,"\x41\x57\x41\x56\x41\x55\x41\x54\x55\x57\x56\x53\x48\x83\xec\x48"},
         {contains_rva,"\x57\x56\x53\x48\x83\xec\x20\x48\x89\xce\x48\x89\xd3\x4c\x89\xc7"},
-        {lookup_rva,"\x53\x45\x31\xc0\x48\x85\xc9\x74\x31\x48\x83\x3d\xa7\x95\x5b\x01"},
+        {lookup_rva,"\x53\x45\x31\xc0\x48\x85\xc9\x74\x31\x48\x83\x3d\x67\xb4\x5b\x01"},
         {owns_rva,"\x4c\x63\x41\x28\x45\x85\xc0\x7e\x27\x48\x8b\x41\x20\x4a\x8d\x0c"},
         {context_lookup_rva,"\x53\x48\x8b\x09\x48\x83\x79\x18\x00\x41\x89\xd0\x75\x32\x48\x8b"}};
     for(const auto& guard:guards) {
@@ -461,7 +461,7 @@ void observe_client_registered(void* context,int32_t id,void* object,uint64_t ca
     uintptr_t actual=0; ++selector_reads;
     const auto exception=copy_native(object,&actual,sizeof(actual));
     const auto base=image.load();
-    if(!exception&&actual!=base+node_vtable&&actual!=base+0x16fca60&&actual!=base+shard_vtable) { ++non_node_callbacks; return; }
+    if(!exception&&actual!=base+node_vtable&&actual!=base+0x1702e00&&actual!=base+shard_vtable) { ++non_node_callbacks; return; }
 #ifdef MT2MP_NETWORK_IDENTITY_TEST
     if(test_selector_barrier) test_selector_barrier();
 #endif
@@ -481,10 +481,10 @@ void observe_client_registered(void* context,int32_t id,void* object,uint64_t ca
         auto& probe=s.last_context_probe; probe={};
         probe.caller_rva=caller_rva<diagnostic_image_bytes?caller_rva:0; probe.typed_vtable_rva=diagnostic_rva(actual); probe.callback_context_present=context!=nullptr;
         const auto known_context=s.context_owners.find(context); if(known_context!=s.context_owners.end()) probe.context_ordinal=known_context->second.ordinal;
-        probe.mode_slot_readable=read_at(reinterpret_cast<void*>(base),0x13df320,mode); probe.mode_present=mode!=nullptr;
+        probe.mode_slot_readable=read_at(reinterpret_cast<void*>(base),0x13eb320,mode); probe.mode_present=mode!=nullptr;
         if(probe.mode_slot_readable&&probe.mode_present) {
             probe.mode_vtable_attempted=true; probe.mode_vtable_readable=read_at(mode,0,mode_vtable);
-            if(probe.mode_vtable_readable) { probe.mode_vtable_rva=diagnostic_rva(mode_vtable); probe.mode_vtable_in_image=probe.mode_vtable_rva!=0; probe.mode_vtable_matches=mode_vtable==base+0x16e6730; }
+            if(probe.mode_vtable_readable) { probe.mode_vtable_rva=diagnostic_rva(mode_vtable); probe.mode_vtable_in_image=probe.mode_vtable_rva!=0; probe.mode_vtable_matches=mode_vtable==base+0x16ecad0; }
             if(probe.mode_vtable_matches) { probe.mode_context_attempted=true; probe.mode_context_readable=read_at(mode,0xd8,live_context); probe.mode_context_present=live_context!=nullptr; probe.mode_context_matches=live_context==context; }
         }
         probe.object_context_readable=read_at(object,8,object_context); probe.object_context_present=object_context!=nullptr; probe.object_context_matches=object_context==context;
@@ -518,7 +518,7 @@ void observe_client_registered(void* context,int32_t id,void* object,uint64_t ca
         }
         Binding binding; binding.id=id; binding.node=object; binding.context=context;
         if(!read_at(object,0x18,binding.uid)||!binding.uid) { fail_locked(s,"client typed node UID invalid"); return; }
-        auto& typed_bindings=actual==base+0x16fca60?s.pipe_bindings:s.bindings;
+        auto& typed_bindings=actual==base+0x1702e00?s.pipe_bindings:s.bindings;
         if(typed_bindings.size()>=maximum_nodes) { fail_locked(s,"client serialized Network kind count exceeds65536"); return; }
         const auto prior=typed_bindings.find(id);
         if(prior!=typed_bindings.end()) { ++s.duplicate_callbacks; fail_locked(s,"client serialized node duplicate id="+std::to_string(id)+" context_ordinal="+std::to_string(s.context_owners.at(context).ordinal)+" same_object="+std::to_string(prior->second.node==object)+" same_context="+std::to_string(prior->second.context==context)); return; }

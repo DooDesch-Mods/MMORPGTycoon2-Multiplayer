@@ -35,15 +35,15 @@ bool count(Memory& m,uintptr_t image,uintptr_t graph,size_t offset,uintptr_t exp
 bool read_undo(Memory& m,uintptr_t image,UndoWitness& out,std::string& e){
     out={};e.clear();
     try {
-        if(!image||image>std::numeric_limits<uintptr_t>::max()-0x1a3aa80)return fail(e,"undo_image_range");
+        if(!image||image>std::numeric_limits<uintptr_t>::max()-0x1a41a80)return fail(e,"undo_image_range");
         auto once=[&](UndoWitness& w){
             uintptr_t ap=0;
-            if(!at(m,image,0x13df380,w.receiver,e)||!at(m,image,0x1a3aa80,w.active_graph,e))return false;
+            if(!at(m,image,0x13eb380,w.receiver,e)||!at(m,image,0x1a41a80,w.active_graph,e))return false;
             if(!w.receiver)return fail(e,"undo_manager_missing");
             if(!at(m,w.receiver,0,ap,e))return false;
-            if(ap!=image+0x16fe070)return fail(e,"undo_manager_addresspoint");
+            if(ap!=image+0x1704410)return fail(e,"undo_manager_addresspoint");
             if(w.receiver>std::numeric_limits<uintptr_t>::max()-0x38)return fail(e,"undo_manager_range");
-            return list(m,image,w.receiver+8,0x16e1320,w.undo,e)&&list(m,image,w.receiver+0x20,0x16e1320,w.redo,e);
+            return list(m,image,w.receiver+8,0x16e76c0,w.undo,e)&&list(m,image,w.receiver+0x20,0x16e76c0,w.redo,e);
         };
         UndoWitness a,b;if(!once(a)||!once(b))return false;
         if(a!=b)return fail(e,"undo_changed_during_read");
@@ -54,11 +54,11 @@ bool read_undo(Memory& m,uintptr_t image,UndoWitness& out,std::string& e){
 bool read_graph(Memory& m,uintptr_t image,uintptr_t graph,GraphWitness& out,std::string& e){
     out={};e.clear();
     try {
-        if(!image||!graph||image>std::numeric_limits<uintptr_t>::max()-0x1748c50)return fail(e,"undo_graph_address_range");
+        if(!image||!graph||image>std::numeric_limits<uintptr_t>::max()-0x174eff0)return fail(e,"undo_graph_address_range");
         auto once=[&](GraphWitness& w){
             w.graph=graph;uint8_t locked=0;
-            if(!count(m,image,graph,0,0x16e32d0,w.nodes,e)||!count(m,image,graph,0x18,0x16e2dc0,w.operations,e)||
-               !count(m,image,graph,0x48,0x1748c50,w.pending_delete,e)||!at(m,graph,0x10c,locked,e))return false;
+            if(!count(m,image,graph,0,0x16e9670,w.nodes,e)||!count(m,image,graph,0x18,0x16e9160,w.operations,e)||
+               !count(m,image,graph,0x48,0x174eff0,w.pending_delete,e)||!at(m,graph,0x10c,locked,e))return false;
             if(locked>1)return fail(e,"undo_graph_lock_not_bool");
             w.locked=locked!=0;return true;
         };

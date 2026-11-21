@@ -13,7 +13,7 @@ bool fail(std::string& error,const std::string& cause){error=cause;return false;
 struct Memory {template<class T>bool operator()(uintptr_t object,size_t offset,T& out,std::string& error)const{
     if(!object||object>UINTPTR_MAX-offset||object+offset>UINTPTR_MAX-sizeof out)return fail(error,"Boss current native read address null/overflow");
     return root_saved_building::bytes(reinterpret_cast<void*>(object),offset,&out,sizeof out,error);}};
-uint32_t lookup(uintptr_t image,uint64_t uid,uintptr_t& found)noexcept{__try{found=reinterpret_cast<uintptr_t(*)(uint64_t)>(image+0x47ce20)(uid);return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
+uint32_t lookup(uintptr_t image,uint64_t uid,uintptr_t& found)noexcept{__try{found=reinterpret_cast<uintptr_t(*)(uint64_t)>(image+0x481f60)(uid);return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
 struct Find {uintptr_t image;bool operator()(uint64_t uid,uintptr_t& found,std::string& error)const{live_host_state::apply_timing::PageReadScope original_call(live_host_state::apply_timing::PageBoundary::OriginalCall);const auto exception=lookup(image,uid,found);return !exception||fail(error,"Boss current full UID lookup SEH="+std::to_string(exception));}};
 bool same(const World& a,const World& b){return a.game==b.game&&a.mode==b.mode&&a.state==b.state&&a.world==b.world&&a.map==b.map&&a.generation==b.generation&&a.world_epoch==b.world_epoch&&a.uuid==b.uuid&&a.sha256==b.sha256;}
 bool admitted_characters(const action_session::Context& context,const action_session::Binding& binding,World& world,
@@ -27,7 +27,7 @@ bool admitted(const action_session::Context& context,const action_session::Bindi
 bool pools(const World& world,std::vector<Pool>& out,std::string& error){
     live_host_state::apply_timing::PageReadScope census_pages(!live_host_state::apply_timing::PageReadScope::reader_active());
     out.clear();const auto image=uintptr_t(GetModuleHandleW(nullptr)),map=uintptr_t(world.map),root=map+0x1c0;Memory at;Find find{image};uintptr_t ap=0;
-    if(!at(map,0,ap,error)||ap!=image+0x1742860||!at(root,0,ap,error)||ap!=image+0x174ad20||!at(map+0x230,0,ap,error)||ap!=image+0x16f04e0)return fail(error,error.empty()?"Boss current actual NativeOpen map/root classes differ":error);
+    if(!at(map,0,ap,error)||ap!=image+0x1748c00||!at(root,0,ap,error)||ap!=image+0x17510c0||!at(map+0x230,0,ap,error)||ap!=image+0x16f6880)return fail(error,error.empty()?"Boss current actual NativeOpen map/root classes differ":error);
     std::set<uintptr_t> managers,scene_regions;
     const auto add=[&](uintptr_t shard,uintptr_t region,const std::string& key){Pool pool;uintptr_t manager=0;
         if(!at(region,0x990,manager,error))return false;

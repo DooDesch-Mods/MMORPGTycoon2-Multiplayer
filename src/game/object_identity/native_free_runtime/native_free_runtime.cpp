@@ -23,7 +23,7 @@
 
 namespace mt2mp::native_free_runtime {
 namespace {
-constexpr uintptr_t sized_rva=0x1264b60,free_iat_rva=0x1c52a00,malloc_iat_rva=0x1c52a70;
+constexpr uintptr_t sized_rva=0x1270520,free_iat_rva=0x1c59a00,malloc_iat_rva=0x1c59a70;
 template<size_t N>void text(std::array<char,N>& out,const char* from)noexcept{size_t n=0;if(from)while(n+1<N&&from[n]){out[n]=from[n];++n;}out[n]=0;}
 __declspec(noinline) bool copy(const void* from,void* to,size_t size,uint32_t& code)noexcept{
     __try{std::memcpy(to,from,size);return true;}__except((code=GetExceptionCode(),EXCEPTION_EXECUTE_HANDLER)){return false;}
@@ -165,11 +165,11 @@ bool Runtime::routes(std::string& error){
     if(malloc_actual!=receipt_.heap.malloc_export.resolved||free_actual!=(iat_visible_?uintptr_t(&free_entry):receipt_.heap.free_export.resolved)){error="error: actual CRT malloc/free IAT no longer matches owned routes";return false;}
     const auto crt=reinterpret_cast<HMODULE>(receipt_.heap.imported_crt.base);
     if(uintptr_t(GetProcAddress(crt,"malloc"))!=receipt_.heap.malloc_export.resolved||uintptr_t(GetProcAddress(crt,"free"))!=receipt_.heap.free_export.resolved){error="error: actual named CRT resolved export changed";return false;}
-    if(!committed(base+sized_rva,5,base,true,error)||!jump(base+0xa01260,base+0xa915e8,error))return false;
-    unsigned char thunk[6]{};int32_t delta=0;if(!copy(reinterpret_cast<void*>(base+0xa915e8),thunk,6,seh)){error="error: actual free import thunk SEH="+std::to_string(seh);return false;}std::memcpy(&delta,thunk+2,4);
-    if(thunk[0]!=0xff||thunk[1]!=0x25||base+0xa915e8+6+intptr_t(delta)!=base+free_iat_rva){error="error: actual free import thunk route differs";return false;}
-    if(sized_visible_){if(!jump(base+sized_rva,receipt_.sized_trampoline+14,error)||!abs_jump(receipt_.sized_trampoline,base+0xa01260,error)||!abs_jump(receipt_.sized_trampoline+14,uintptr_t(&sized_entry),error))return false;}
-    else if(!jump(base+sized_rva,base+0xa01260,error))return false;
+    if(!committed(base+sized_rva,5,base,true,error)||!jump(base+0xa0be20,base+0xa9c728,error))return false;
+    unsigned char thunk[6]{};int32_t delta=0;if(!copy(reinterpret_cast<void*>(base+0xa9c728),thunk,6,seh)){error="error: actual free import thunk SEH="+std::to_string(seh);return false;}std::memcpy(&delta,thunk+2,4);
+    if(thunk[0]!=0xff||thunk[1]!=0x25||base+0xa9c728+6+intptr_t(delta)!=base+free_iat_rva){error="error: actual free import thunk route differs";return false;}
+    if(sized_visible_){if(!jump(base+sized_rva,receipt_.sized_trampoline+14,error)||!abs_jump(receipt_.sized_trampoline,base+0xa0be20,error)||!abs_jump(receipt_.sized_trampoline+14,uintptr_t(&sized_entry),error))return false;}
+    else if(!jump(base+sized_rva,base+0xa0be20,error))return false;
     if(receipt_.originals_published){
         MT2FW_MT2_FreeReceipt actual{};
         if(!hooks::framework::process_backend().read_free(actual,error))return false;
@@ -198,7 +198,7 @@ bool Runtime::prepare_and_enable(std::string& error)try{
     void* original=nullptr;const auto created=MH_CreateHook(reinterpret_cast<void*>(receipt_.sized_target),reinterpret_cast<void*>(&sized_entry),&original);
     if(created!=MH_OK)return fail(Phase::Failed,"error: concrete sized MinHook creation failed",error,0,created);
     hook_created_=true;receipt_.sized_trampoline=uintptr_t(original);
-    if(!original||!abs_jump(uintptr_t(original),receipt_.image+0xa01260,error)||!abs_jump(uintptr_t(original)+14,uintptr_t(&sized_entry),error))return fail(Phase::Failed,error.c_str(),error);
+    if(!original||!abs_jump(uintptr_t(original),receipt_.image+0xa0be20,error)||!abs_jump(uintptr_t(original)+14,uintptr_t(&sized_entry),error))return fail(Phase::Failed,error.c_str(),error);
     receipt_.trampoline_route=true;observer_.emplace(receipt_.main_thread,journal_);
     if(!observer_->publish_disabled(reinterpret_cast<native_free::SizedFn>(original),reinterpret_cast<native_free::FreeFn>(imported_free.original)))return fail(Phase::Failed,"error: typed originals disabled publication failed",error);
     published_.store(&*observer_,std::memory_order_release);receipt_.originals_published=true;receipt_.phase=Phase::Prepared;
@@ -234,8 +234,8 @@ bool Runtime::probe_null_holder(HolderKind kind,ProbeReceipt& result,std::string
     if(kind!=HolderKind::Prop&&kind!=HolderKind::Building){error="error: own null holder kind invalid";return false;}
     probe_busy_=true;void* holder=nullptr;uintptr_t factory=0,d0=0,link=0,weak=0;uint32_t code=0;
     try{
-        if(kind==HolderKind::Prop){factory=receipt_.image+0xd8a940;d0=receipt_.image+0xbedc00;link=receipt_.image+0x17119f0;weak=receipt_.image+0x16f9e60;for(const auto& guard:prop_lease::contract::entries)if(!committed(receipt_.image+guard.rva,guard.count,receipt_.image,true,error)||!bytes(receipt_.image+guard.rva,guard.bytes,guard.count,error)){probe_busy_=false;return false;}}
-        else {factory=receipt_.image+0xd8a780;d0=receipt_.image+0xbed320;link=receipt_.image+0x17116f0;weak=receipt_.image+0x16f9c20;for(const auto& guard:native_lease::contract::entries)if(!committed(receipt_.image+guard.rva,guard.count,receipt_.image,true,error)||!bytes(receipt_.image+guard.rva,guard.bytes,guard.count,error)){probe_busy_=false;return false;}}
+        if(kind==HolderKind::Prop){factory=receipt_.image+0xd960e0;d0=receipt_.image+0xbfa280;link=receipt_.image+0x1717d90;weak=receipt_.image+0x1700200;for(const auto& guard:prop_lease::contract::entries)if(!committed(receipt_.image+guard.rva,guard.count,receipt_.image,true,error)||!bytes(receipt_.image+guard.rva,guard.bytes,guard.count,error)){probe_busy_=false;return false;}}
+        else {factory=receipt_.image+0xd95f20;d0=receipt_.image+0xbf99a0;link=receipt_.image+0x1717a90;weak=receipt_.image+0x16fffc0;for(const auto& guard:native_lease::contract::entries)if(!committed(receipt_.image+guard.rva,guard.count,receipt_.image,true,error)||!bytes(receipt_.image+guard.rva,guard.bytes,guard.count,error)){probe_busy_=false;return false;}}
         result.world=actual.world;if(!reserve_holder_generation(result.allocation_generation,error)){probe_busy_=false;return false;}result.factory_attempted=1;
         if(!factory_call(reinterpret_cast<Factory>(factory),holder,code)){result.seh_code=code;probe_busy_=false;return fail(Phase::Unknown,"error: own genuine null holder factory SEH; no retry/free guess",error,0,0,code);}
         result.factory_returned=1;private_probe_holder_=holder;private_probe_generation_=result.allocation_generation;Holder body{};
@@ -261,7 +261,7 @@ bool Runtime::retire_routes(std::string& error){
     else if(actual_iat==receipt_.heap.free_export.resolved)iat_visible_=false;
     else return fail(Phase::Unknown,"error: actual free IAT belongs to an unknown/foreign route; no blind reversal",error);
     std::string sized_error;
-    if(jump(receipt_.sized_target,receipt_.image+0xa01260,sized_error))sized_visible_=false;
+    if(jump(receipt_.sized_target,receipt_.image+0xa0be20,sized_error))sized_visible_=false;
     else if(receipt_.sized_trampoline&&jump(receipt_.sized_target,receipt_.sized_trampoline+14,sized_error))sized_visible_=true;
     else return fail(Phase::Unknown,"error: actual sized code belongs to an unknown/partial route; no blind reversal",error);
     MT2FW_MT2_FreeReceipt restored{};

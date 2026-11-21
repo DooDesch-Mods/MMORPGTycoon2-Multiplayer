@@ -12,7 +12,7 @@ Receipt change(uintptr_t image,uintptr_t policy,const Intent& intent)noexcept{
         if(integer(intent.field))out.stored=InterlockedCompareExchange(reinterpret_cast<volatile LONG*>(address),intent.value,intent.before)==intent.before;
         else out.stored=uint8_t(_InterlockedCompareExchange8(reinterpret_cast<volatile char*>(address),char(intent.value),char(intent.before)))==uint8_t(intent.before);
         if(!out.stored)return out;
-        reinterpret_cast<void(*)(void*,const void*)>(image+0x3af510)(reinterpret_cast<void*>(policy),&name);out.notified=true;
+        reinterpret_cast<void(*)(void*,const void*)>(image+0x3b4010)(reinterpret_cast<void*>(policy),&name);out.notified=true;
     }__except(EXCEPTION_EXECUTE_HANDLER){out.exception=GetExceptionCode();}return out;
 }
 }

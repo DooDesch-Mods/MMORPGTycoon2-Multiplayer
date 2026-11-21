@@ -17,15 +17,15 @@ bool reference_owners(Read& read,Text& text,uintptr_t image,ReferenceOwners& out
         return read(image,global,result,error)&&read(result,0,ap,error)&&
             (ap==image+expected||(error="General project actual global owner class differs",false));
     };
-    if(!owner(0x13df500,0x1715450,next.software)||!owner(0x13df250,0x16dc400,next.tree)||
-       !read(image,0x13df2d0,next.library,error)||!next.library){
+    if(!owner(0x13eb500,0x171b7f0,next.software)||!owner(0x13eb250,0x16e27a0,next.tree)||
+       !read(image,0x13eb2d0,next.library,error)||!next.library){
         if(error.empty())error="General project current ArtLibrary owner absent";return false;
     }
     if(!array(read,next.tree,0x10,next.techs,error)||!array(read,next.software,0x280,next.records,error)||
        !array(read,next.library,8,next.packs,error))return false;
     std::map<uintptr_t,std::string> tech_names;
     for(const auto object:next.techs){std::string name;
-        if(!read(object,0,ap,error)||(ap!=image+0x1744c40&&ap!=image+0x16dc330&&ap!=image+0x16e0ac0&&ap!=image+0x16fdb10)||
+        if(!read(object,0,ap,error)||(ap!=image+0x174afe0&&ap!=image+0x16e26d0&&ap!=image+0x16e6e60&&ap!=image+0x1703eb0)||
            !text(object+0x20,name,error)||name.empty()||!next.tech_keys.emplace(name,object).second){
             if(error.empty())error="General project complete TechTree key/class invalid";return false;
         }
@@ -33,7 +33,7 @@ bool reference_owners(Read& read,Text& text,uintptr_t image,ReferenceOwners& out
     }
     std::set<std::string> record_keys;
     for(const auto object:next.records){std::string name;uintptr_t tech=0,back=0;
-        if(!read(object,0,ap,error)||ap!=image+0x16e79d0||!text(object+0x38,name,error)||
+        if(!read(object,0,ap,error)||ap!=image+0x16edd70||!text(object+0x38,name,error)||
            !read(object,0x60,tech,error)||!tech_names.contains(tech)||tech_names.at(tech)!=name||
            !read(tech,0x1e8,back,error)||back!=object){
             if(error.empty())error="General project current Software TechRecord reciprocity differs";return false;
@@ -42,7 +42,7 @@ bool reference_owners(Read& read,Text& text,uintptr_t image,ReferenceOwners& out
     }
     if(next.records.size()!=next.techs.size()){error="General project Software records do not completely cover TechTree";return false;}
     for(const auto object:next.packs){std::string name;
-        if(!read(object,0,ap,error)||ap!=image+0x16c0140||!text(object+0x28,name,error)||name.empty()||
+        if(!read(object,0,ap,error)||ap!=image+0x16c64e0||!text(object+0x28,name,error)||name.empty()||
            !next.pack_keys.emplace(name,object).second){
             if(error.empty())error="General project complete ArtLibrary/ArtStore ownership invalid";return false;
         }

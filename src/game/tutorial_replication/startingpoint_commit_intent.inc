@@ -1,17 +1,17 @@
 namespace {
 DWORD startingpoint_complete(uintptr_t lounge,bool& result){
-    __try{result=reinterpret_cast<bool(*)(void*)>(image+0x25ed50)(reinterpret_cast<void*>(lounge));return 0;}
+    __try{result=reinterpret_cast<bool(*)(void*)>(image+0x261e50)(reinterpret_cast<void*>(lounge));return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 DWORD startingpoint_commit_call(uintptr_t lounge){
     // Enter the owned hook so the original Commit also records its bug receipt.
-    __try{reinterpret_cast<Call>(image+0x25fb10)(reinterpret_cast<void*>(lounge));return 0;}
+    __try{reinterpret_cast<Call>(image+0x262c10)(reinterpret_cast<void*>(lounge));return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 bool complete_entry(std::string& e){
     constexpr std::array<unsigned char,16> expected={0x53,0x48,0x83,0xec,0x20,0x48,0x89,0xcb,0x48,0x8b,0x89,0xa8,0x00,0x00,0x00,0x48};
     std::array<unsigned char,16> actual{};
-    return memory.copy(image+0x25ed50,actual.data(),actual.size(),e)&&(actual==expected||fail(e,"startingpoint native completion entry differs"));
+    return memory.copy(image+0x261e50,actual.data(),actual.size(),e)&&(actual==expected||fail(e,"startingpoint native completion entry differs"));
 }
 bool commit_snapshot(const action_session::Context& c,const action_session::Binding& b,
                      tutorial_development::StartingpointSnapshot& value,std::string& e){
@@ -33,7 +33,7 @@ bool submit_client_commit(void* lounge,std::string& e){
     if(c.role!=action_session::Role::Client)return fail(e,"startingpoint Commit intent requires joined Client");
     if(!typed_action_runtime::network_binding(c.snapshot_uuid,b,e))return false;
     tutorial_development::StartingpointSnapshot before;
-    if(!commit_snapshot(c,b,before,e)||!startingpoint_clock(e)||!complete_entry(e)||!verify_commit_entry(image+0x25fb10,e))return false;
+    if(!commit_snapshot(c,b,before,e)||!startingpoint_clock(e)||!complete_entry(e)||!verify_commit_entry(image+0x262c10,e))return false;
     if(before.lounge!=reinterpret_cast<uintptr_t>(lounge)||!before.project||!before.row||
        !before.row->project_present||before.row->deployed||!before.row->purchased||before.row->custom)
         return fail(e,"startingpoint Commit intent current native project differs");
@@ -62,7 +62,7 @@ bool commit_startingpoint(const action_session::Context& c,const action_session:
                          const startingpoint::Row& expected,bool& attempted,std::string& e){
     attempted=false;
     if(c.role!=action_session::Role::Host||load.armed)return fail(e,"startingpoint original Commit requires Host");
-    if(!verify_commit_entry(image+0x25fb10,e)||!startingpoint_code(e)||!complete_entry(e))return false;
+    if(!verify_commit_entry(image+0x262c10,e)||!startingpoint_code(e)||!complete_entry(e))return false;
     tutorial_development::StartingpointSnapshot before;
     if(!commit_snapshot(c,b,before,e))return false;
     if(!before.project||!before.row||*before.row!=expected||!expected.project_present||expected.deployed||

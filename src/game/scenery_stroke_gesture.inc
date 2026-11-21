@@ -29,15 +29,15 @@ bool gesture_current(Runtime& r,GestureJob& job,std::string& e){
     if(!current_capture(job.context,job.snapshot,job.binding,e))return false;
     binding=job.binding;
     if(binding!=job.binding)return q::fail(e,"Scenery gesture World binding changed");
-    if(!q::at(r.memory,r.image,0x13df9d0,cursor,e))return false;
+    if(!q::at(r.memory,r.image,0x13eb9d0,cursor,e))return false;
     if(cursor!=job.cursor)return q::fail(e,"Scenery gesture Cursor singleton changed");
-    if(!q::typed(r.memory,r.image,cursor,0x1786dd0,e)||!q::at(r.memory,cursor,0x190,receiver,e)||
+    if(!q::typed(r.memory,r.image,cursor,0x178d170,e)||!q::at(r.memory,cursor,0x190,receiver,e)||
        !q::at(r.memory,cursor,0x198,default_receiver,e))return false;
     if(receiver!=job.receiver)return q::fail(e,"Scenery gesture selected behaviour changed");
     if(default_receiver!=job.default_receiver)return q::fail(e,"Scenery gesture Default behaviour owner changed");
     // Cursor keeps its Default behaviour separately from the selected tool.
-    if(!q::typed(r.memory,r.image,default_receiver,0x17391a0,e)||
-       !q::typed(r.memory,r.image,receiver,job.kind==Kind::Paint?0x17396b0:0x173fc60,e)||
+    if(!q::typed(r.memory,r.image,default_receiver,0x173f540,e)||
+       !q::typed(r.memory,r.image,receiver,job.kind==Kind::Paint?0x173fa50:0x1746000,e)||
        !source_world(r,receiver,job.kind,current,e))return false;
     if(!host::same_world(current.origin,job.world.origin))return q::fail(e,"Scenery gesture native World origin changed");
     if(current.root!=job.world.root)return q::fail(e,"Scenery gesture native World root changed");
@@ -49,9 +49,9 @@ bool gesture_current(Runtime& r,GestureJob& job,std::string& e){
 }
 uint32_t gesture_call(uintptr_t image,uintptr_t receiver,uintptr_t cursor,Kind kind,gesture::Step step,const gesture::Point& point)noexcept{
     const bool paint=kind==Kind::Paint;
-    const uintptr_t rva=step==gesture::Step::Hover?(paint?0x5d5960:0x5d6460):
-        step==gesture::Step::Press?(paint?0x5cf440:0x5d64e0):
-        step==gesture::Step::Drag?(paint?0x5cead0:0x5d5e50):(paint?0x5d0600:0x5d6ca0);
+    const uintptr_t rva=step==gesture::Step::Hover?(paint?0x5dc0b0:0x5dcbb0):
+        step==gesture::Step::Press?(paint?0x5d5b90:0x5dcc30):
+        step==gesture::Step::Drag?(paint?0x5d5220:0x5dc5a0):(paint?0x5d6d50:0x5dd3f0);
     __try{
         if(step==gesture::Step::Drag)reinterpret_cast<void(*)(void*,void*,const void*,float)>(image+rva)(reinterpret_cast<void*>(receiver),reinterpret_cast<void*>(cursor),point.data(),0.0f);
         else reinterpret_cast<void(*)(void*,void*,const void*)>(image+rva)(reinterpret_cast<void*>(receiver),reinterpret_cast<void*>(cursor),point.data());
@@ -59,7 +59,7 @@ uint32_t gesture_call(uintptr_t image,uintptr_t receiver,uintptr_t cursor,Kind k
     }__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 uint32_t gesture_region(uintptr_t image,uintptr_t root,const gesture::Point& point,uintptr_t& region_owner)noexcept{
-    __try{region_owner=reinterpret_cast<uintptr_t(*)(void*,const void*,void*)>(image+0x5089b0)(reinterpret_cast<void*>(root),point.data(),nullptr);return 0;}
+    __try{region_owner=reinterpret_cast<uintptr_t(*)(void*,const void*,void*)>(image+0x50eb00)(reinterpret_cast<void*>(root),point.data(),nullptr);return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 struct GesturePort {
@@ -112,7 +112,7 @@ bool execute_native_gesture(const json& args,json& out,std::string& e){
         for(const auto& guard:gesture::guards)if(!original_bytes(*r,guard,e))return false;
         if(initial.snapshot!=net::current_snapshot_id()||!capture_binding(initial.snapshot,initial.binding,initial.context,e)||
            initial.binding.native_epoch!=args.at("expected_world_epoch").get<uint64_t>()||initial.binding.native_generation!=args.at("expected_generation").get<uint64_t>()||
-           !q::at(r->memory,r->image,0x13df9d0,initial.cursor,e)||!q::at(r->memory,initial.cursor,0x190,initial.receiver,e)||
+           !q::at(r->memory,r->image,0x13eb9d0,initial.cursor,e)||!q::at(r->memory,initial.cursor,0x190,initial.receiver,e)||
            !q::at(r->memory,initial.cursor,0x198,initial.default_receiver,e)||
            !source_world(*r,initial.receiver,initial.kind,initial.world,e)||!region(*r,initial.world,initial.region_id,0,initial.region_owner,e)||!gesture_current(*r,initial,e))
             return q::fail(e,e.empty()?"Scenery gesture initial Snapshot/World/cursor differs":e);

@@ -45,7 +45,7 @@ void Logger::log(LogCategory,LogLevel,const char*,int,const std::string& message
 namespace mt2mp::game::native {
 bool ready() { return true; }
 bool in_game() { return active; }
-void* entrypoint(EntryPoint) { return reinterpret_cast<void*>(image+0x463ce0); }
+void* entrypoint(EntryPoint) { return reinterpret_cast<void*>(image+0x468d00); }
 bool read_world_status(WorldStatus& out,std::string& error) {
     out={}; out.world_present=active; out.active_mode_index=3; out.requested_mode_index=3;
     out.saves_in_progress=0; error.clear(); return true;
@@ -76,23 +76,23 @@ int main() {
         image=reinterpret_cast<uintptr_t>(memory);
         struct Guard { size_t rva; const char* bytes; size_t size; };
         const Guard guards[]={
-            {0x32b670,"\x57\x56\x53\x48\x83\xec\x20\x8b\x81\x60\x03\x00\x00\x48\x89\xce",16},
-            {0x34f860,"\x48\x83\xec\x28\x31\xc0\x80\xb9\x50\x08\x00\x00\x00\x74\x24\x83",16},
-            {0x2a5140,"\x55\x57\x56\x53\x48\x83\xec\x28\x8b\x51\x28\x48\x89\xcf\x85\xd2",16},
-            {0x42cee0,"\x0f\xb6\x81\xea\x02\x00\x00\xc3",8},
-            {0x42cef0,"\x53\x48\x83\xec\x20\x48\x83\xb9\x58\x02\x00\x00\x00\x48\x89\xcb",16},
-            {0xddda40,"\x41\x57\x41\x56\x41\x55\x41\x54\x55\x57\x56\x53\x48\x83\xec\x48",16},
-            {0x89e690,"\x57\x56\x53\x48\x83\xec\x20\x48\x89\xce\x48\x89\xd3\x4c\x89\xc7",16},
-            {0x47ce20,"\x53\x45\x31\xc0\x48\x85\xc9\x74\x31\x48\x83\x3d\xa7\x95\x5b\x01",16},
-            {0x2a4730,"\x4c\x63\x41\x28\x45\x85\xc0\x7e\x27\x48\x8b\x41\x20\x4a\x8d\x0c",16},
-            {0x89e0f0,"\x53\x48\x8b\x09\x48\x83\x79\x18\x00\x41\x89\xd0\x75\x32\x48\x8b",16}};
+            {0x32f700,"\x57\x56\x53\x48\x83\xec\x20\x8b\x81\x60\x03\x00\x00\x48\x89\xce",16},
+            {0x353f60,"\x48\x83\xec\x28\x31\xc0\x80\xb9\x50\x08\x00\x00\x00\x74\x24\x83",16},
+            {0x2a85e0,"\x55\x57\x56\x53\x48\x83\xec\x28\x8b\x51\x28\x48\x89\xcf\x85\xd2",16},
+            {0x431cc0,"\x0f\xb6\x81\xea\x02\x00\x00\xc3",8},
+            {0x431cd0,"\x53\x48\x83\xec\x20\x48\x83\xb9\x58\x02\x00\x00\x00\x48\x89\xcb",16},
+            {0xde9350,"\x41\x57\x41\x56\x41\x55\x41\x54\x55\x57\x56\x53\x48\x83\xec\x48",16},
+            {0x8a77b0,"\x57\x56\x53\x48\x83\xec\x20\x48\x89\xce\x48\x89\xd3\x4c\x89\xc7",16},
+            {0x481f60,"\x53\x45\x31\xc0\x48\x85\xc9\x74\x31\x48\x83\x3d\x67\xb4\x5b\x01",16},
+            {0x2a7bd0,"\x4c\x63\x41\x28\x45\x85\xc0\x7e\x27\x48\x8b\x41\x20\x4a\x8d\x0c",16},
+            {0x8a7210,"\x53\x48\x8b\x09\x48\x83\x79\x18\x00\x41\x89\xd0\x75\x32\x48\x8b",16}};
         for(const auto& guard:guards) std::memcpy(memory+guard.rva,guard.bytes,guard.size);
         std::array<uint8_t,0x380> map{};
         current_map=map.data();
         std::array<void*,4> regions{};
-        put(memory,0x13df8c0,map.data());
-        put(map.data(),0,image+0x1742860);
-        put(map.data(),0x1c0,image+0x174ad20);
+        put(memory,0x13eb8c0,map.data());
+        put(map.data(),0,image+0x1748c00);
+        put(map.data(),0x1c0,image+0x17510c0);
         put(map.data(),0x208,int32_t(0));
         auto layout=[&](int32_t count,int32_t allocated,void** data) {
             put(map.data(),0x358,data); put(map.data(),0x360,count); put(map.data(),0x364,allocated);
@@ -189,7 +189,7 @@ int main() {
         require(!native_network::read_state(state,error),"nonzero native aggregate on empty census accepted");
         map_capacity=0; active=false;
         require(!native_network::read_state(state,error),"inactive world accepted");
-        active=true; memory[0x32b670]=0;
+        active=true; memory[0x32f700]=0;
         require(!native_network::read_state(state,error),"wrong build prologue accepted");
         std::cout<<"Empty network state and identity regression passed\n";
     } catch(const std::exception& error) {

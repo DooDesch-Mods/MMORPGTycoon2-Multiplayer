@@ -20,13 +20,13 @@ template<class Memory,class Hash>bool read(Memory& memory,uintptr_t image,uintpt
                 for(float part:position)if(!std::isfinite(part))return q::fail(e,"Scenery stroke bug target position is nonfinite");
                 auto bugs=nlohmann::json::array();
                 if(collection){uintptr_t anchor=0,objects=0;int32_t size=0,cap=0;
-                    if(!q::typed(memory,image,collection,0x1705640,e)||!q::at(memory,collection,0x48,anchor,e)||anchor!=target||
+                    if(!q::typed(memory,image,collection,0x170b9e0,e)||!q::at(memory,collection,0x48,anchor,e)||anchor!=target||
                        !q::at(memory,collection,0x20,objects,e)||!q::at(memory,collection,0x28,size,e)||!q::at(memory,collection,0x2c,cap,e))
                         return q::fail(e,e.empty()?"Scenery stroke bug collection reciprocal owner differs":e);
                     if(size<0||size>1000000||cap<size||cap>1000000||(!objects&&cap)||uint64_t(size)>1000000-total)
                         return q::fail(e,"Scenery stroke complete bug collection span exceeds its bound");
                     for(int32_t item=0;item<size;++item){uintptr_t bug=0,owner=0;std::array<uint8_t,27> values{};
-                        if(!q::at(memory,objects,size_t(item)*8,bug,e)||!q::typed(memory,image,bug,0x1742200,e)||
+                        if(!q::at(memory,objects,size_t(item)*8,bug,e)||!q::typed(memory,image,bug,0x17485a0,e)||
                            !q::at(memory,bug,0x50,owner,e)||owner!=target||!q::at(memory,bug,0x2c,values,e))
                             return q::fail(e,e.empty()?"Scenery stroke bug reciprocal anchor differs":e);
                         bugs.push_back(values);

@@ -22,7 +22,7 @@ struct Session:action::Session {
     }
 } session;
 void setup(){
-    memory.setup();memory.put(image+0x1730e90,0xa0,image+0x4f85b0);
+    memory.setup();memory.put(image+0x1737230,0xa0,image+0x4fe550);
     memory.put(scenario,0x38,uint8_t(0));
     memory.put(alert,0x70,proxy);memory.put(proxy,0,toon+0x20);memory.put(proxy,8,int32_t(1));memory.put(toon,0x28,proxy);
     memory.put(image,0x3c,int32_t(0x100));memory.put(image,0x150,uint32_t(0x2000000));
@@ -48,10 +48,10 @@ void original(uintptr_t receiver,float dt){
         memory.unreadable=toon;break;
     case Effect::Remove:memory.array(log_owner,0x20,0,{});memory.unreadable=scenario;break;
     case Effect::Throw:throw std::runtime_error("original Update exception");
-    case Effect::Reenter:effect=Effect::None;vip::host_update(receiver,dt,image+0x4f43f5,original);break;
+    case Effect::Reenter:effect=Effect::None;vip::host_update(receiver,dt,image+0x4fa375,original);break;
     }
 }
-void update(){vip::host_update(scenario,std::bit_cast<float>(uint32_t(0x3eaaaaab)),image+0x4f43f5,original);}
+void update(){vip::host_update(scenario,std::bit_cast<float>(uint32_t(0x3eaaaaab)),image+0x4fa375,original);}
 void bind(std::string& e){need(vip::host_bind(context,binding,epoch,e),e.c_str());}
 }
 namespace placement_ui_probe {
@@ -59,7 +59,7 @@ bool ProcessMemory::copy(uintptr_t p,void* out,size_t size,std::string& e){retur
 }
 namespace mt2mp::game::native {
 bool read_resolver_receipt(uintptr_t& base,uint32_t& thread,std::string& sha,std::string& e){
-    base=image;thread=fixture::thread;sha="bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6";e.clear();return true;
+    base=image;thread=fixture::thread;sha="7efd8ee7b97f78362e7a2f8116b327fa6b756bdce23114b68143c4c9d2dd50eb";e.clear();return true;
 }
 }
 namespace mt2mp::game::native_open_runtime {
@@ -86,7 +86,7 @@ int main(){try{
         case 8:fixture::memory.put(alert,0xf0,int32_t(1));break;
         case 9:fixture::memory.text(alert,0x88,0x160000,std::string("a\0b",3));break;
         case 10:fixture::memory.unreadable=alert+0x88;break;
-        case 11:fixture::memory.put(image+0x1730e90,0xa0,image+1);break;
+        case 11:fixture::memory.put(image+0x1737230,0xa0,image+1);break;
         }
         need(!vip::host_read::sample(fixture::memory,image,scenario,sample,e)&&!sample.active&&!e.empty(),"invalid current arrival fails with cause");
         if(fault==10)need(e=="original fixture unreadable","selected native copy cause retained");

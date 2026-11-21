@@ -77,7 +77,7 @@ class Pins final:public ref::NpcReferences {
     }
     bool quest_proxy(uintptr_t object,uintptr_t& proxy,int32_t& refs,std::string& e)const {
         refs=0;Memory memory;uintptr_t ap=0,target=0;
-        if(!npc_census::field(memory,object,0,ap,e)||ap!=image_+0x174ac10)
+        if(!npc_census::field(memory,object,0,ap,e)||ap!=image_+0x1750fb0)
             return fail(e,e.empty()?"Subscriber Quest reference class differs":e.c_str());
         if(!npc_census::field(memory,object,0x20,proxy,e))return false;
         if(!proxy)return true;
@@ -92,7 +92,7 @@ class Pins final:public ref::NpcReferences {
     bool fresh_quest(const Pin& pin,int32_t sequence,const QuestPin& quest,std::string& e,bool require_reference=false)const {
         if(!fresh(pin,e))return false;
         Memory memory;std::vector<std::pair<int32_t,uintptr_t>> actual;uintptr_t manager=0;
-        if(!npc_census::field(memory,image_,0x13df410,manager,e))return false;
+        if(!npc_census::field(memory,image_,0x13eb410,manager,e))return false;
         if(manager!=pin.quest_manager)return fail(e,"Subscriber Quest reference manager owner changed");
         if(!npc_probe::action_runtime::host_binding::quest_owners(memory,image_,pin.object,
             int32_t(pin.quests.size()),actual,e))return false;
@@ -113,7 +113,7 @@ class Pins final:public ref::NpcReferences {
         if(!npc_probe::action_runtime::host_binding::quest_owners(memory,image_,pin.object,
             int32_t(pin.quests.size()),after,e))return false;
         uintptr_t final_proxy=0,final_manager=0;int32_t final_refs=0;
-        if(!quest_proxy(quest.object,final_proxy,final_refs,e)||!npc_census::field(memory,image_,0x13df410,final_manager,e))return false;
+        if(!quest_proxy(quest.object,final_proxy,final_refs,e)||!npc_census::field(memory,image_,0x13eb410,final_manager,e))return false;
         if(actual!=after||final_proxy!=proxy||final_manager!=pin.quest_manager)
             return fail(e,"Subscriber Quest reference owner membership changed during read");
         if(require_reference&&(!final_proxy||final_refs<=0)){
@@ -156,7 +156,7 @@ public:
             }
             if(!pin.quests.empty()){
                 std::vector<std::pair<int32_t,uintptr_t>> actual;
-                if(!npc_census::field(memory,image_,0x13df410,pin.quest_manager,e))return false;
+                if(!npc_census::field(memory,image_,0x13eb410,pin.quest_manager,e))return false;
                 if(!npc_probe::action_runtime::host_binding::quest_owners(memory,image_,pin.object,row.quest_count,actual,e))return false;
                 for(const auto& [sequence,quest]:actual){const auto found=pin.quests.find(sequence);
                     if(found==pin.quests.end()||found->second.object!=quest)

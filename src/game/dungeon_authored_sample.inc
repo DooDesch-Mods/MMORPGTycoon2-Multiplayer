@@ -10,10 +10,10 @@ bool scene_monsters(Memory& memory,const dungeon_scene_identity_runtime::Census&
         const auto owners=[&](auto&,const auto& current,uintptr_t& buildings,uintptr_t& zones,std::string& cause){
             uintptr_t ap=0,shard=0,region=0;
             if(!field(memory,current.region,0x950,buildings,cause)||!field(memory,buildings,0,ap,cause))return false;
-            if(ap!=state.image+0x17183c0)return fail(cause,"Dungeon input original BuildingManager class differs");
+            if(ap!=state.image+0x171e760)return fail(cause,"Dungeon input original BuildingManager class differs");
             if(!field(memory,buildings,0x450,shard,cause)||!field(memory,buildings,0x458,region,cause)||
                !field(memory,current.region,0x968,zones,cause)||!field(memory,zones,0,ap,cause))return false;
-            if(shard!=current.root||region!=current.region||ap!=state.image+0x16fe170)
+            if(shard!=current.root||region!=current.region||ap!=state.image+0x1704510)
                 return fail(cause,"Dungeon input current scene manager reciprocal owner differs");
             if(!field(memory,zones,0xf0,region,cause))return false;
             return region==current.region||fail(cause,"Dungeon input ZoneManager current Region differs");
@@ -27,14 +27,14 @@ bool scene_monsters(Memory& memory,const dungeon_scene_identity_runtime::Census&
 }
 bool authored(Memory& memory,const a::Binding& binding,const std::string& snapshot,Sample& sample,std::string& error,std::vector<dungeon_input_authored::Scene>* typed){
     constexpr dungeon_input_codes::Pin canvas_functions[]{
-        {0x11094a0,96,"f95eac43c00aaaee16c2f9b4eadcc679a5a63e7ef8f84539a47fdf2985e1c04a"},
-        {0x1109500,464,"bd05e6e9ef28cd38d980dc6b32045595431ca90ffaef2ca7aa4ffd161f7304a0"},
-        {0xf0c180,96,"722ac015cfb299889dce092a79602c0356b25411406953b20315736b94b8b61c"},
-        {0xf0c1e0,96,"ee1abd962af7eda6e44be722863582b241ef0bd4ed2369baf6bf5f40687ef7a4"},
-        {0xf67ba0,96,"7d447e612a99d503f192d2f61864e6923b64f12bafdc63bb7ecae37078c59db2"},
-        {0xf67c00,96,"3ad2b08d99af40f775c67aab943b4cb7f24d33da30788b82f66b4aec287af597"},
-        {0xf0c9b0,96,"35867545c11252814219741620272a7d1ca80c4594743fbe629f94f8a99b8001"},
-        {0xf0ca10,416,"34c4b60079f1555d6c2482462a93509587b797776e88c27ba7b9d3961c9f4aaf"}};
+        {0x1114e40,96,"3a245a7cfe67a3884d39675085626ab82baac6fc1d46a2fa6956649d3cb7bfc3"},
+        {0x1114ea0,464,"2d23ff84e24893738b16450228cbf0e384e6a23e9d7ec32ffa891d7302828960"},
+        {0xf17c80,96,"b215272e8bf50bea5b842333a0cb370e14fccb8af33ca54b5d83fbe5d3f5bf02"},
+        {0xf17ce0,96,"c2469ad347bdf0a698ac346870f4a4166f53fa9c395d9c7c180c8ca85f723403"},
+        {0xf73660,96,"02b254830814c2f601056762fb0e50d80182e524d7cf9321554836ce9bc63252"},
+        {0xf736c0,96,"e95f24c32e82476b27204008c78ac76873aadab4e475155293bfd81ff94fa3b0"},
+        {0xf184b0,96,"4844f0877c34551e29dfe1007c12881689fd31fe3b9e4ea611219f0bf622b870"},
+        {0xf18510,416,"2a8bec92b62023ca2b264b05c3fc7592cf965f6c4e475b330b34461bb1400d36"}};
     for(const auto& pin:canvas_functions){std::vector<unsigned char> bytes(pin.bytes);
         if(!memory.copy(state.image+pin.rva,bytes.data(),bytes.size(),error))return false;
         if(!hooks::framework::verify_original_hash(state.image+pin.rva,bytes.data(),bytes.size(),pin.sha,error))
@@ -57,14 +57,14 @@ bool authored(Memory& memory,const a::Binding& binding,const std::string& snapsh
         if(!owner.dungeon||owner.dungeon>UINTPTR_MAX-0x500)return fail(error,"Dungeon input original Canvas owner address overflows");
         const auto canvas=owner.dungeon+0x500;uintptr_t ap=0;
         if(!field(memory,canvas,0,ap,error))return false;
-        if(ap!=state.image+0x1786c50)return fail(error,"Dungeon input original Canvas class/current Dungeon owner differs");
+        if(ap!=state.image+0x178cff0)return fail(error,"Dungeon input original Canvas class/current Dungeon owner differs");
         auto saved=canvases.find(canvas);
         if(saved==canvases.end()){
             dungeon_cells::ValueMemory view(memory);dungeon_cells::ValueCapture captured{view};subscriber_lifecycle::CaptureReceipt receipt;
             const subscriber_lifecycle::CaptureApi api{
-                reinterpret_cast<subscriber_lifecycle::Construct>(state.image+0x9667c0),reinterpret_cast<subscriber_lifecycle::Construct>(state.image+0x9676a0),
-                reinterpret_cast<subscriber_lifecycle::Construct>(state.image+0x89e580),reinterpret_cast<subscriber_lifecycle::Construct>(state.image+0x89e5f0),
-                reinterpret_cast<subscriber_lifecycle::PrepareSave>(state.image+0x11094a0),reinterpret_cast<subscriber_lifecycle::SaveRecord>(state.image+0x1109500)};
+                reinterpret_cast<subscriber_lifecycle::Construct>(state.image+0x96f9e0),reinterpret_cast<subscriber_lifecycle::Construct>(state.image+0x9708c0),
+                reinterpret_cast<subscriber_lifecycle::Construct>(state.image+0x8a76a0),reinterpret_cast<subscriber_lifecycle::Construct>(state.image+0x8a7710),
+                reinterpret_cast<subscriber_lifecycle::PrepareSave>(state.image+0x1114e40),reinterpret_cast<subscriber_lifecycle::SaveRecord>(state.image+0x1114ea0)};
             {live_host_state::apply_timing::PageReadScope original(live_host_state::apply_timing::PageBoundary::OriginalCall);
                 if(!subscriber_lifecycle::capture_original(api,reinterpret_cast<const void*>(canvas),dungeon_cells::inspect_value,&captured,receipt,error))return false;}
             std::string sha;if(!dungeon_input_authored::canvas(captured.graph,sha,error))return false;
@@ -75,14 +75,14 @@ bool authored(Memory& memory,const a::Binding& binding,const std::string& snapsh
         if(design==designs.end()){
             json parts=json::array();
             for(const auto& part:std::array<std::array<uintptr_t,4>,3>{{
-                {0x58,0x16fba10,0xf0c180,0xf0c1e0},{0x108,0x1706690,0xf67ba0,0xf67c00},{0x150,0x16fbad0,0xf0c9b0,0xf0ca10}}}){
+                {0x58,0x1701db0,0xf17c80,0xf17ce0},{0x108,0x170ca30,0xf73660,0xf736c0},{0x150,0x1701e70,0xf184b0,0xf18510}}}){
                 const auto object=owner.dungeon+part[0];uintptr_t addresspoint=0;
                 if(!field(memory,object,0,addresspoint,error))return false;
                 if(addresspoint!=state.image+part[1])return fail(error,"Dungeon authored Grid/Layout/Plan current class differs");
                 ValueMemory view(memory);ValueCapture captured{view};subscriber_lifecycle::CaptureReceipt receipt;
                 const subscriber_lifecycle::CaptureApi api{
-                    reinterpret_cast<subscriber_lifecycle::Construct>(state.image+0x9667c0),reinterpret_cast<subscriber_lifecycle::Construct>(state.image+0x9676a0),
-                    reinterpret_cast<subscriber_lifecycle::Construct>(state.image+0x89e580),reinterpret_cast<subscriber_lifecycle::Construct>(state.image+0x89e5f0),
+                    reinterpret_cast<subscriber_lifecycle::Construct>(state.image+0x96f9e0),reinterpret_cast<subscriber_lifecycle::Construct>(state.image+0x9708c0),
+                    reinterpret_cast<subscriber_lifecycle::Construct>(state.image+0x8a76a0),reinterpret_cast<subscriber_lifecycle::Construct>(state.image+0x8a7710),
                     reinterpret_cast<subscriber_lifecycle::PrepareSave>(state.image+part[2]),reinterpret_cast<subscriber_lifecycle::SaveRecord>(state.image+part[3])};
                 {live_host_state::apply_timing::PageReadScope original(live_host_state::apply_timing::PageBoundary::OriginalCall);
                     if(!subscriber_lifecycle::capture_original(api,reinterpret_cast<const void*>(object),inspect_value,&captured,receipt,error))return false;}

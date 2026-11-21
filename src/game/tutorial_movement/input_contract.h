@@ -7,10 +7,10 @@ template<class Memory>bool verify_contract(Memory& memory,uintptr_t image,uintpt
     if(!image||!sdl||image>UINTPTR_MAX-0x1800000||sdl>UINTPTR_MAX-0x400000){error="tutorial movement native image range invalid";return false;}
     struct Entry{uintptr_t base,rva;size_t size;const char* sha;};
     const Entry entries[]={
-        {image,0x81a350,0x90,"e9a78adebe76a7b6d0b263943d4ea7adfb042fd6936ffe2e9e8d963ab4654e08"},
-        {image,0x9ead30,0x5c0,"eb0835543f68f51786b697cb8c43596f13b312b72c6040ee801f442fa7c4d95b"},
-        {image,0x9e7f20,0x200,"da7d0429b687dcbfc5ea6fef4a2bc2f6374decaa04b2fd2dbb44e751172c0eef"},
-        {image,0x9e8120,0x130,"95c94e764e64f0ca1e75ea18ab70195bbb0592af252d69b4fa51828e053d3028"},
+        {image,0x822940,0x90,"b2df4441e88f69579a404d8160fc1e67b815e72ce80ce8a299569791b00470d9"},
+        {image,0x9f5130,0x61b,"40e3c8d0944484fb8f1ceface90fa55f4cd7f9a7c4d27a12827162ea377505d4"},
+        {image,0x9f2320,0x200,"924b4c4f61d82850bd25bad97e1128479f138ab438d0dba84901866345a26184"},
+        {image,0x9f2520,0x130,"99dd08d200276eb1b835d465e6ad261fc3e6ce4a900513f4fd765c4b0afd5bc4"},
         {sdl,0x21c9c0,0x2b20,"a3ea932a8fc706f940b21c9d574a0a645bbd9f6d4ca23b0f89b09ffa35384f96"},
         {sdl,0x56ea0,0x350,"6bc02e965bfefc345ce2dfe2b212aee43343759b4d947fd14dd493869c16b68a"},
     };

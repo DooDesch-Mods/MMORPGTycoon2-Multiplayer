@@ -13,9 +13,9 @@ struct Memory {
     template<class T>bool read(uintptr_t object,size_t offset,T& value,std::string& e){auto* p=reinterpret_cast<unsigned char*>(&value);
         for(size_t i=0;i<sizeof value;++i){const auto it=bytes.find(object+offset+i);if(it==bytes.end()){e="original template read failure";return false;}p[i]=it->second;}
         if(object==dungeon&&offset==0x6f8&&++exterior_reads==2&&move_manager)put(fixture_region,owner::region_offsets[0],managers[1]);return true;}
-    Memory(){put(root,0,image+0x174ad20);put(root,0x48,int32_t(0));put(fixture_shard,0,image+0x174ad20);put(fixture_shard,0x48,int32_t(1));put(fixture_shard,0x18,dungeon);
-        put(fixture_region,0,image+0x1787930);put(fixture_region,0x70,fixture_shard);put(dungeon,0,image+0x16c0560);put(dungeon,0x18,dungeon_uid);put(dungeon,0x48,fixture_shard);put(dungeon,0x50,fixture_region);put(dungeon,0x6f8,fixture_exterior);
-        put(fixture_exterior,0,image+0x16d93c0);put(fixture_exterior,0x18,exterior_uid);put(fixture_exterior,0xa38,dungeon);put(fixture_exterior,0x170,root);
+    Memory(){put(root,0,image+0x17510c0);put(root,0x48,int32_t(0));put(fixture_shard,0,image+0x17510c0);put(fixture_shard,0x48,int32_t(1));put(fixture_shard,0x18,dungeon);
+        put(fixture_region,0,image+0x178dcd0);put(fixture_region,0x70,fixture_shard);put(dungeon,0,image+0x16c6900);put(dungeon,0x18,dungeon_uid);put(dungeon,0x48,fixture_shard);put(dungeon,0x50,fixture_region);put(dungeon,0x6f8,fixture_exterior);
+        put(fixture_exterior,0,image+0x16df760);put(fixture_exterior,0x18,exterior_uid);put(fixture_exterior,0xa38,dungeon);put(fixture_exterior,0x170,root);
         for(size_t i=0;i<4;++i){put(fixture_region,owner::region_offsets[i],managers[i]);put(managers[i],0,image+owner::addresspoints[i]);put(managers[i],owner::reverse_region[i],fixture_region);}
         put(managers[0],0x908,fixture_shard);put(managers[3],0x68,fixture_shard);
     }
@@ -24,7 +24,7 @@ int main()try{size_t comparisons=0;const auto check=[&](bool ok,const char* why)
     std::string error;owner::Owner actual;
     const auto run=[&](Memory& m){auto read=[&](auto object,auto offset,auto& value,auto& cause){return m.read(object,offset,value,cause);};
         auto typed=[&](uintptr_t object,uintptr_t source,uintptr_t target,std::string& e){if(m.fail_rtti){e="original RTTI failure";return false;}
-            return (object==dungeon&&source==0x1673900&&target==0x164e3d0)||(object==fixture_exterior&&source==0x1673900&&target==0x1655090);};
+            return (object==dungeon&&source==0x1678ee0&&target==0x16539b0)||(object==fixture_exterior&&source==0x1678ee0&&target==0x165a670);};
         auto find=[&](uint64_t uid,uintptr_t& found,std::string& e){if(m.fail_uid){e="original UID lookup failure";return false;}found=m.foreign_uid?1:uid==dungeon_uid?dungeon:uid==exterior_uid?fixture_exterior:0;return true;};
         auto identify=[&](uintptr_t object,uint64_t uid,std::string& key,std::string& e){if(object!=fixture_exterior||uid!=exterior_uid){e="foreign full fixture_exterior UID";return false;}key="action:11111111-1111-4111-8111-111111111111";return true;};
         return owner::read(read,typed,find,identify,image,root,dungeon,actual,error);};

@@ -19,20 +19,20 @@ struct Address {static constexpr uintptr_t image=0x40000000,mode=0x20000,window=
 int cases=0;void need(bool b,const std::string& e){++cases;if(!b)throw std::runtime_error(e);}
 void reset(){
     memory={};capture={};capture.image=Address::image;capture.pin.origin.mode=reinterpret_cast<void*>(Address::mode);capture.local.lounge=Address::lounge;
-    memory.put(Address::image+0x13df290,Address::lounge);memory.put(Address::image+0x13df430,Address::server);
-    memory.put(Address::lounge,Address::image+0x16de6c0);memory.put(Address::lounge+0x38,Address::image+0x16de7a0);memory.put(Address::server,Address::image+0x1702a40);
+    memory.put(Address::image+0x13eb290,Address::lounge);memory.put(Address::image+0x13eb430,Address::server);
+    memory.put(Address::lounge,Address::image+0x16e4a60);memory.put(Address::lounge+0x38,Address::image+0x16e4b40);memory.put(Address::server,Address::image+0x1708de0);
     for(size_t i=0;i<6;++i)memory.put(Address::lounge+0x50+i,uint8_t(0));memory.put(Address::server+0x18,int32_t(3));memory.put(Address::server+0x1c,int32_t(3));
     memory.put(Address::mode+0xa0,uintptr_t(0xd0000));memory.put(Address::mode+0xa8,int32_t(1));memory.put(Address::mode+0xac,int32_t(1));memory.put(0xd0000,Address::window);
-    memory.put(Address::window,Address::image+0x1722e60);memory.text(Address::window+0x1b0,"development",0xe0000);memory.put(Address::window+0x318,uintptr_t(0));
+    memory.put(Address::window,Address::image+0x1729200);memory.text(Address::window+0x1b0,"development",0xe0000);memory.put(Address::window+0x318,uintptr_t(0));
     memory.put(Address::window+0x540,Address::tabs);memory.put(Address::window+0x45f,uint8_t(1));memory.put(Address::window+0x460,uint8_t(0));
-    memory.put(Address::tabs,Address::image+0x17015b0);memory.put(Address::tabs+0x3b8,Address::view);memory.put(Address::tabs+0x280,Address::window);
-    memory.put(Address::view,Address::image+0x16dfe90);memory.put(Address::view+0x280,Address::window);memory.text(Address::view+0x3e8,"{dev_tab_policies}",0xe0100);
+    memory.put(Address::tabs,Address::image+0x1707950);memory.put(Address::tabs+0x3b8,Address::view);memory.put(Address::tabs+0x280,Address::window);
+    memory.put(Address::view,Address::image+0x16e6230);memory.put(Address::view+0x280,Address::window);memory.text(Address::view+0x3e8,"{dev_tab_policies}",0xe0100);
     memory.put(Address::view+0x410,Address::page);memory.put(Address::view+0x418,Address::page);memory.put(Address::view+0x408,int32_t(0));
     for(const auto p:{Address::page,Address::inner,Address::checkbox})memory.put(p+0x280,Address::window);
-    memory.put(Address::page,Address::image+0x1705ee0);memory.text(Address::page+0x1b0,"{dev_tab_policies}",0xe0200);memory.put(Address::page+0x278,Address::view);
+    memory.put(Address::page,Address::image+0x170c280);memory.text(Address::page+0x1b0,"{dev_tab_policies}",0xe0200);memory.put(Address::page+0x278,Address::view);
     memory.put(Address::page+0x2d0,uintptr_t(0xd0100));memory.put(Address::page+0x2d8,int32_t(1));memory.put(Address::page+0x2dc,int32_t(1));memory.put(0xd0100,Address::inner);
-    memory.put(Address::inner,Address::image+0x1745a80);memory.put(Address::inner+0x278,Address::page);memory.put(Address::inner+0x2d0,uintptr_t(0xd0200));memory.put(Address::inner+0x2d8,int32_t(1));memory.put(Address::inner+0x2dc,int32_t(2));memory.put(0xd0200,Address::checkbox);
-    memory.put(Address::checkbox,Address::image+0x16d98c0);memory.put(Address::checkbox+0x278,Address::inner);memory.put(Address::checkbox+0x3c8,Address::value);memory.put(Address::checkbox+0x3c0,uintptr_t(0));memory.put(Address::checkbox+0x2c8,uintptr_t(0));
+    memory.put(Address::inner,Address::image+0x174be20);memory.put(Address::inner+0x278,Address::page);memory.put(Address::inner+0x2d0,uintptr_t(0xd0200));memory.put(Address::inner+0x2d8,int32_t(1));memory.put(Address::inner+0x2dc,int32_t(2));memory.put(0xd0200,Address::checkbox);
+    memory.put(Address::checkbox,Address::image+0x16dfc60);memory.put(Address::checkbox+0x278,Address::inner);memory.put(Address::checkbox+0x3c8,Address::value);memory.put(Address::checkbox+0x3c0,uintptr_t(0));memory.put(Address::checkbox+0x2c8,uintptr_t(0));
     memory.put(Address::checkbox+0x328,uintptr_t(0xf0000));memory.put(Address::checkbox+0x320,uintptr_t(0xf0100));memory.put(Address::checkbox+0x174,uint8_t(1));memory.put(Address::checkbox+0x345,uint8_t(1));
     memory.put(Address::checkbox+0x344,uint8_t(0));memory.put(Address::checkbox+0x346,uint8_t(0));memory.put(Address::checkbox+0x350,uint64_t(0));memory.put(Address::checkbox+0x3b8,int32_t(13));
     memory.text(Address::value+0x18,"fixCBugsOnline",0xe0300);memory.put(Address::value+8,Address::lounge+0x38);memory.put(Address::value+0x38,Address::lounge+0x52);memory.put(Address::value+0x40,uint8_t(0));memory.put(Address::value+0x10,uint8_t(0));

@@ -19,11 +19,11 @@ struct Memory final:subscriber_lifecycle::Memory {
     }
 };
 DWORD find_uid(uintptr_t image,uint64_t uid,uintptr_t& out){
-    __try{out=reinterpret_cast<uintptr_t(*)(uint64_t)>(image+0x47ce20)(uid);return 0;}
+    __try{out=reinterpret_cast<uintptr_t(*)(uint64_t)>(image+0x481f60)(uid);return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 DWORD reserve_call(uintptr_t image,uintptr_t instance,uintptr_t party){
-    __try{reinterpret_cast<void(*)(void*,void*)>(image+0xb5fe0)(reinterpret_cast<void*>(instance),reinterpret_cast<void*>(party));return 0;}
+    __try{reinterpret_cast<void(*)(void*,void*)>(image+0xb6ce0)(reinterpret_cast<void*>(instance),reinterpret_cast<void*>(party));return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 DWORD store_call(uintptr_t address,const void* before,const void* target,size_t bytes,bool& matched){
@@ -47,13 +47,13 @@ bool session(const action_session::Context& expected,const action_session::Bindi
             " native_generation="+std::to_string(world.generation)+" binding_generation="+std::to_string(binding.native_generation));
     if(!native::read_resolver_receipt(image,thread,sha,error))return false;
     return (thread==GetCurrentThreadId()&&image==uintptr_t(GetModuleHandleW(nullptr))&&
-        sha=="bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6")||fail(error,"actual image/Mainthread differs");
+        sha=="7efd8ee7b97f78362e7a2f8116b327fa6b756bdce23114b68143c4c9d2dd50eb")||fail(error,"actual image/Mainthread differs");
 }
 struct Parties {
     Memory& memory;uintptr_t image;party_identity::Scope scope;
     bool identify(uintptr_t pointer,std::string& key,std::string& error){
         uintptr_t ap=0,registered=0;uint64_t uid=0;
-        if(!memory.at(pointer,0,ap,error)||ap!=image+0x174a370||!memory.at(pointer,0x18,uid,error)||!uid)
+        if(!memory.at(pointer,0,ap,error)||ap!=image+0x1750710||!memory.at(pointer,0x18,uid,error)||!uid)
             return fail(error,error.empty()?"assigned Party class/full UID differs":error);
         const auto code=find_uid(image,uid,registered);
         if(code||registered!=pointer)return fail(error,"assigned Party original UID lookup differs SEH="+std::to_string(code));
@@ -96,7 +96,7 @@ bool adopt_held(const action_session::Context& context,const action_session::Bin
     if(target.size()!=before.rows.size())return reject("membership requires its original Instance lifecycle before value adoption");
     for(size_t i=0;i<target.size();++i)if(!valid(target[i],error)||target[i].scene!=before.rows[i].state.scene)return reject(error.empty()?"current Instance membership/order differs":error);
     constexpr std::array<uint8_t,5> reserve_body{0x48,0x89,0x51,0x68,0xc3};std::array<uint8_t,5> actual{};
-    if(!memory.read(image+0xb5fe0,actual.data(),actual.size(),error)||actual!=reserve_body)return reject(error.empty()?"original ReserveForParty body differs":error);
+    if(!memory.read(image+0xb6ce0,actual.data(),actual.size(),error)||actual!=reserve_body)return reject(error.empty()?"original ReserveForParty body differs":error);
     Parties parties{memory,image,{before.world.uuid,before.world.world_epoch,before.world.generation,uintptr_t(before.world.map)+0x1c0}};
     auto resolve=[&](const std::string& key,uintptr_t& value,std::string& e){return parties.resolve(key,value,e);};
     auto at=[&](uintptr_t p,size_t offset,auto& value,std::string& e){return memory.at(p,offset,value,e);};
@@ -106,7 +106,7 @@ bool adopt_held(const action_session::Context& context,const action_session::Bin
             value.instance_index=row.state.index;value.instance=row.instance;value.dungeon=row.dungeon;value.shard=row.shard;value.region=row.region;return value;}();
         auto local_read=[&](Local& value,std::string& e){return read(at,identify,image,scene,value,e);};
         auto store=[&](const Local& expected,size_t offset,const void* old_value,const void* new_value,size_t bytes,std::string& e){
-            uintptr_t ap=0,owner=0;if(!memory.at(expected.instance,0,ap,e)||ap!=image+0x1719450||!memory.at(expected.instance,0x30,owner,e)||owner!=expected.dungeon)return fail(e,e.empty()?"store owner changed":e);
+            uintptr_t ap=0,owner=0;if(!memory.at(expected.instance,0,ap,e)||ap!=image+0x171f7f0||!memory.at(expected.instance,0x30,owner,e)||owner!=expected.dungeon)return fail(e,e.empty()?"store owner changed":e);
             bool matched=false;const auto code=store_call(expected.instance+offset,old_value,new_value,bytes,matched);
             return (!code&&matched)||fail(e,"guarded scalar store failed SEH="+std::to_string(code));
         };

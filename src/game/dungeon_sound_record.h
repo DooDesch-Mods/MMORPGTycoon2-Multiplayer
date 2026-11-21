@@ -5,7 +5,7 @@ namespace mt2mp::game::dungeon_sound_record {
 template<class Read,class Text>bool grid(Read& at,Text& text,uintptr_t image,uintptr_t window,uintptr_t object,std::string& error){
     uintptr_t ap=0,owner=0,binding=0;std::string command;
     if(!at(object,0,ap,error)||!at(object,0x280,owner,error)||!at(object,0x3b0,binding,error))return false;
-    if(ap!=image+0x16dade0){error="Dungeon sound actual atmosphere Grid class differs";return false;}
+    if(ap!=image+0x16e1180){error="Dungeon sound actual atmosphere Grid class differs";return false;}
     if(owner!=window){error="Dungeon sound Grid command targets another native Window";return false;}
     if(binding){error="Dungeon sound Grid has a native gameplay selection binding";return false;}
     if(!text(object,0x360,command,error))return false;

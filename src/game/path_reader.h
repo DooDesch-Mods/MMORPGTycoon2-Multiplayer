@@ -50,7 +50,7 @@ template<class M>bool target_positions(M& m,uintptr_t image,uintptr_t region,std
 }
 template<class M>bool preview(M& m,uintptr_t image,uintptr_t receiver,int32_t road,int32_t road_node,Preview& out,std::string& e) {
     Preview p;p.receiver=receiver;
-    if(!ap(m,receiver,image,0x172f570,e)||!field(m,receiver,0x1a8,p.ghost,e)||!ap(m,p.ghost,image,0x1743f10,e)||
+    if(!ap(m,receiver,image,0x1735910,e)||!field(m,receiver,0x1a8,p.ghost,e)||!ap(m,p.ghost,image,0x174a2b0,e)||
        !field(m,receiver,0x188,p.type,e)||!field(m,receiver,0x18c,p.node_type,e))return false;
     if(p.type!=road)return mismatch(e,"type",uint32_t(p.type),uint32_t(road));
     if(p.node_type!=road_node)return mismatch(e,"node type",uint32_t(p.node_type),uint32_t(road_node));
@@ -59,7 +59,7 @@ template<class M>bool preview(M& m,uintptr_t image,uintptr_t receiver,int32_t ro
     const uint8_t snapped=p.end_node?1:0;
     if(flags!=std::array<uint8_t,5>{1,snapped,1,snapped,0}){e="path requires active valid pinned or snapped endpoint, flags=";for(auto v:flags)e+=std::to_string(v)+",";return false;}
     for(size_t offset:{0x1b0,0x1f0}){uintptr_t v=0;if(!field(m,receiver,offset,v,e))return false;if(v)return mismatch(e,"path split target",v,0);}
-    if(!field(m,receiver,0x1f8,p.region,e)||!ap(m,p.region,image,0x1787930,e)||!field(m,p.region,0x834,p.intent.region,e)||
+    if(!field(m,receiver,0x1f8,p.region,e)||!ap(m,p.region,image,0x178dcd0,e)||!field(m,p.region,0x834,p.intent.region,e)||
        !field(m,receiver,0x208,p.intent.start,e)||!field(m,receiver,0x1d8,p.intent.end,e)||!field(m,receiver,0x190,p.intent.quoted_length,e))return false;
     uintptr_t actual_region=0;if(!field(m,p.ghost,0x178,actual_region,e))return false;
     if(actual_region!=p.region)return mismatch(e,"preview region",actual_region,p.region);

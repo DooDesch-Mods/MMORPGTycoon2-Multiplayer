@@ -38,7 +38,7 @@ template<class Copy>bool page(Copy&& copy,uintptr_t image,uintptr_t view,const c
     if(!d::text(copy,view,0x3e8,requested,e)||!d::at(copy,view,0x410,current,e)||!d::at(copy,view,0x418,next,e)||!d::at(copy,view,0x408,transition,e))return false;
     if(requested!=name||!current||next!=current||transition){e="BugButton original page not settled: "+std::string(name)+" transition="+std::to_string(transition);return false;}
     uintptr_t page_ap=0;if(!d::at(copy,current,0,page_ap,e))return false;
-    if(page_ap!=image+0x1745a80){e="BugButton page "+std::string(name)+" requires original mmoView AP0x1745A80";return false;}
+    if(page_ap!=image+0x174be20){e="BugButton page "+std::string(name)+" requires original mmoView AP0x174BE20";return false;}
     if(!d::text(copy,current,0x1b0,id,e))return false;
     if(id!=name){e="BugButton current page name differs";return false;}return true;
 }
@@ -53,12 +53,12 @@ template<class Copy>bool button(Copy&& copy,const developer_staff::Capture& c,ui
     uintptr_t selected=0,details=0;
     if(!visible(copy,c,out,e)||!d::at(copy,out.window,0x558,out.detail,e)||!selected_bug(copy,c,out.detail,selected,e))return false;
     if(selected!=bug){e="BugButton selected stable Bug differs";return false;}
-    if(!page(copy,c.image,out.detail,"details",details,e)||!d::at(copy,out.detail,0x450,out.button,e)||!d::type(copy,out.button,c.image+0x16e3ec0,e))return false;
+    if(!page(copy,c.image,out.detail,"details",details,e)||!d::at(copy,out.detail,0x450,out.button,e)||!d::type(copy,out.button,c.image+0x16ea260,e))return false;
     uint8_t disabled=0,toggle=0,press_activation=0,down=0,clickable=0;uintptr_t on_click=0;std::string command;
     if(!d::at(copy,out.button,0x46d,disabled,e)||!d::at(copy,out.button,0x46c,toggle,e)||!d::at(copy,out.button,0x46e,press_activation,e)||
        !d::at(copy,out.button,0x584,down,e)||!d::at(copy,out.button,0x174,clickable,e)||!d::text(copy,out.button,0x388,command,e)||
-       !d::at(copy,c.image+0x16e3ec0,0x1c8,on_click,e))return false;
-    if(disabled||toggle||press_activation||down!=uint8_t(pressed)||clickable!=1||command!="MessageTo Parent BugButton"||on_click!=c.image+0xb63ee0){
+       !d::at(copy,c.image+0x16ea260,0x1c8,on_click,e))return false;
+    if(disabled||toggle||press_activation||down!=uint8_t(pressed)||clickable!=1||command!="MessageTo Parent BugButton"||on_click!=c.image+0xb70740){
         e="BugButton original enabled/pressed/release command contract differs";return false;}
     // Parent commands walk native pane ancestry. Require the exact owned detail
     // view, with only the original page/view wrappers between it and the button.
@@ -67,7 +67,7 @@ template<class Copy>bool button(Copy&& copy,const developer_staff::Capture& c,ui
         if(!node||!seen.insert(node).second||seen.size()>8){e="BugButton parent chain is absent/cyclic or exceeds eight panes";return false;}
         uintptr_t parent=0,window_owner=0,ap=0;
         if(!d::at(copy,node,0x278,parent,e)||!d::at(copy,node,0x280,window_owner,e)||!d::at(copy,node,0,ap,e))return false;
-        if(window_owner!=out.window||(node!=out.button&&ap!=c.image+0x1745a80)){e="BugButton pane ancestry/class/window owner differs";return false;}
+        if(window_owner!=out.window||(node!=out.button&&ap!=c.image+0x174be20)){e="BugButton pane ancestry/class/window owner differs";return false;}
         details_seen|=node==details;node=parent;
     }
     if(!details_seen){e="BugButton is outside the settled detail page";return false;}return true;

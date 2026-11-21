@@ -71,7 +71,7 @@ struct RootSceneryReadBatch::State {
                     out=context;return true;
                 }
                 bool registry_object(uint64_t uid,uintptr_t& object,std::string& why)override{
-                    uintptr_t casted=0;const auto code=lookup(batch.api,batch.image,uid,0x1673900,0x164e5c0,0,object,casted);
+                    uintptr_t casted=0;const auto code=lookup(batch.api,batch.image,uid,0x1678ee0,0x1653ba0,0,object,casted);
                     if(code){why="saved_scenery_lookup_SEH_"+std::to_string(code);return false;}
                     if(object!=casted){why="saved_scenery_typed_registry_differs";return false;}return true;
                 }

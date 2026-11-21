@@ -58,7 +58,7 @@ bool direct_sample(Memory& memory,const Pin& owner,d::Sample& out,std::string& e
     const auto owners=[&](auto& source,const auto& current,uintptr_t& buildings,uintptr_t& zones,std::string& cause){
         uintptr_t building_root=0,building_region=0,zone_region=0,region_shard=0;
         if(!q::at(source,current.region,0x950,buildings,cause)||!q::at(source,current.region,0x968,zones,cause)||
-           !q::typed(source,current.image,buildings,0x17183c0,cause)||!q::typed(source,current.image,zones,0x16fe170,cause)||
+           !q::typed(source,current.image,buildings,0x171e760,cause)||!q::typed(source,current.image,zones,0x1704510,cause)||
            !q::at(source,buildings,0x450,building_root,cause)||!q::at(source,buildings,0x458,building_region,cause)||
            !q::at(source,zones,0xf0,zone_region,cause)||!q::at(source,current.region,0x70,region_shard,cause))return false;
         return building_root==current.root&&region_shard==current.root&&building_region==current.region&&zone_region==current.region||
@@ -66,8 +66,8 @@ bool direct_sample(Memory& memory,const Pin& owner,d::Sample& out,std::string& e
     };
     return monster_zone_read::read_owned(bounded,owner.region,owners,out.state,error)&&native::read_simulation_state(out.money,error)&&
         undo_probe::read_undo(memory.process,state.image,out.undo,error)&&
-        q::at(bounded,state.image,0x13df4f0,manager,error)&&q::typed(bounded,state.image,manager,0x1714ed0,error)&&
-        q::at(bounded,manager,0x38,release,error)&&q::typed(bounded,state.image,release,0x16c12b0,error)&&
+        q::at(bounded,state.image,0x13eb4f0,manager,error)&&q::typed(bounded,state.image,manager,0x171b270,error)&&
+        q::at(bounded,manager,0x38,release,error)&&q::typed(bounded,state.image,release,0x16c7650,error)&&
         q::at(bounded,release,0x120,out.release_edits,error);
 }
 bool generated_pin(Memory& memory,const a::Binding& binding,const std::string& snapshot,const std::string& key,

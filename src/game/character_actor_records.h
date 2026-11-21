@@ -13,7 +13,7 @@
 namespace mt2mp::game::npc_probe::character_actor_records {
 using Family=character_membership_reader::Family;
 inline constexpr std::array<std::array<uintptr_t,2>,4> methods{{
-    {0x10eda70,0x10edad0},{0xe4ad10,0xe4ad70},{0x10ecae0,0x10ecb40},{0x10f9c20,0x10f9c80}}};
+    {0x10f9410,0x10f9470},{0xe56800,0xe56860},{0x10f8480,0x10f84e0},{0x11055c0,0x1105620}}};
 using External=std::function<bool(uintptr_t,std::string&,std::string&)>;
 struct Result {
     subscriber_lifecycle::Graph original;

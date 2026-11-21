@@ -44,7 +44,7 @@ class Pins final : public ref::BuildingReferences {
         if(!current(e))return false;
         uintptr_t object=0,ap=0;native::BuildingState actual;
         if(!ref::registry_lookup(image_,pin.target.uid,object,e)||!addresspoint(object,ap,e))return false;
-        if(object!=pin.target.object||ap!=image_+0x16d93c0)return fail(e,"Subscriber Building reference UID/addresspoint changed");
+        if(object!=pin.target.object||ap!=image_+0x16df760)return fail(e,"Subscriber Building reference UID/addresspoint changed");
         if(!native::read_building(pin.target.uid,actual,e))return false;
         return (same(actual,pin.state)||fail(e,"Subscriber Building reference full native readback changed"))&&current(e);
     }
@@ -64,7 +64,7 @@ public:
             const auto key=row.at("record_key").get<std::string>();const auto uid=row.at("local_uid").get<uint64_t>();
             uintptr_t object=0,ap=0;
             if(!ref::registry_lookup(image,uid,object,e)||!addresspoint(object,ap,e))return false;
-            if(ap!=image+0x16d93c0)continue;
+            if(ap!=image+0x16df760)continue;
             Pin pin;
             if(!ref::valid_building_key(key)||row.at("snapshot_id").get<std::string>()!=snapshot_)
                 return fail(e,"Subscriber Building reference shared identity invalid");

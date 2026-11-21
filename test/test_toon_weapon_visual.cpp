@@ -37,7 +37,7 @@ struct Fixture {
         toon=m.alloc(0xa00);type=m.alloc(0x600);costume=m.alloc(0x80);actor=m.alloc(0xe0);object=m.alloc(0x80);skeleton=m.alloc(0x100);
         definition=m.alloc(0x80);bones=m.alloc(8);descriptor=m.alloc(0xe0);attachment=m.alloc(0xb0);manager=m.alloc(0x80);rez=m.alloc(0x100);
         category=m.alloc(0x78);tier=m.alloc(0x20);weapon=m.alloc(8);model=m.alloc(0x100);groups=m.alloc(8);instance=m.alloc(0x78);group=m.alloc(0x80);record=m.alloc(0x78);
-        m.blocks[image+0x13df6e0].resize(8);m.put(image+0x13df6e0,0,manager);m.blocks[image+0x13df4d0].resize(8);m.put(image+0x13df4d0,0,rez);
+        m.blocks[image+0x13eb6e0].resize(8);m.put(image+0x13eb6e0,0,manager);m.blocks[image+0x13eb4d0].resize(8);m.put(image+0x13eb4d0,0,rez);
         m.put(toon,0x498,type);m.put(toon,0x6f0,actor);m.put(toon,0x170,uintptr_t(90));m.put(toon,0x4b0,int32_t(12));m.put(toon,0x4d8,int32_t(-123));m.put(toon,0x4dc,int32_t(13));m.string(toon+0x4b8,"swords");
         m.put(type,0xf0,costume);m.string(costume+0x38,"humanoid");m.put(actor,0,object);m.put(object,0x40,skeleton);
         const auto buckets=m.alloc(0x30),node=m.alloc(0x30);m.put(type,0xf8,buckets);m.put(type,0x100,int32_t(1));m.put(type,0x104,int32_t(32));m.put(buckets,0x28,node);m.string(node,"swords");

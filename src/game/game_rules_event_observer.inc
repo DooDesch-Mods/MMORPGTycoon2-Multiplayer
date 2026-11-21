@@ -16,7 +16,7 @@ bool rules_feature_events_observe(nlohmann::json& out,std::string& e){
     if(final_context!=context||final_binding!=binding||!final_ordered||final.pin!=local.pin||final_pin!=pin||after!=before||final_money!=money)return fail(e,"Feature event observation complete current owners/proof changed");
     rules::event_observer::State checked;if(!rules::event_observer::capture(read,r->image,checked,e))return false;
     if(checked!=recipients)return fail(e,"Feature event observation recipients changed during complete proof");
-    auto rva=[&](uintptr_t address)->nlohmann::json{return address>=r->image&&address-r->image<0x1d8d000?nlohmann::json(address-r->image):nlohmann::json(nullptr);};
+    auto rva=[&](uintptr_t address)->nlohmann::json{return address>=r->image&&address-r->image<0x1d2e000?nlohmann::json(address-r->image):nlohmann::json(nullptr);};
     nlohmann::json rows=nlohmann::json::array();
     for(const auto& row:recipients.recipients)rows.push_back({{"node",row.node},{"next",row.next},{"listener",row.listener},{"vtable",row.vtable},{"callback",row.callback},{"vtable_rva",rva(row.vtable)},{"callback_rva",rva(row.callback)}});
     out.update({{"snapshot_uuid",context.snapshot_uuid},{"epoch",binding.native_epoch},{"generation",binding.native_generation},{"role",context.role==a::Role::Host?"host":"client"},{"proof",rules::encode(before)},{"ledger",a::management_ledger_observation(money)},{"event_type",59},{"events_enabled",recipients.enabled!=0},{"recipient_count",recipients.count},{"recipients",rows},{"recipient_observation_only",true}});

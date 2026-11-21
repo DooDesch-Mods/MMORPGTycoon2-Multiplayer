@@ -31,7 +31,7 @@ bool run_ordered_completion(const action_session::Context& c,const action_sessio
     if(!startingpoint::valid(expected,e))return false;
     if(request&&(request->action!=action_session::Action::CommitStartingpoint||!action_session::tick_commands::authority::matches(c,b,*request,e)))
         return fail(e,e.empty()?"Startingpoint original Commit requires exact command":e);
-    if(!verify_commit_entry(image+0x25fb10,e)||!startingpoint_code(e)||!complete_entry(e)||!ordered_commit_map::code(e))return false;
+    if(!verify_commit_entry(image+0x262c10,e)||!startingpoint_code(e)||!complete_entry(e)||!ordered_commit_map::code(e))return false;
     tutorial_development::StartingpointSnapshot before;live_host_state::Pin economy;
     if(!completion_snapshot(c,b,request,before,economy,e))return false;
     if(!before.project||!before.row||*before.row!=expected||!expected.project_present||expected.deployed||!expected.purchased||expected.custom||
@@ -89,7 +89,7 @@ bool ordered_commit_route(void* lounge){
         StartActionCalls reader{c,b};reader.input=true;tutorial_development::StartingpointSnapshot before;live_host_state::Pin pin;
         std::string key;
         if(current_project_key(lounge,key,e)&&key=="startingpoint"&&reader.snapshot(before,pin,e)&&before.lounge==reinterpret_cast<uintptr_t>(lounge)&&
-           complete_entry(e)&&verify_commit_entry(image+0x25fb10,e)&&before.project&&before.row&&before.row->project_present&&before.row->purchased&&!before.row->deployed&&!before.row->custom){
+           complete_entry(e)&&verify_commit_entry(image+0x262c10,e)&&before.project&&before.row&&before.row->project_present&&before.row->purchased&&!before.row->deployed&&!before.row->custom){
             bool complete=false;const auto getter=startingpoint_complete(before.lounge,complete);
             if(getter)e="Ordered Commit intent completion getter exception="+std::to_string(getter);
             else if(!complete)e="Ordered Commit intent project is not natively complete";

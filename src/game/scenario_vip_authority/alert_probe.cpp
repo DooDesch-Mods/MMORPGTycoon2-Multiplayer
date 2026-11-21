@@ -22,7 +22,7 @@ bool read_alert_owners(nlohmann::json& out,std::string& error){
     try{
         uintptr_t image=0;uint32_t thread=0;std::string sha;
         if(!native::read_resolver_receipt(image,thread,sha,error))return rejected(error);
-        if(thread!=GetCurrentThreadId()||sha!="bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6")
+        if(thread!=GetCurrentThreadId()||sha!="7efd8ee7b97f78362e7a2f8116b327fa6b756bdce23114b68143c4c9d2dd50eb")
             return rejected("VIP alert probe requires pinned executable and bound Mainthread");
         World before,after;
         if(!native_open_runtime::read_current_world(before,error)){

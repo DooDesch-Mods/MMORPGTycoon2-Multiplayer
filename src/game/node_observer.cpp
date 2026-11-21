@@ -14,7 +14,7 @@
 #include <exception>
 namespace mt2mp::game::node_observer {
 namespace {
-constexpr char sha[]="bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6";
+constexpr char sha[]="7efd8ee7b97f78362e7a2f8116b327fa6b756bdce23114b68143c4c9d2dd50eb";
 struct Pending {Ticket ticket=0;Leaf leaf{};Observation sample;uintptr_t object=0;uint64_t uid=0;};
 struct Owner {
     std::mutex mutex;Status status;uintptr_t image=0;uint64_t sequence=0;
@@ -33,7 +33,7 @@ DWORD copy(const void* from,void* to,size_t bytes)noexcept{
 DWORD scalars(uintptr_t image,uintptr_t object,uint64_t uid,Scalars* out)noexcept{
     __try{
         const auto p=reinterpret_cast<const unsigned char*>(object);
-        if(*reinterpret_cast<const uintptr_t*>(p)!=image+0x16fc700||*reinterpret_cast<const uint64_t*>(p+0x18)!=uid)return ERROR_INVALID_DATA;
+        if(*reinterpret_cast<const uintptr_t*>(p)!=image+0x1702aa0||*reinterpret_cast<const uint64_t*>(p+0x18)!=uid)return ERROR_INVALID_DATA;
         std::memcpy(&out->values[0],p+0x250,4);std::memcpy(&out->values[1],p+0x2a0,4);
         std::memcpy(&out->values[2],p+0x2a4,4);std::memcpy(&out->values[3],p+0x2e4,4);
         out->flags={p[0x2e8],p[0x2ea],p[0x2ec]};return 0;
@@ -57,7 +57,7 @@ bool fresh(Owner& s,std::string& e){
 bool prepare(uintptr_t image,const std::string& exe_sha,uint32_t thread,std::string& e){
     auto& s=state();std::lock_guard lock(s.mutex);e.clear();
     if(s.status.prepared||!image||exe_sha!=sha||!thread||GetCurrentThreadId()!=thread||!native::ready()||
-       uintptr_t(native::entrypoint(native::EntryPoint::GameUpdate))!=image+0x463ce0)return fail(s,e,"node observer exact build/mainthread preparation rejected");
+       uintptr_t(native::entrypoint(native::EntryPoint::GameUpdate))!=image+0x468d00)return fail(s,e,"node observer exact build/mainthread preparation rejected");
     constexpr unsigned char guards[5][16]={
         {0x57,0x56,0x53,0x48,0x81,0xec,0xb0,0,0,0,0x0f,0x11,0xb4,0x24,0x80,0},
         {0x56,0x53,0x48,0x81,0xec,0x48,1,0,0,0x0f,0x11,0xb4,0x24,0x20,1,0},
@@ -99,7 +99,7 @@ Ticket enter(Leaf leaf,void* receiver,uintptr_t caller,float arg)noexcept{
     const auto thread=GetCurrentThreadId();if(thread!=s.status.main_thread)++count.foreign_thread;
     *pending={};pending->ticket=++s.sequence;pending->leaf=leaf;pending->object=s.admission.object;pending->uid=s.admission.local_uid;
     auto& o=pending->sample;o.sequence=pending->ticket;o.thread=thread;
-    if(caller>=30986240){++s.status.invalid_caller;caller=0;}o.caller_rva=caller;o.argument_present=std::isfinite(arg);o.argument=o.argument_present?arg:0;
+    if(caller>=30597120){++s.status.invalid_caller;caller=0;}o.caller_rva=caller;o.argument_present=std::isfinite(arg);o.argument=o.argument_present?arg:0;
     o.read_before_fault=sample(s.image,pending->object,pending->uid,o.before);o.before_present=!o.read_before_fault;
     ++s.status.inflight;return pending->ticket;
 }

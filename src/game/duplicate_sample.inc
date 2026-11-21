@@ -52,7 +52,7 @@ bool external_owner(Runtime& r,const Sample& sample,uintptr_t pointer,std::strin
     const auto found=sample.external_owners.find(pointer);
     if(found!=sample.external_owners.end()){key=found->second;return true;}
     uintptr_t ap=0;if(!q::at(r.memory,pointer,0,ap,e))return false;
-    if(ap==r.image+0x16fca60){
+    if(ap==r.image+0x1702e00){
         uint64_t uid=0;network_identity::ObjectEntry actual;
         if(!q::at(r.memory,pointer,0x18,uid,e)||!network_identity::object_key(pointer,uid,key,actual,e))return false;
         if(actual.kind!=network_object_identity::Kind::Pipe||actual.pointer!=pointer||actual.uid!=uid||
@@ -73,7 +73,7 @@ bool child_parent(Runtime& r,const Sample& sample,const std::string& key,child_n
         return q::fail(e,"Duplicate child parent lacks its current canonical Building census row");
     out.key=key;out.object=handle->second.object;out.uid=handle->second.uid;out.saved_region=value->second.region;
     uintptr_t layout=0,child=0;uint8_t art=0;
-    if(!q::typed(r.memory,r.image,out.object,0x16d93c0,e)||!q::at(r.memory,out.object,0xcba,art,e)||art>1||
+    if(!q::typed(r.memory,r.image,out.object,0x16df760,e)||!q::at(r.memory,out.object,0xcba,art,e)||art>1||
        !q::at(r.memory,out.object,0x7d0,layout,e))return q::fail(e,e.empty()?"Duplicate child parent original Make form differs":e);
     out.make_form=art?child_npc::MakeForm::Art:layout?child_npc::MakeForm::Modular:child_npc::MakeForm::Functional;
     if(out.make_form==child_npc::MakeForm::Functional){
@@ -104,12 +104,12 @@ bool inspect_record(void* user,const void* record,const void* context,std::strin
 bool record_object(Runtime& r,const Sample& sample,const Handle& handle,action::DuplicateObject& row,std::string& e,json* diagnostic=nullptr,duplicate_records::UptimeWitness* uptime=nullptr){
     namespace capture=subscriber_lifecycle;
     uintptr_t prepare=0,save=0;
-    if(row.family==Family::Building){prepare=0xe570d0;save=0xe57130;}
-    else if(row.family==Family::Scenery){prepare=0xe4fc90;save=0xe4fcf0;}
-    else{prepare=0x1101cf0;save=0x1101d50;}
+    if(row.family==Family::Building){prepare=0xe62bc0;save=0xe62c20;}
+    else if(row.family==Family::Scenery){prepare=0xe5b780;save=0xe5b7e0;}
+    else{prepare=0x110d690;save=0x110d6f0;}
     GraphMemory memory(r.memory);RecordCapture value{memory};capture::CaptureReceipt receipt;
-    const capture::CaptureApi api{reinterpret_cast<capture::Construct>(r.image+0x9667c0),reinterpret_cast<capture::Construct>(r.image+0x9676a0),
-        reinterpret_cast<capture::Construct>(r.image+0x89e580),reinterpret_cast<capture::Construct>(r.image+0x89e5f0),
+    const capture::CaptureApi api{reinterpret_cast<capture::Construct>(r.image+0x96f9e0),reinterpret_cast<capture::Construct>(r.image+0x9708c0),
+        reinterpret_cast<capture::Construct>(r.image+0x8a76a0),reinterpret_cast<capture::Construct>(r.image+0x8a7710),
         reinterpret_cast<capture::PrepareSave>(r.image+prepare),reinterpret_cast<capture::SaveRecord>(r.image+save)};
     if(!capture::capture_original(api,reinterpret_cast<void*>(handle.object),inspect_record,&value,receipt,e))return false;
     auto owner=[&](uintptr_t p,std::string& canonical,std::string& why){
@@ -233,10 +233,10 @@ bool sample(Runtime& r,const action::Binding& binding,const action::DuplicateInt
     append_untouched_scenery(out,untouched);
     const auto text=untouched.dump();out.state.untouched_sha=mt2mp::sha256(std::vector<unsigned char>(text.begin(),text.end()));
     uintptr_t release_manager=0;
-    if(!q::at(r.memory,r.image,0x164b250,out.random,e)||!q::at(r.memory,out.random,0,out.state.random,e)||
-       !q::at(r.memory,r.image,0x13df4f0,release_manager,e)||!q::typed(r.memory,r.image,release_manager,0x1714ed0,e)||
-       !q::at(r.memory,release_manager,0x38,out.release,e)||!q::typed(r.memory,r.image,out.release,0x16c12b0,e)||
-       !q::at(r.memory,out.release,0x120,out.state.release,e)||!q::at(r.memory,r.image,0x13df220,out.business,e)||
+    if(!q::at(r.memory,r.image,0x1650830,out.random,e)||!q::at(r.memory,out.random,0,out.state.random,e)||
+       !q::at(r.memory,r.image,0x13eb4f0,release_manager,e)||!q::typed(r.memory,r.image,release_manager,0x171b270,e)||
+       !q::at(r.memory,release_manager,0x38,out.release,e)||!q::typed(r.memory,r.image,out.release,0x16c7650,e)||
+       !q::at(r.memory,out.release,0x120,out.state.release,e)||!q::at(r.memory,r.image,0x13eb220,out.business,e)||
        !ledger(out.money,e)||!witness::read_undo(r.memory.process,r.image,out.undo,e))return false;
     if(!out.untouched_scenery.empty()){
         duplicate_reader::Census checked;

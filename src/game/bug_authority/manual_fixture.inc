@@ -4,19 +4,19 @@ struct FixtureState {action::Context context;action::Binding binding;staff::Capt
 bool fixture_code(Owner& o,std::string& e){
     struct Body {uintptr_t rva;size_t size;const char* sha;};
     constexpr Body bodies[]{
-        {0x7524f0,32,"ed2ada29b3a6e0a4c7c7fe4601dbac7fd0c246dc3664a476502dbc5dc2287846"},
-        {0x69dd10,288,"07dc4524d021205116833d4b4b4c1ee6b9bf1720cd7af2bfde6c6ff25859ec67"},
-        {0x5acb0,64,"55b6ecbd204fef6e169bbff5da54ab1394a7ae3729597919faa784aaa8a28c2e"},
-        {0x66f1f0,128,"0acfaa84c298223dd13aecbf8fa69da2bf49bde5422c38158f6ab8d348ea0979"},
-        {0x674c40,656,"1dbe00619fc4a6098d26e4f6f2ded48dd5ec48cd2d6553e1602b18e3beafee99"},
-        {0x674ed0,176,"284dc683610dbf0a067be0e946b8d4d5d9b21ba24dad31a2ad59afcc95a5d3e2"},
-        {0x674780,1008,"5505cdfa2a51f468b54c61cc5f79ab121499fb4c841f69a84d3a7ab4e6715f2c"},
-        {0x770300,2256,"914d60f246a11adb97219371e8e5c51ce57d1bd1efbd57ed46685213132f9c14"},
-        {0xb63ee0,16,"499f1f307c1cb989f968a6b7fcaec591e1828877223d0b0e7e8e8b76cde8c9ca"}};
+        {0x759f70,32,"ed2ada29b3a6e0a4c7c7fe4601dbac7fd0c246dc3664a476502dbc5dc2287846"},
+        {0x6a5010,288,"3e98055eacce1241e9817892a294a0a732779b88bf7ba3176d58a3d4c38def6e"},
+        {0x5b1b0,64,"55b6ecbd204fef6e169bbff5da54ab1394a7ae3729597919faa784aaa8a28c2e"},
+        {0x6763c0,128,"d882405a66ca1bea86d45994bc62b201a725d051d4c9e09a7f4f2b76e9d3370a"},
+        {0x67be20,656,"6040106feda2bbcc5538b3e0d0050ed0924dbb7238752c834267ac534251ab11"},
+        {0x67c0b0,176,"23a36e769e0c7ee5fd75653037d844b2e536b74a4c9b581833b79fdf85f09874"},
+        {0x67b950,1024,"65e549fef81f782bdcf69b0ab5512d8792b77cb76ea8e48a3265543f550afd62"},
+        {0x777e20,2256,"f09e0061944a02ba5089b3e9c8644ec367e4eb5138e04dc6b1480513a234dba9"},
+        {0xb70740,16,"499f1f307c1cb989f968a6b7fcaec591e1828877223d0b0e7e8e8b76cde8c9ca"}};
     for(const auto& body:bodies){std::vector<unsigned char> bytes(body.size);
         if(!fixture_copy(o.image+body.rva,bytes.data(),bytes.size(),e))return false;
         if(mt2mp::sha256(bytes)!=body.sha)return fail(e,"BugButton fixture original body differs RVA="+std::to_string(body.rva));}
-    return staff::action_runtime::verify_entry(o.image+0x6c7b70,e)&&hud_time_runtime::verify_window_show_hook(o.image+0x81ec20,e);
+    return staff::action_runtime::verify_entry(o.image+0x6cef90,e)&&hud_time_runtime::verify_window_show_hook(o.image+0x827210,e);
 }
 bool fixture_read(Owner& o,FixtureState& s,std::string& e){
     staff::Capture pin;

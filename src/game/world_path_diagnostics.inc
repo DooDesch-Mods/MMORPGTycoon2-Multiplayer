@@ -30,13 +30,13 @@ namespace {
 bool world_path_ui_code(region::Runtime& r,std::string& error){
     struct Pin{uintptr_t rva;size_t size;const char* sha;};
     static constexpr Pin pins[]={
-        {0x5c8cc0,1472,"2038e45da0a0db9615c2304d3b2702ee819a44824a8346c11ac27241059cbee2"},
-        {0x5eb8c0,1120,"a5e388de2e4176f42afc11929c9221ca180213d53f1d13235ae8fabecd0e64d2"},
-        {0xf7890,208,"0705dc08bf04997423d260ef643a0e93185f60da469babda526f84202cd92d71"},
-        {0x34f650,16,"1c3e117b185d4cca2b7db5b6ff243df12ad2e86074138664182a59b84b515b73"},
-        {0x34f660,32,"588f141024558eedbd712410f251a49c7e9aff772f17988fc378293154aa6d7b"},
-        {0x4393b0,864,"5742e4c396c3ff7de0084a74cce2801dbbc8dec79d0fd60353b0dfcdca26850e"},
-        {0x7420f0,144,"bca8f855f6cb36226f359db76b15b370f05b5f9da4e674c626da32f2d68323a5"},
+        {0x5cf410,1472,"db2a56655bf3cdafbbe7738b3590d8b78ace8a73f3b543ac7401a23b88f31dbe"},
+        {0x5f2010,1120,"833dad3e9cdf682d16747589377aa8f095ceb93e3ad833617a06eab91b90c2f4"},
+        {0xf8900,208,"0e98cbbc22844e08b16f7f9433d1da0842cd71803c661f00ba9cf21b06caab4c"},
+        {0x353d50,16,"666ee177e82e8e855c71819330255fbea850dea91b74da4358620fa7b26ddacf"},
+        {0x353d60,32,"588f141024558eedbd712410f251a49c7e9aff772f17988fc378293154aa6d7b"},
+        {0x43e190,864,"681ee2f11d1e5c2a37bd1d1c376e3d4d8b78a5656b6e05b5364c72b839f9b7d5"},
+        {0x749a70,144,"989ca966c949dd4d6f3d5fb0b644d71254eab229395e09baa6b49a7b79b7625a"},
     };
     for(const auto& p:pins){std::string bytes(p.size,'\0'),hash;
         if(!r.memory.copy(r.image+p.rva,bytes.data(),bytes.size(),error)||!region::sha256(bytes,hash,error))return false;
@@ -46,26 +46,26 @@ bool world_path_ui_code(region::Runtime& r,std::string& error){
 }
 uint32_t world_path_ui_call(uintptr_t image,bool wall,unsigned step,const placement_ui_probe::Binding& b,const action::PathPoint& point,uintptr_t list=0){
     __try{
-        if(step==0)reinterpret_cast<void(*)(void*)>(image+0x580870)(reinterpret_cast<void*>(b.button));
-        else if(step==1)reinterpret_cast<Press>(image+(wall?0x5eb8c0:0x5c8cc0))(reinterpret_cast<void*>(b.behaviour),reinterpret_cast<void*>(b.cursor),point.data());
-        else if(step==2)reinterpret_cast<Press>(image+(wall?0x5ec320:0x5c97e0))(reinterpret_cast<void*>(b.behaviour),reinterpret_cast<void*>(b.cursor),point.data());
-        else if(step==3)reinterpret_cast<void(*)(void*,int32_t)>(image+0x7420f0)(reinterpret_cast<void*>(list),0);
+        if(step==0)reinterpret_cast<void(*)(void*)>(image+0x587030)(reinterpret_cast<void*>(b.button));
+        else if(step==1)reinterpret_cast<Press>(image+(wall?0x5f2010:0x5cf410))(reinterpret_cast<void*>(b.behaviour),reinterpret_cast<void*>(b.cursor),point.data());
+        else if(step==2)reinterpret_cast<Press>(image+(wall?0x5f2a70:0x5cff30))(reinterpret_cast<void*>(b.behaviour),reinterpret_cast<void*>(b.cursor),point.data());
+        else if(step==3)reinterpret_cast<void(*)(void*,int32_t)>(image+0x749a70)(reinterpret_cast<void*>(list),0);
         return 0;
     }__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 uint32_t world_path_wall_type(uintptr_t image,int32_t& value){
     const region::NativeString name{"Wall",4,{}};
-    __try{value=reinterpret_cast<int32_t(*)(const void*)>(image+0x4393b0)(&name);return 0;}
+    __try{value=reinterpret_cast<int32_t(*)(const void*)>(image+0x43e190)(&name);return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 uint32_t world_path_edge(uintptr_t image,uintptr_t region,int32_t index,int32_t& count,uintptr_t& neighbor,action::PathPoint& point){
     __try{
-        count=reinterpret_cast<int32_t(*)(void*)>(image+0x34f650)(reinterpret_cast<void*>(region));
+        count=reinterpret_cast<int32_t(*)(void*)>(image+0x353d50)(reinterpret_cast<void*>(region));
         if(index<0)return 0;
         if(index>=count)return ERROR_INVALID_PARAMETER;
-        neighbor=uintptr_t(reinterpret_cast<void*(*)(void*,int32_t)>(image+0x34f660)(reinterpret_cast<void*>(region),index));
+        neighbor=uintptr_t(reinterpret_cast<void*(*)(void*,int32_t)>(image+0x353d60)(reinterpret_cast<void*>(region),index));
         auto shape=*reinterpret_cast<void**>(region+0x28);
-        reinterpret_cast<void*(*)(void*,void*,int32_t,float)>(image+0xf7890)(point.data(),shape,index,.5f);
+        reinterpret_cast<void*(*)(void*,void*,int32_t,float)>(image+0xf8900)(point.data(),shape,index,.5f);
         return 0;
     }__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
@@ -124,7 +124,7 @@ bool native_world_path(const json& args,json& out,std::string& error){
     bool ok=call(0,start);uintptr_t active=0;if(ok)ok=region::at(*r,binding.cursor,0x190,active,error)&&active==binding.behaviour;
     if(ok&&wall){uintptr_t window=0,list=0;int32_t models=0;
         ok=region::at(*r,binding.behaviour,0x180,window,error)&&window&&region::at(*r,window,0x4e8,list,error)&&
-            native::ap(r->memory,list,r->image,0x16dfc30,error)&&region::at(*r,list,0x350,models,error)&&models>0&&models<=4096;
+            native::ap(r->memory,list,r->image,0x16e5fd0,error)&&region::at(*r,list,0x350,models,error)&&models>0&&models<=4096;
         if(ok)ok=call(3,start,list);
         if(ok)ok=call(1,start)&&call(2,start)&&call(1,end)&&call(2,end);
         // An unsnapped endpoint needs the original final click at the same point.

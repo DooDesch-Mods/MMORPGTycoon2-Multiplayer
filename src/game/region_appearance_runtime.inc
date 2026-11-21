@@ -11,15 +11,15 @@ bool appearance_read_native(Runtime& r,uintptr_t region,action::RegionAppearance
     out=v;return true;
 }
 uint32_t appearance_picker(uintptr_t image,uintptr_t picker,uintptr_t& value){
-    __try{value=uintptr_t(reinterpret_cast<const void*(__fastcall*)(void*)>(image+0x836380)(reinterpret_cast<void*>(picker)));return 0;}
+    __try{value=uintptr_t(reinterpret_cast<const void*(__fastcall*)(void*)>(image+0x83ea10)(reinterpret_cast<void*>(picker)));return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 uint32_t appearance_slider(uintptr_t image,uintptr_t slider,int32_t position,float& value){
-    __try{value=reinterpret_cast<float(__fastcall*)(void*,int32_t)>(image+0x7b95a0)(reinterpret_cast<void*>(slider),position);return 0;}
+    __try{value=reinterpret_cast<float(__fastcall*)(void*,int32_t)>(image+0x7c1840)(reinterpret_cast<void*>(slider),position);return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 uint32_t appearance_fx(uintptr_t image,uintptr_t string,int32_t& value,bool& converted){
-    __try{converted=reinterpret_cast<bool(__fastcall*)(int32_t*,const void*)>(image+0x26f170)(&value,reinterpret_cast<const void*>(string));return 0;}
+    __try{converted=reinterpret_cast<bool(__fastcall*)(int32_t*,const void*)>(image+0x2723c0)(&value,reinterpret_cast<const void*>(string));return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 bool appearance_control(Runtime& r,uintptr_t window,size_t offset,uintptr_t required,uintptr_t& control,std::string& e){
@@ -29,7 +29,7 @@ bool appearance_control(Runtime& r,uintptr_t window,size_t offset,uintptr_t requ
 }
 bool appearance_color(Runtime& r,uintptr_t window,size_t offset,std::array<float,4>& out,std::string& e){
     uintptr_t picker=0,value=0;
-    if(!appearance_control(r,window,offset,0x16fae80,picker,e))return false;
+    if(!appearance_control(r,window,offset,0x1701220,picker,e))return false;
     const auto seh=appearance_picker(r.image,picker,value);
     if(seh||value!=picker+0x12a8)return fail(e,"region original ColorPicker result differs SEH="+std::to_string(seh));
     if(!at(r,value,0,out,e))return false;
@@ -47,7 +47,7 @@ bool appearance_read_controls(Runtime& r,uintptr_t window,size_t which,action::R
             intent.appearance_value[8+i]=top[i];intent.appearance_value[12+i]=top[i]-middle[i];}
     }else if(which==4){
         uintptr_t combo=0,value=0;int32_t selected=-1;bool converted=false;
-        if(!appearance_control(r,uintptr_t(window),0x5e8,0x16d9b30,combo,e))return false;
+        if(!appearance_control(r,uintptr_t(window),0x5e8,0x16dfed0,combo,e))return false;
         auto seh=combo_get(r.image,combo,value);if(!seh)seh=appearance_fx(r.image,value,selected,converted);
         if(seh||!converted||selected<0||selected>6)return fail(e,"region original environment particle conversion failed SEH="+std::to_string(seh));
         intent.appearance_value[0]=float(selected);
@@ -55,7 +55,7 @@ bool appearance_read_controls(Runtime& r,uintptr_t window,size_t which,action::R
         const size_t offset=which==0?0x5a0:which==1?0x5a8:which==2?0x5c0:0x5f0;
         if(!appearance_color(r,uintptr_t(window),offset,color,e))return false;
         if(which==1||which==2){uintptr_t slider=0;int32_t position=0;float scale=0;
-            if(!appearance_control(r,uintptr_t(window),which==1?0x5b0:0x5b8,0x1787a30,slider,e)||!at(r,slider,0x4d0,position,e))return false;
+            if(!appearance_control(r,uintptr_t(window),which==1?0x5b0:0x5b8,0x178ddd0,slider,e)||!at(r,slider,0x4d0,position,e))return false;
             const auto seh=appearance_slider(r.image,slider,position,scale);
             if(seh||!std::isfinite(scale))return fail(e,"region original light slider conversion failed SEH="+std::to_string(seh));
             for(size_t i=0;i<3;++i)color[i]*=scale;color[3]=1;
@@ -90,10 +90,10 @@ uint32_t appearance_original(uintptr_t image,uintptr_t region,const action::Regi
     __try{
         uintptr_t rva=0;
         switch(intent.kind){
-        case action::RegionPropertyKind::Tint:rva=0x352980;break;
-        case action::RegionPropertyKind::Light:rva=0x3531d0;break;
-        case action::RegionPropertyKind::Ambient:rva=0x353260;break;
-        case action::RegionPropertyKind::Sky:rva=0x350280;break;
+        case action::RegionPropertyKind::Tint:rva=0x3576a0;break;
+        case action::RegionPropertyKind::Light:rva=0x357ef0;break;
+        case action::RegionPropertyKind::Ambient:rva=0x357f80;break;
+        case action::RegionPropertyKind::Sky:rva=0x354980;break;
         case action::RegionPropertyKind::Particles:
             // Original RegionInfoWindow branch 797d13..797d26 has no setter or event.
             *reinterpret_cast<int32_t*>(region+0x900)=int32_t(intent.appearance_value[0]);

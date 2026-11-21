@@ -98,7 +98,7 @@ bool current_capture(const std::optional<action::Context>& expected,const std::s
 bool native_error(uint32_t seh,const char* operation,std::string& e){return !seh||fail(e,std::string("path original ")+operation+" SEH="+std::to_string(seh));}
 uint32_t enums(uintptr_t image,int32_t& road,int32_t& node) {
     const region::NativeString a{"Road",4,{}},b{"RoadNode",8,{}};
-    __try{road=reinterpret_cast<int32_t(*)(const void*)>(image+0x4393b0)(&a);node=reinterpret_cast<int32_t(*)(const void*)>(image+0x4214a0)(&b);return 0;}
+    __try{road=reinterpret_cast<int32_t(*)(const void*)>(image+0x43e190)(&a);node=reinterpret_cast<int32_t(*)(const void*)>(image+0x426280)(&b);return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 bool graph(region::Runtime& r,const region::LocalView& view,Graph& out,std::string& e) {
@@ -116,7 +116,7 @@ bool graph(region::Runtime& r,const region::LocalView& view,Graph& out,std::stri
     for(auto p:out.paths) {
         uintptr_t start=0,end=0,owner_region=0;int32_t type=-1;uint64_t uid=0;uint8_t preview=0;
         std::vector<action::PathPoint> points,walks;std::vector<float> distances,walk_distances;
-        if(!native::ap(r.memory,p,r.image,0x1743f10,e)||!region::at(r,p,0x18,uid,e)||!region::at(r,p,0x21c,type,e)||!region::at(r,p,0x178,owner_region,e)||
+        if(!native::ap(r.memory,p,r.image,0x174a2b0,e)||!region::at(r,p,0x18,uid,e)||!region::at(r,p,0x21c,type,e)||!region::at(r,p,0x178,owner_region,e)||
            !region::at(r,p,0x268,start,e)||!region::at(r,p,0x270,end,e)||!region::at(r,p,0x46e,preview,e)||
            !native::array(r.memory,p,0x298,0x2a0,0x2a4,65536,points,e)||!native::array(r.memory,p,0x2b0,0x2b8,0x2bc,65536,distances,e))return false;
         // Only Bridge uses separate walkpoints/distances; Road's reserved distance storage is not initialized.
@@ -139,7 +139,7 @@ bool graph(region::Runtime& r,const region::LocalView& view,Graph& out,std::stri
     }
     for(auto n:out.nodes) {
         int32_t type=-1;uint64_t uid=0;action::PathPoint position{};std::vector<uintptr_t> connected;
-        if(!native::ap(r.memory,n,r.image,0x1700a10,e)||!region::at(r,n,0x18,uid,e)||!region::at(r,n,0x298,type,e)||!region::at(r,n,0x110,position,e)||
+        if(!native::ap(r.memory,n,r.image,0x1706db0,e)||!region::at(r,n,0x18,uid,e)||!region::at(r,n,0x298,type,e)||!region::at(r,n,0x110,position,e)||
            !native::array(r.memory,n,0x2c8,0x2d0,0x2d4,65536,connected,e))return false;
         if(type!=node||!uid)return fail(e,"path actual node type/UID differs");
         for(float value:position)if(!std::isfinite(value))return fail(e,"path node position is not finite");
@@ -183,23 +183,23 @@ bool bind_preview(const Graph& graph,native::Preview& preview,std::string& e) {
 uint32_t native_call(uintptr_t image,unsigned step,uintptr_t receiver,uintptr_t cursor,const action::PathPoint& point) {
     __try {
         auto* p=reinterpret_cast<void*>(receiver);
-        if(step==0)reinterpret_cast<Unary>(image+0x580870)(p);
-        else if(step==1)reinterpret_cast<Press>(image+0x5cb910)(p,reinterpret_cast<void*>(cursor),point.data());
+        if(step==0)reinterpret_cast<Unary>(image+0x587030)(p);
+        else if(step==1)reinterpret_cast<Press>(image+0x5d2060)(p,reinterpret_cast<void*>(cursor),point.data());
         else if(step==2)path.press(p,reinterpret_cast<void*>(cursor),point.data());
-        else if(step==3){reinterpret_cast<Unary>(image+0x5ca660)(p);reinterpret_cast<Unary>(image+0x5ca570)(p);}
-        else if(step==4)reinterpret_cast<Unary>(image+0x5ca000)(p);
-        else if(step==5)reinterpret_cast<Press>(image+0x5cc2b0)(p,reinterpret_cast<void*>(cursor),point.data());
+        else if(step==3){reinterpret_cast<Unary>(image+0x5d0db0)(p);reinterpret_cast<Unary>(image+0x5d0cc0)(p);}
+        else if(step==4)reinterpret_cast<Unary>(image+0x5d0750)(p);
+        else if(step==5)reinterpret_cast<Press>(image+0x5d2a00)(p,reinterpret_cast<void*>(cursor),point.data());
         return 0;
     }__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 uint32_t construct(uintptr_t image,Operation& operation) {
     const region::NativeString road{"Road",4,{}},node{"RoadNode",8,{}};
     __try {
-        operation.receiver=uintptr_t(reinterpret_cast<void*(*)(size_t)>(image+0xa02670)(0x238));
+        operation.receiver=uintptr_t(reinterpret_cast<void*(*)(size_t)>(image+0xa0d230)(0x238));
         auto* p=reinterpret_cast<unsigned char*>(operation.receiver);if(!p)return ERROR_OUTOFMEMORY;
-        reinterpret_cast<Unary>(image+0x5cca40)(p);operation.constructed=true;
-        reinterpret_cast<void(*)(void*,const void*)>(image+0x11bfce0)(p+0x148,&road);
-        reinterpret_cast<void(*)(void*,const void*)>(image+0x11bfce0)(p+0x168,&node);
+        reinterpret_cast<Unary>(image+0x5d3190)(p);operation.constructed=true;
+        reinterpret_cast<void(*)(void*,const void*)>(image+0x11cb680)(p+0x148,&road);
+        reinterpret_cast<void(*)(void*,const void*)>(image+0x11cb680)(p+0x168,&node);
         *reinterpret_cast<int32_t*>(p+0x188)=path.road;*reinterpret_cast<int32_t*>(p+0x18c)=path.node;
         return 0;
     }__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
@@ -245,11 +245,11 @@ bool purchase_entry(int32_t type,float length,const void* point) {
         return paid;
     }
     if(r&&path.ready&&path.ui_receiver&&!path.replay){
-        try{if(caller!=r->image+0x5cc593&&caller!=r->image+0x5cc498)rejected("path Purchase caller differs from native completion routes");else if(!capture(*r,type,length,point,e))rejected(e);}catch(const std::exception& x){rejected(std::string("path Purchase capture exception: ")+x.what());}catch(...){rejected("path Purchase capture nonstandard exception");}
+        try{if(caller!=r->image+0x5d2ce3&&caller!=r->image+0x5d2be8)rejected("path Purchase caller differs from native completion routes");else if(!capture(*r,type,length,point,e))rejected(e);}catch(const std::exception& x){rejected(std::string("path Purchase capture exception: ")+x.what());}catch(...){rejected("path Purchase capture nonstandard exception");}
         return false;
     }
     if(r&&path.replay){
-        if(caller!=r->image+0x5cc593&&caller!=r->image+0x5cc498){path.replay->cause="path private Purchase caller differs";return false;}
+        if(caller!=r->image+0x5d2ce3&&caller!=r->image+0x5d2be8){path.replay->cause="path private Purchase caller differs";return false;}
         ++path.replay->purchases;
     }
     return path.purchase(type,length,point);
@@ -288,7 +288,7 @@ bool current_root_path_keys(const std::string& snapshot,std::map<uintptr_t,std::
     out.clear();auto* r=runtime(error);if(!r)return false;
     if(snapshot.empty()||snapshot!=net::current_snapshot_id())return fail(error,"Service graph Path snapshot differs");
     region::host::WorldState before;if(!region::world(*r,before,error))return false;
-    uintptr_t map=0;if(!region::at(*r,r->image,0x13df8c0,map,error))return false;
+    uintptr_t map=0;if(!region::at(*r,r->image,0x13eb8c0,map,error))return false;
     if(!map||before.root!=map+0x1c0||uintptr_t(before.origin.map)!=map)return fail(error,"Service graph Path Map/root differs");
     mixed_path_native::Census census;{live_host_state::apply_timing::PageReadScope pages;if(!mixed_path_native::read_world(r->memory,r->image,map,before.root,census,error))return false;}
     mixed_path_identity::Registry initial;const std::map<uint64_t,std::string>* keys=nullptr;

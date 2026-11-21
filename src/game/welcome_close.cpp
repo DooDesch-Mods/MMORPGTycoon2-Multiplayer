@@ -80,7 +80,7 @@ bool pin(const Request& request,uintptr_t image,Pin& p,std::string& e){
     if(!message)return fail(e,"tutorial close requires a fixed authored Initial or LevelTwo message");
     World current;if(!world(request,current,e))return false;p.state=reinterpret_cast<uintptr_t>(current.state);
     uintptr_t singleton=0,active=0;int32_t count=0;
-    if(!at(p.state,0x1e8,p.log,e)||!at(image,0x13df330,singleton,e)||!at(p.log,0x20,active,e)||!at(p.log,0x28,count,e))return false;
+    if(!at(p.state,0x1e8,p.log,e)||!at(image,0x13eb330,singleton,e)||!at(p.log,0x20,active,e)||!at(p.log,0x28,count,e))return false;
     if(p.log!=singleton||count<1||count>64)return fail(e,"welcome scenario owner/count differs");
     for(int32_t i=0;i<count;++i){uintptr_t candidate=0;if(!at(active,size_t(i)*8,candidate,e))return false;
         uintptr_t data=0;uint64_t size=0;if(!at(candidate,0x18,data,e)||!at(candidate,0x20,size,e))return false;
@@ -91,18 +91,18 @@ bool pin(const Request& request,uintptr_t image,Pin& p,std::string& e){
     }
     uintptr_t type=0,steps=0,indexed=0,window_type=0,logic=0;int32_t next=0,step_count=0;uint8_t complete=0,target=0,locked=0,instance_complete=0,sequence_complete=0;
     if(!p.instance)return fail(e,"welcome tutorial absent");
-    if(!at(p.instance,0,type,e)||type!=image+0x173ce70)return fail(e,e.empty()?"welcome instance type differs":e);
+    if(!at(p.instance,0,type,e)||type!=image+0x1743210)return fail(e,e.empty()?"welcome instance type differs":e);
     if(!at(p.instance,0x38,instance_complete,e)||!at(p.instance,0x58,p.sequence,e)||!at(p.sequence,0,type,e)||!at(p.sequence,0x54,sequence_complete,e)||!at(p.sequence,0x48,p.step,e)||!at(p.sequence,0x50,next,e)||!at(p.sequence,0x28,step_count,e)||!at(p.sequence,0x20,steps,e))return false;
-    if(instance_complete||sequence_complete||type!=image+0x16dbd80||step_count!=required_count||next!=request.index+1)return fail(e,"tutorial close active sequence/count/index differs required="+std::to_string(request.index));
+    if(instance_complete||sequence_complete||type!=image+0x16e2120||step_count!=required_count||next!=request.index+1)return fail(e,"tutorial close active sequence/count/index differs required="+std::to_string(request.index));
     if(!at(steps,size_t(request.index)*8,indexed,e))return false;
     if(p.step!=indexed)return fail(e,"tutorial close current indexed pointer differs");
     if(!at(p.step,0,type,e)||!at(p.step,0x18,complete,e)||!literal(p.step,0x20,message,e)||!at(p.step,0x1a8,p.window,e))return false;
-    if(type!=image+0x16fda00||complete||!p.window)return fail(e,"welcome step type/completion/window differs");
+    if(type!=image+0x1703da0||complete||!p.window)return fail(e,"welcome step type/completion/window differs");
     if(!at(p.window,0,window_type,e)||!at(window_type,0x1d0,p.show,e)||!at(p.window,0x45f,target,e)||!at(p.window,0x377,locked,e)||!at(p.window,0x318,logic,e))return false;
-    if(p.show!=image+0x81ec20||target!=1||locked)return fail(e,"welcome Show slot/visible target/close lock differs");
+    if(p.show!=image+0x827210||target!=1||locked)return fail(e,"welcome Show slot/visible target/close lock differs");
     if(logic){uintptr_t logic_type=0,command=0;
         if(!at(logic,0,logic_type,e)||!at(logic_type,0xc0,command,e))return false;
-        if(command!=image+0x822710)return fail(e,"welcome window has custom command interception");
+        if(command!=image+0x82ad00)return fail(e,"welcome window has custom command interception");
     }
     return true;
 }
@@ -123,10 +123,10 @@ bool close(const Request& request,nlohmann::json& receipt,std::string& e){
         nlohmann::json observed;if(!tutorial_observer::read(observed,e))return false;
         World current;if(!world(request,current,e))return false;
         const auto image=reinterpret_cast<uintptr_t>(GetModuleHandleW(nullptr));
-        constexpr unsigned char guard[]={0x84,0xd2,0x75,0x09,0x80,0xb9,0x77,0x03,0,0,0,0x75,0x23};
+        constexpr unsigned char guard[]={0x84,0xd2,0x75,0x09,0x80,0xb9,0x77,0x03,0x00,0x00,0x00,0x75,0x23};
         std::array<unsigned char,sizeof(guard)> actual{};
-        if(!bytes(image+0x81ec20,actual.data(),actual.size(),e))return false;
-        if(std::memcmp(actual.data(),guard,actual.size())&&!hud_time_runtime::verify_window_show_hook(image+0x81ec20,e))return false;
+        if(!bytes(image+0x827210,actual.data(),actual.size(),e))return false;
+        if(std::memcmp(actual.data(),guard,actual.size())&&!hud_time_runtime::verify_window_show_hook(image+0x827210,e))return false;
         Pin before,again;if(!pin(request,image,before,e)||!pin(request,image,again,e))return false;
         if(before!=again)return fail(e,"welcome native owner changed before call");
         used.insert(request.token);receipt["attempted"]=true;

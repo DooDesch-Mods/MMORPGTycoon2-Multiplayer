@@ -8,7 +8,7 @@ std::array<Route,2> routes{{
 bool code(Memory& memory,std::string& error){
     if(!za::all_code(memory,true,error))return false;
     uintptr_t refund=0;
-    if(!field(memory,za::state.image+0x1745ce0,0x278,refund,error)||refund!=za::state.image+0xe3f510)
+    if(!field(memory,za::state.image+0x174c080,0x278,refund,error)||refund!=za::state.image+0xe4b000)
         return fail(error,error.empty()?"Zone original zero-refund virtual target differs":error);
     for(const auto& route:routes){
         std::vector<unsigned char> bytes(route.bytes);

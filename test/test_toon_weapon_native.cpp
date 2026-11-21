@@ -49,7 +49,7 @@ namespace fixture {
 #include "live_host_state/day_rollover/economy/native_weapon_state.inc"
 #undef load_scalar_property
 struct World {
-    std::unique_ptr<unsigned char[]> image=std::make_unique<unsigned char[]>(0x1740000);
+    std::unique_ptr<unsigned char[]> image=std::make_unique<unsigned char[]>(0x17463a0);
     alignas(8) std::array<unsigned char,0x900> toon{};
     Pin pin{reinterpret_cast<uintptr_t>(image.get())};
     uintptr_t owner=reinterpret_cast<uintptr_t>(toon.data());
@@ -58,12 +58,12 @@ struct World {
             const uintptr_t address=pin.image+ap,function=pin.image+load;
             std::memcpy(image.get()+rva,&address,8);std::memcpy(image.get()+ap+0x10,&function,8);std::memcpy(image.get()+rva+0x38,&offset,8);
         };
-        property(0x13c8b40,0x16d64d0,0xd2c7b0,0x4b0);property(0x13c8b00,0x16cb410,0xd198b0,0x4b8);property(0x13c8ac0,0x16d64d0,0xd2c7b0,0x4d8);
-        const std::array<unsigned char,16> int_load={0x48,0x89,0xc8,0x4c,0x89,0xc1,0x4d,0x89,0xc8,0x48,0x03,0x50,0x38,0xe9,0x3e,0x34};
-        const std::array<unsigned char,16> string_load={0x48,0x89,0xc8,0x4c,0x89,0xc1,0x4d,0x89,0xc8,0x48,0x03,0x50,0x38,0xe9,0xde,0x8c};
+        property(0x13d4b40,0x16dc870,0xd37ef0,0x4b0);property(0x13d4b00,0x16d17b0,0xd24ff0,0x4b8);property(0x13d4ac0,0x16dc870,0xd37ef0,0x4d8);
+        const std::array<unsigned char,16> int_load={0x48,0x89,0xc8,0x4c,0x89,0xc1,0x4d,0x89,0xc8,0x48,0x03,0x50,0x38,0xe9,0x1e,0x0e};
+        const std::array<unsigned char,16> string_load={0x48,0x89,0xc8,0x4c,0x89,0xc1,0x4d,0x89,0xc8,0x48,0x03,0x50,0x38,0xe9,0xbe,0x66};
         const std::array<unsigned char,16> leaf={0x53,0x48,0x83,0xec,0x20,0x31,0xc0,0x48,0x89,0xd3,0x8b,0x51,0x40,0x85,0xd2,0x7f};
-        std::memcpy(image.get()+0xd2c7b0,int_load.data(),16);std::memcpy(image.get()+0xd198b0,string_load.data(),16);
-        std::memcpy(image.get()+0x89fc00,leaf.data(),16);std::memcpy(image.get()+0x8a25a0,leaf.data(),16);
+        std::memcpy(image.get()+0xd37ef0,int_load.data(),16);std::memcpy(image.get()+0xd24ff0,string_load.data(),16);
+        std::memcpy(image.get()+0x8a8d20,leaf.data(),16);std::memcpy(image.get()+0x8ab6c0,leaf.data(),16);
         construct_string(toon.data()+0x4b8,"",0,nullptr);
     }
     ~World(){destroy_string(toon.data()+0x4b8);}
@@ -89,9 +89,9 @@ int main(){try{
     const auto allocations_before=allocations,fences_before=fences;
     need(fixture::store_toon_weapon(world.pin,world.owner,target,target,fence,error)&&fixture::stores==3&&allocations==allocations_before&&fences==fences_before,"duplicate tuple performed effects");
     need(!fixture::store_toon_weapon(world.pin,world.owner,prior,target,fence,error)&&fixture::stores==3&&allocations==releases&&error.find("prior tuple changed")!=std::string::npos,"native prior tuple barrier lost");
-    world.image[0xd198b0]^=1;
+    world.image[0xd24ff0]^=1;
     need(!fixture::store_toon_weapon(world.pin,world.owner,target,prior,fence,error)&&allocations==releases&&error.find("original scalar body differs")!=std::string::npos,"native signature mismatch admitted");
-    world.image[0xd198b0]^=1;
+    world.image[0xd24ff0]^=1;
     auto changed=target;changed.weapon_ilvl=14;changed.weapon_category="bows";changed.weapon_variant_id=17;
     fixture::fail_store=fixture::stores+2;
     need(!fixture::store_toon_weapon(world.pin,world.owner,target,changed,fence,error)&&fixture::stores==5&&error.find("original scalar exception")!=std::string::npos&&error.find("native owner retained field=1")!=std::string::npos,"partial tuple exception lost cause or continued stores");

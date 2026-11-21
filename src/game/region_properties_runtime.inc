@@ -40,14 +40,14 @@ bool install_levels(Runtime&,std::string&);
 action::Outcome level_perform(Runtime&,const action::Binding&,const action::Request&,const action::Evidence*,std::string&);
 bool level_ui(Runtime&,const std::string&,const action::RegionPropertyIntent&,json&,std::string&);
 uint32_t property_native_building_count(uintptr_t image,uintptr_t manager,int32_t& count) {
-    __try{count=reinterpret_cast<int32_t(__fastcall*)(void*)>(image+0x24d740)(reinterpret_cast<void*>(manager));return 0;}
+    __try{count=reinterpret_cast<int32_t(__fastcall*)(void*)>(image+0x250680)(reinterpret_cast<void*>(manager));return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 uint32_t property_registered_building(uintptr_t image,uint64_t uid,uintptr_t& object) {
     __try {
-        auto* base=reinterpret_cast<void*(__fastcall*)(uint64_t)>(image+0x47ce20)(uid);
-        object=base?uintptr_t(reinterpret_cast<void*(__fastcall*)(void*,const void*,const void*,ptrdiff_t)>(image+0x12654f0)(
-            base,reinterpret_cast<void*>(image+0x1673900),reinterpret_cast<void*>(image+0x1655090),0)):0;
+        auto* base=reinterpret_cast<void*(__fastcall*)(uint64_t)>(image+0x481f60)(uid);
+        object=base?uintptr_t(reinterpret_cast<void*(__fastcall*)(void*,const void*,const void*,ptrdiff_t)>(image+0x1270eb0)(
+            base,reinterpret_cast<void*>(image+0x1678ee0),reinterpret_cast<void*>(image+0x165a670),0)):0;
         return 0;
     }__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
@@ -57,7 +57,7 @@ bool property_buildings(Runtime& r,LocalView& view,std::string& e) {
     if(!at(r,view.region,0x950,manager,e)||!at(r,manager,0,ap,e)||!at(r,manager,0x458,owner,e)||
        !at(r,manager,0x450,shard,e)||!at(r,manager+0x408,0,array_ap,e)||
        !at(r,manager,0x410,slots,e)||!at(r,manager,0x418,count,e)||!at(r,manager,0x41c,capacity,e))return false;
-    if(ap!=r.image+0x17183c0||array_ap!=r.image+0x172d7c0||owner!=view.region||shard!=view.world.root||
+    if(ap!=r.image+0x171e760||array_ap!=r.image+0x1733b60||owner!=view.region||shard!=view.world.root||
        count<0||count>1000000||capacity<count||(count&&!slots))return fail(e,"region BuildingManager owner, class or array differs");
     const auto seh=property_native_building_count(r.image,manager,native_count);
     if(seh||native_count!=count)return fail(e,"region native building count differs SEH="+std::to_string(seh)+
@@ -181,7 +181,7 @@ void property_rename_entry(void* widget,const NativeString* value) {
     }
     std::string e;uintptr_t region=0,owner=0,ap=0;action::RegionPropertyIntent intent;
     intent.kind=action::RegionPropertyKind::Name;
-    if(!at(*r,uintptr_t(widget),0,ap,e)||ap!=r->image+0x17024b0||
+    if(!at(*r,uintptr_t(widget),0,ap,e)||ap!=r->image+0x1708850||
        !at(*r,uintptr_t(widget),0x178,region,e)||!at(*r,region,0x370,owner,e)||owner!=uintptr_t(widget)||
        !at(*r,region,0x834,intent.id,e)||!text(*r,uintptr_t(value),intent.name,e)||
        !property_capture(*r,intent,region,e)){property_rejected(e);return;}
@@ -197,7 +197,7 @@ void property_cursor_entry(action::RegionPropertyKind kind,void* behavior,void* 
     std::string e;uintptr_t region=0,ap=0;uint8_t valid=0,mode=0;action::RegionPropertyIntent intent;
     intent.kind=kind;
     if(!at(*r,uintptr_t(behavior),0,ap,e)||
-       ap!=r->image+(kind==action::RegionPropertyKind::Purchase?0x173c170:0x173d840)||
+       ap!=r->image+(kind==action::RegionPropertyKind::Purchase?0x1742510:0x1743be0)||
        !at(*r,uintptr_t(behavior),0x158,valid,e)||!at(*r,uintptr_t(behavior),0x150,region,e)||
        !at(*r,uintptr_t(behavior),0x148,mode,e)||!hit||!r->memory.copy(uintptr_t(hit),intent.hit.data(),12,e)){
         property_rejected(e.empty()?"region property cursor receiver or hit invalid":e);return;
@@ -214,23 +214,23 @@ bool install_properties(Runtime& r,std::string& e) {
     constexpr unsigned char buy_bytes[]{0x41,0x57,0x41,0x56,0x41,0x55,0x41,0x54};
     constexpr unsigned char lift_bytes[]{0x41,0x55,0x41,0x54,0x55,0x57,0x56,0x53};
     const std::array<std::pair<uintptr_t,std::pair<const unsigned char*,size_t>>,3> checks{{
-        {0x36bad0,{rename_bytes,sizeof rename_bytes}},{0x5956f0,{buy_bytes,sizeof buy_bytes}},
-        {0x5b9610,{lift_bytes,sizeof lift_bytes}}}};
+        {0x3704e0,{rename_bytes,sizeof rename_bytes}},{0x59bea0,{buy_bytes,sizeof buy_bytes}},
+        {0x5bfdb0,{lift_bytes,sizeof lift_bytes}}}};
     for(const auto& [offset,bytes]:checks){std::array<unsigned char,8> actual{};
         if(!r.memory.copy(r.image+offset,actual.data(),actual.size(),e))return false;
         if(std::memcmp(actual.data(),bytes.first,bytes.second))return fail(e,"region property native handler bytes differ RVA="+std::to_string(offset));
     }
     RenameProperty rename=nullptr;CursorProperty buy=nullptr,lift=nullptr;
-    const auto a=MH_CreateHook(reinterpret_cast<void*>(r.image+0x36bad0),reinterpret_cast<void*>(&property_rename_entry),reinterpret_cast<void**>(&rename));
+    const auto a=MH_CreateHook(reinterpret_cast<void*>(r.image+0x3704e0),reinterpret_cast<void*>(&property_rename_entry),reinterpret_cast<void**>(&rename));
     if(a!=MH_OK||!rename)return fail(e,"region Rename hook create status="+std::to_string(a));
     properties.rename.store(rename,std::memory_order_release);
-    const auto b=MH_CreateHook(reinterpret_cast<void*>(r.image+0x5956f0),reinterpret_cast<void*>(&property_buy_entry),reinterpret_cast<void**>(&buy));
+    const auto b=MH_CreateHook(reinterpret_cast<void*>(r.image+0x59bea0),reinterpret_cast<void*>(&property_buy_entry),reinterpret_cast<void**>(&buy));
     if(b!=MH_OK||!buy)return fail(e,"region Buy hook create status="+std::to_string(b));
     properties.buy.store(buy,std::memory_order_release);
-    const auto c=MH_CreateHook(reinterpret_cast<void*>(r.image+0x5b9610),reinterpret_cast<void*>(&property_lift_entry),reinterpret_cast<void**>(&lift));
+    const auto c=MH_CreateHook(reinterpret_cast<void*>(r.image+0x5bfdb0),reinterpret_cast<void*>(&property_lift_entry),reinterpret_cast<void**>(&lift));
     if(c!=MH_OK||!lift)return fail(e,"region Lift hook create status="+std::to_string(c));
     properties.lift.store(lift,std::memory_order_release);
-    for(const auto offset:{0x36bad0,0x5956f0,0x5b9610}){
+    for(const auto offset:{0x3704e0,0x59bea0,0x5bfdb0}){
         const auto status=MH_EnableHook(reinterpret_cast<void*>(r.image+offset));
         if(status!=MH_OK)return fail(e,"region property hook enable status="+std::to_string(status)+" RVA="+std::to_string(offset));
     }
@@ -259,7 +259,7 @@ void property_tick() {
     ++properties.submitted;
 }
 uint32_t property_hit_region(uintptr_t image,uintptr_t map,const float* hit,uintptr_t& found) {
-    __try{found=uintptr_t(reinterpret_cast<void*(__fastcall*)(void*,const float*,void*)>(image+0x32a990)(
+    __try{found=uintptr_t(reinterpret_cast<void*(__fastcall*)(void*,const float*,void*)>(image+0x32ea20)(
         reinterpret_cast<void*>(map),hit,nullptr));return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
@@ -268,11 +268,11 @@ uint32_t property_construct(uintptr_t image,uintptr_t object,uintptr_t offset,bo
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 uint32_t property_allocate(uintptr_t image,uintptr_t& object) {
-    __try{object=uintptr_t(reinterpret_cast<void*(__fastcall*)(size_t)>(image+0xa02670)(0x160));return 0;}
+    __try{object=uintptr_t(reinterpret_cast<void*(__fastcall*)(size_t)>(image+0xa0d230)(0x160));return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 uint32_t property_delete(uintptr_t image,uintptr_t object) {
-    __try{reinterpret_cast<void(__fastcall*)(void*,size_t)>(image+0x1264b60)(reinterpret_cast<void*>(object),0x160);return 0;}
+    __try{reinterpret_cast<void(__fastcall*)(void*,size_t)>(image+0x1270520)(reinterpret_cast<void*>(object),0x160);return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 uint32_t property_cursor_call(CursorProperty fn,uintptr_t object,const float* hit,bool& returned) {
@@ -294,7 +294,7 @@ bool property_receipt_begin(Runtime& r,PropertyOperation& op,std::string& e){
     if(!op.ordered)return true;
     action::Context current;
     if(!action::selected_session().current(current,e)||!property_scope(op.binding,op.request,e))return false;
-    if(!at(r,r.image,0x164b250,op.global_owner,e)||!op.global_owner)
+    if(!at(r,r.image,0x1650830,op.global_owner,e)||!op.global_owner)
         return fail(e,e.empty()?"Region property receipt global RNG singleton absent":e);
     if(!at(r,op.global_owner,0,op.global_before,e))return false;
     op.context=current;return true;
@@ -304,7 +304,7 @@ bool property_receipt_end(Runtime& r,PropertyOperation& op,std::string& e){
     action::Context current;uintptr_t global=0;
     if(!op.context||!action::selected_session().current(current,e)||current!=*op.context||
        !property_scope(op.binding,op.request,e))return fail(e,e.empty()?"Region property receipt Context changed":e);
-    if(!at(r,r.image,0x164b250,global,e)||global!=op.global_owner)
+    if(!at(r,r.image,0x1650830,global,e)||global!=op.global_owner)
         return fail(e,e.empty()?"Region property receipt global RNG owner changed":e);
     if(!at(r,global,0,op.global_after,e))return false;
     properties.last_ordered=op.request.action_uuid;return true;
@@ -378,7 +378,7 @@ action::Outcome property_perform(const action::Binding& binding,const action::Re
         if(intent.kind==action::RegionPropertyKind::Type&&(before.owned||before.type==intent.type)){
             e="region type unavailable or already selected";return action::Outcome::RejectedNoEffect;
         }
-        uintptr_t map=0,found=0;if(!at(*r,r->image,0x13df8c0,map,e))return action::Outcome::RejectedNoEffect;
+        uintptr_t map=0,found=0;if(!at(*r,r->image,0x13eb8c0,map,e))return action::Outcome::RejectedNoEffect;
         const auto seh=property_hit_region(r->image,map,intent.hit.data(),found);
         if(seh||found!=view.region){e="region hit position resolves to another native region SEH="+std::to_string(seh);return action::Outcome::RejectedNoEffect;}
     }
@@ -404,7 +404,7 @@ action::Outcome property_perform(const action::Binding& binding,const action::Re
         if(seh||!saved.returned)return unknown("region original appearance failed SEH="+std::to_string(seh));
     }else if(intent.kind==action::RegionPropertyKind::Name){
         uintptr_t widget=0,owner=0,ap=0;std::string widget_name;
-        if(!at(*r,view.region,0x370,widget,e)||!at(*r,widget,0,ap,e)||ap!=r->image+0x17024b0||
+        if(!at(*r,view.region,0x370,widget,e)||!at(*r,widget,0,ap,e)||ap!=r->image+0x1708850||
            !at(*r,widget,0x178,owner,e)||owner!=view.region||!text(*r,widget+0x38,widget_name,e)||widget_name!=before.name){
             saved.cause="region name widget owner or old label differs: "+e;return action::Outcome::RejectedNoEffect;
         }
@@ -420,7 +420,7 @@ action::Outcome property_perform(const action::Binding& binding,const action::Re
         if(seh||!saved.returned)return unknown("region original Rename failed SEH="+std::to_string(seh));
     }else {
         const bool buy=intent.kind==action::RegionPropertyKind::Purchase||sale;
-        const auto ctor=buy?0x595490:0x5b9340,dtor=buy?0xc1e510:0xc1eb80,press=buy?0x595630:0x5b95a0;
+        const auto ctor=buy?0x59bc40:0x5bfae0,dtor=buy?0xc2ac70:0xc2b2e0,press=buy?0x59bde0:0x5bfd40;
         const auto release=buy?properties.buy.load(std::memory_order_acquire):properties.lift.load(std::memory_order_acquire);
         uintptr_t object=0;const auto allocation=property_allocate(r->image,object);
         if(allocation||!object){saved.cause="region temporary native behavior allocation failed SEH="+std::to_string(allocation);return action::Outcome::RejectedNoEffect;}
@@ -578,7 +578,7 @@ bool property_ui_impl(const std::string& token,const action::RegionPropertyInten
         for(const float x:intent.hit)if(!std::isfinite(x)||std::abs(x)>1000000.0f)
             return fail(e,"region diagnostic hit coordinate is not finite or bounded");
         uintptr_t map=0,found=0;
-        if(!at(*r,r->image,0x13df8c0,map,e))return false;
+        if(!at(*r,r->image,0x13eb8c0,map,e))return false;
         const auto seh=property_hit_region(r->image,map,intent.hit.data(),found);
         if(seh||found!=view.region)return fail(e,"region diagnostic hit does not resolve requested region SEH="+std::to_string(seh));
     }
@@ -586,17 +586,17 @@ bool property_ui_impl(const std::string& token,const action::RegionPropertyInten
     const auto captured=properties.captured;
     if(intent.kind==action::RegionPropertyKind::Name){
         uintptr_t widget=0,ap=0,owner=0;std::string label;
-        if(!at(*r,view.region,0x370,widget,e)||!at(*r,widget,0,ap,e)||ap!=r->image+0x17024b0||
+        if(!at(*r,view.region,0x370,widget,e)||!at(*r,widget,0,ap,e)||ap!=r->image+0x1708850||
            !at(*r,widget,0x178,owner,e)||owner!=view.region||!text(*r,widget+0x38,label,e)||label!=before.name)
             return fail(e,"region diagnostic widget label/owner differs: "+e);
         NativeString name{intent.name.data(),intent.name.size(),{}};bool returned=false;
-        const auto seh=property_rename_call(reinterpret_cast<RenameProperty>(r->image+0x36bad0),widget,&name,returned);
+        const auto seh=property_rename_call(reinterpret_cast<RenameProperty>(r->image+0x3704e0),widget,&name,returned);
         out["handler_returned"]=returned;if(seh||!returned)return fail(e,"region diagnostic Rename UI handler SEH="+std::to_string(seh));
     }else {
         const bool sale=intent.kind==action::RegionPropertyKind::Sale;
         const bool buy=intent.kind==action::RegionPropertyKind::Purchase||sale;
-        const auto ctor=buy?0x595490:0x5b9340,dtor=buy?0xc1e510:0xc1eb80,press=buy?0x595630:0x5b95a0;
-        const auto release=buy?0x5956f0:0x5b9610;
+        const auto ctor=buy?0x59bc40:0x5bfae0,dtor=buy?0xc2ac70:0xc2b2e0,press=buy?0x59bde0:0x5bfd40;
+        const auto release=buy?0x59bea0:0x5bfdb0;
         uintptr_t object=0;const auto allocation=property_allocate(r->image,object);
         if(allocation||!object)return fail(e,"region diagnostic behavior allocation failed SEH="+std::to_string(allocation));
         bool constructed=false,pressed=false,returned=false,destroyed=false;

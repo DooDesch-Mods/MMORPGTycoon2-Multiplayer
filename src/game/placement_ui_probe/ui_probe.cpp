@@ -28,7 +28,7 @@ bool find_mode_pane_seh(const Binding& b,std::uintptr_t window,std::uintptr_t& b
     const NativeString name{"mode_single",11,{}};
     static_assert(sizeof(NativeString)==32);
     __try{
-        button=reinterpret_cast<std::uintptr_t(__fastcall*)(void*,const NativeString*)>(b.context.image+0x81d860)(reinterpret_cast<void*>(window),&name);
+        button=reinterpret_cast<std::uintptr_t(__fastcall*)(void*,const NativeString*)>(b.context.image+0x825e50)(reinterpret_cast<void*>(window),&name);
         return true;
     }__except(EXCEPTION_EXECUTE_HANDLER){receipt.exception=GetExceptionCode();return false;}
 }
@@ -36,14 +36,14 @@ bool call_seh(unsigned step,const Binding& b,const Request& r,std::uintptr_t lis
     __try{
         receipt.attempted_mask|=std::uint32_t{1}<<step;
         switch(step){
-        case 0:reinterpret_cast<void(__fastcall*)(void*)>(b.context.image+0x580870)(reinterpret_cast<void*>(b.button));break;
-        case 1:reinterpret_cast<void(__fastcall*)(void*,int)>(b.context.image+0x7420f0)(reinterpret_cast<void*>(list),index);break;
-        case 2:reinterpret_cast<void(__fastcall*)(void*,void*,const float*)>(b.context.image+(b.family==Family::Scenery?0x5d5960:0x593890))(reinterpret_cast<void*>(b.behaviour),reinterpret_cast<void*>(b.cursor),r.position.data());break;
-        case 3:reinterpret_cast<void(__fastcall*)(void*,void*,const float*)>(b.context.image+(b.family==Family::Scenery?0x5cf440:0x593810))(reinterpret_cast<void*>(b.behaviour),reinterpret_cast<void*>(b.cursor),r.position.data());break;
-        case 4:reinterpret_cast<void(__fastcall*)(void*,void*,const float*)>(b.context.image+(b.family==Family::Scenery?0x5d0600:0x5912e0))(reinterpret_cast<void*>(b.behaviour),reinterpret_cast<void*>(b.cursor),r.position.data());break;
-        case 5:reinterpret_cast<void(__fastcall*)(void*)>(b.context.image+0x73ffe0)(reinterpret_cast<void*>(list));break;
-        case 7:if(!reinterpret_cast<bool(__fastcall*)(void*,const float*)>(b.context.image+0x5863e0)(reinterpret_cast<void*>(b.cursor),r.position.data()))return fail(receipt.cause,"error: original cursor world projection failed");break;
-        case 6:reinterpret_cast<void(__fastcall*)(void*,float)>(b.context.image+0x5d4620)(reinterpret_cast<void*>(b.behaviour),0.0f);break;
+        case 0:reinterpret_cast<void(__fastcall*)(void*)>(b.context.image+0x587030)(reinterpret_cast<void*>(b.button));break;
+        case 1:reinterpret_cast<void(__fastcall*)(void*,int)>(b.context.image+0x749a70)(reinterpret_cast<void*>(list),index);break;
+        case 2:reinterpret_cast<void(__fastcall*)(void*,void*,const float*)>(b.context.image+(b.family==Family::Scenery?0x5dc0b0:0x59a040))(reinterpret_cast<void*>(b.behaviour),reinterpret_cast<void*>(b.cursor),r.position.data());break;
+        case 3:reinterpret_cast<void(__fastcall*)(void*,void*,const float*)>(b.context.image+(b.family==Family::Scenery?0x5d5b90:0x599fc0))(reinterpret_cast<void*>(b.behaviour),reinterpret_cast<void*>(b.cursor),r.position.data());break;
+        case 4:reinterpret_cast<void(__fastcall*)(void*,void*,const float*)>(b.context.image+(b.family==Family::Scenery?0x5d6d50:0x597a90))(reinterpret_cast<void*>(b.behaviour),reinterpret_cast<void*>(b.cursor),r.position.data());break;
+        case 5:reinterpret_cast<void(__fastcall*)(void*)>(b.context.image+0x747950)(reinterpret_cast<void*>(list));break;
+        case 7:if(!reinterpret_cast<bool(__fastcall*)(void*,const float*)>(b.context.image+0x58cba0)(reinterpret_cast<void*>(b.cursor),r.position.data()))return fail(receipt.cause,"error: original cursor world projection failed");break;
+        case 6:reinterpret_cast<void(__fastcall*)(void*,float)>(b.context.image+0x5dad70)(reinterpret_cast<void*>(b.behaviour),0.0f);break;
         default:return false;
         }
         receipt.returned_mask|=std::uint32_t{1}<<step;return true;
@@ -52,12 +52,12 @@ bool call_seh(unsigned step,const Binding& b,const Request& r,std::uintptr_t lis
 }
 bool ProcessMemory::copy(std::uintptr_t p,void* out,std::size_t n,std::string& e){if(!p||!n||p>UINTPTR_MAX-(n-1))return fail(e,"error: native placement UI memory range invalid");MEMORY_BASIC_INFORMATION page{};if(!mt2mp::game::live_host_state::apply_timing::virtual_query(reinterpret_cast<const void*>(p),&page,sizeof(page),mt2mp::game::live_host_state::apply_timing::Part::QueryPlacement)||page.State!=MEM_COMMIT||(page.Protect&(PAGE_GUARD|PAGE_NOACCESS))||n>page.RegionSize||p-std::uintptr_t(page.BaseAddress)>page.RegionSize-n)return fail(e,"error: native placement UI page unreadable");auto code=copy_seh(p,out,n);if(code){e="error: native placement UI read SEH="+std::to_string(code);return false;}return true;}
 bool Probe::initialize(const Context& c,std::string& e){if(context_.image)return fail(e,"error: placement UI probe already initialized");if(!context_actual(c,e))return false;ProcessMemory memory;for(const auto& g:guards){
-    if(g.rva==0x207820){bool owned=false;
+    if(g.rva==0x20a2b0){bool owned=false;
         const auto sha=mt2mp::sha256(std::vector<unsigned char>(g.bytes,g.bytes+g.size));
         if(!mt2mp::control_input::runtime::verify_item_activate(c.image,g.size,sha,owned,e))return false;
         if(owned)continue;
     }
-    std::vector<unsigned char> actual(g.size);if(!memory.copy(c.image+g.rva,actual.data(),actual.size(),e))return false;if(g.rva==0x5854e0){if(!mt2mp::hooks::framework::verify_original_bytes(c.image+g.rva,actual.data(),g.bytes,g.size,e)){e="error: placement UI original body differs at RVA="+std::to_string(g.rva)+" original="+e;return false;}}else if(std::memcmp(actual.data(),g.bytes,g.size)){e="error: placement UI original body differs at RVA="+std::to_string(g.rva);return false;}}for(const auto& g:scenery_guards){std::vector<unsigned char> actual(g.size);if(!memory.copy(c.image+g.rva,actual.data(),actual.size(),e))return false;if(std::memcmp(actual.data(),g.bytes,g.size)){e="error: Scenery UI original body differs at RVA="+std::to_string(g.rva);return false;}}for(const auto& g:scene_mode_guards){std::vector<unsigned char> actual(g.size);if(!memory.copy(c.image+g.rva,actual.data(),actual.size(),e))return false;if(std::memcmp(actual.data(),g.bytes,g.size)){e="error: Scenery mode selector original body differs";return false;}}context_=c;return true;}
+    std::vector<unsigned char> actual(g.size);if(!memory.copy(c.image+g.rva,actual.data(),actual.size(),e))return false;if(g.rva==0x58bca0){if(!mt2mp::hooks::framework::verify_original_bytes(c.image+g.rva,actual.data(),g.bytes,g.size,e)){e="error: placement UI original body differs at RVA="+std::to_string(g.rva)+" original="+e;return false;}}else if(std::memcmp(actual.data(),g.bytes,g.size)){e="error: placement UI original body differs at RVA="+std::to_string(g.rva);return false;}}for(const auto& g:scenery_guards){std::vector<unsigned char> actual(g.size);if(!memory.copy(c.image+g.rva,actual.data(),actual.size(),e))return false;if(std::memcmp(actual.data(),g.bytes,g.size)){e="error: Scenery UI original body differs at RVA="+std::to_string(g.rva);return false;}}for(const auto& g:scene_mode_guards){std::vector<unsigned char> actual(g.size);if(!memory.copy(c.image+g.rva,actual.data(),actual.size(),e))return false;if(std::memcmp(actual.data(),g.bytes,g.size)){e="error: Scenery mode selector original body differs";return false;}}context_=c;return true;}
 Receipt Probe::arm(const Request& r,RootServices& services){Receipt receipt;receipt.token=r.token;Binding binding;ProcessMemory memory;
     try{
         Context c;if(!context_.image||!scalar_request(r,receipt.cause)||!services.actual_context(c,receipt.cause)||!context_actual(c,receipt.cause)||c!=context_){if(receipt.cause.empty())receipt.cause="error: placement UI probe context changed";services.record_receipt(r,receipt);return receipt;}

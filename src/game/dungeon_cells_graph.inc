@@ -42,8 +42,8 @@ bool inspect_value(void* user,const void* record,const void* context,std::string
     return subscriber_lifecycle::read_graph(capture.memory,uintptr_t(record),uintptr_t(context),{100000,1000000,32*1024*1024,100000},capture.graph,error);}
 bool value_record(Memory& memory,uintptr_t object,uintptr_t prepare,uintptr_t save,std::string& hash,std::string& error){
     ValueMemory view(memory);ValueCapture captured{view};subscriber_lifecycle::CaptureReceipt receipt;
-    const subscriber_lifecycle::CaptureApi api{reinterpret_cast<subscriber_lifecycle::Construct>(state.image+0x9667c0),reinterpret_cast<subscriber_lifecycle::Construct>(state.image+0x9676a0),
-        reinterpret_cast<subscriber_lifecycle::Construct>(state.image+0x89e580),reinterpret_cast<subscriber_lifecycle::Construct>(state.image+0x89e5f0),
+    const subscriber_lifecycle::CaptureApi api{reinterpret_cast<subscriber_lifecycle::Construct>(state.image+0x96f9e0),reinterpret_cast<subscriber_lifecycle::Construct>(state.image+0x9708c0),
+        reinterpret_cast<subscriber_lifecycle::Construct>(state.image+0x8a76a0),reinterpret_cast<subscriber_lifecycle::Construct>(state.image+0x8a7710),
         reinterpret_cast<subscriber_lifecycle::PrepareSave>(state.image+prepare),reinterpret_cast<subscriber_lifecycle::SaveRecord>(state.image+save)};
     {live_host_state::apply_timing::PageReadScope original(live_host_state::apply_timing::PageBoundary::OriginalCall);
         if(!subscriber_lifecycle::capture_original(api,reinterpret_cast<const void*>(object),inspect_value,&captured,receipt,error))return false;}
@@ -63,12 +63,12 @@ bool graph_values(Memory& memory,const BoundGraph& bound,cg::Node& node,std::str
         if(node.kind==cg::Kind::Scenery){MonsterMemory adapter{memory};if(!scenery_make_history::make(adapter,state.image,node.pointer,found->second.scenery,error))return false;}
         node.values.push_back(found->second.scene);node.values.push_back(found->second.key);
     }
-    if(node.kind==cg::Kind::Layout)return record(node.pointer+0xc0,0xf67ba0,0xf67c00)&&record(node.pointer+0x108,0xf0c9b0,0xf0ca10);
+    if(node.kind==cg::Kind::Layout)return record(node.pointer+0xc0,0xf73660,0xf736c0)&&record(node.pointer+0x108,0xf184b0,0xf18510);
     if(node.kind==cg::Kind::Paint){uintptr_t data=0;int32_t count=0,capacity=0;
         if(!field(memory,node.pointer,0xc8,data,error)||!field(memory,node.pointer,0xd0,count,error)||!field(memory,node.pointer,0xd4,capacity,error)||
            count<0||count>100000||capacity<count||capacity>1000000||(count&&(!data||data>UINTPTR_MAX-size_t(count)*0x120)))return fail(error,error.empty()?"Dungeon original Paint complete stroke array differs":error);
-        for(int32_t i=0;i<count;++i){const auto stroke=data+size_t(i)*0x120;if(!record(stroke,0xe95580,0xe955e0)||!record(stroke+0x70,0x10ee6f0,0x10ee750))return false;}
-    }else if(node.kind==cg::Kind::Zone||node.kind==cg::Kind::EditZone){if(!record(node.pointer+0xc8,0xe95580,0xe955e0))return false;}
+        for(int32_t i=0;i<count;++i){const auto stroke=data+size_t(i)*0x120;if(!record(stroke,0xea1070,0xea10d0)||!record(stroke+0x70,0x10fa090,0x10fa0f0))return false;}
+    }else if(node.kind==cg::Kind::Zone||node.kind==cg::Kind::EditZone){if(!record(node.pointer+0xc8,0xea1070,0xea10d0))return false;}
     else if(node.kind==cg::Kind::Monster||node.kind==cg::Kind::Gizmo||node.kind==cg::Kind::Door){std::string text;
         if(!npc_quest_records::read_string(memory,node.pointer,0xc0,"Dungeon original Make stored name/type",text,error))return false;node.values.push_back(text);
         if(node.kind!=cg::Kind::Monster){if(!npc_quest_records::read_string(memory,node.pointer,0xe0,"Dungeon original Make stored variant",text,error))return false;node.values.push_back(text);}

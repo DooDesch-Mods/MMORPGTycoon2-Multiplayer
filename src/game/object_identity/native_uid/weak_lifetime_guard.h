@@ -3,7 +3,7 @@
 #include <string>
 
 namespace mt2mp::native_uid {
-inline constexpr const char* required_exe_sha="bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6";
+inline constexpr const char* required_exe_sha="7efd8ee7b97f78362e7a2f8116b327fa6b756bdce23114b68143c4c9d2dd50eb";
 struct World {
     uint64_t epoch=0,origin_generation=0;
     void* world=nullptr;

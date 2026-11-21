@@ -17,30 +17,30 @@ bool reject(const std::string& why){++rejected;if(cause!=why){cause=why;LOG_ERRO
 #include "npc_quest_ordered_destination.inc"
 bool codes(Memory& m,bool hooked,std::string& e){
     for(const auto& c:npc_quest_authoring_codes::values){
-        if(c.rva==0x4db155)continue;
-        if(c.rva==0x78ed30){if(!quest_list::verify_ui(c.rva,true,e))return false;continue;}
+        if(c.rva==0x4e1015)continue;
+        if(c.rva==0x796cb0){if(!quest_list::verify_ui(c.rva,true,e))return false;continue;}
         std::string bytes(c.size,'\0'),sha;if(!m.copy(state.image+c.rva,bytes.data(),bytes.size(),e))return false;
-        if(c.rva==0x4db150&&hooked){
+        if(c.rva==0x4e1010&&hooked){
             constexpr std::array<unsigned char,5> prefix{0x41,0x54,0x55,0x57,0x56};
             constexpr std::array<unsigned char,6> jump{0xff,0x25,0,0,0,0};
             std::array<unsigned char,5> actual{};std::array<unsigned char,6> stub{};uintptr_t target=0;
             if(uint8_t(bytes[0])!=0xe9||!original||!m.copy(uintptr_t(original),actual.data(),5,e)||actual!=prefix||
-               !m.copy(uintptr_t(original)+5,stub.data(),6,e)||stub!=jump||!m.copy(uintptr_t(original)+11,&target,8,e)||target!=state.image+0x4db155)
+               !m.copy(uintptr_t(original)+5,stub.data(),6,e)||stub!=jump||!m.copy(uintptr_t(original)+11,&target,8,e)||target!=state.image+0x4e1015)
                 return fail(e,e.empty()?"Quest display owned trampoline differs":e);
-            int32_t delta=0;std::memcpy(&delta,bytes.data()+1,4);const auto relay=uintptr_t(int64_t(state.image+0x4db155)+delta);
+            int32_t delta=0;std::memcpy(&delta,bytes.data()+1,4);const auto relay=uintptr_t(int64_t(state.image+0x4e1015)+delta);
             if(!m.copy(relay,stub.data(),6,e)||stub!=jump||!m.copy(relay+6,&target,8,e)||target!=uintptr_t(&entry)||
-               !quest_bridge::sha256(bytes.substr(5),sha,e)||sha!="784d1365f7c13f4ba84d6ed6deccad3e40f54905f4b944f05bb8bcb9940eb711")
+               !quest_bridge::sha256(bytes.substr(5),sha,e)||sha!="716f12eea05b0bf16745ed5d5d9c12e10c63d01291027f7e952db64f67dc0f8b")
                 return fail(e,e.empty()?"Quest display owned relay or immutable tail differs":e);
         }else if(!quest_bridge::sha256(bytes,sha,e)||sha!=c.sha)return fail(e,e.empty()?"Quest original body differs RVA="+std::to_string(c.rva):e);
     }
     return true;
 }
 uint32_t default_action(uintptr_t destination,int32_t& action)noexcept{
-    __try{action=reinterpret_cast<int32_t(*)(void*)>(state.image+0x4d5ea0)(reinterpret_cast<void*>(destination));return 0;}
+    __try{action=reinterpret_cast<int32_t(*)(void*)>(state.image+0x4dbd60)(reinterpret_cast<void*>(destination));return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 uint32_t set_destination(uintptr_t quest,uintptr_t destination,int32_t action,int32_t kills)noexcept{
-    __try{reinterpret_cast<void(*)(void*,void*,int32_t,int32_t)>(state.image+0x4d8720)(reinterpret_cast<void*>(quest),reinterpret_cast<void*>(destination),action,kills);return 0;}
+    __try{reinterpret_cast<void(*)(void*,void*,int32_t,int32_t)>(state.image+0x4de5e0)(reinterpret_cast<void*>(quest),reinterpret_cast<void*>(destination),action,kills);return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 bool destination(Memory& m,const a::Binding& binding,const std::string& snapshot,int32_t region,
@@ -82,11 +82,11 @@ bool target_intent(Memory& m,const a::Binding& binding,const std::string& snapsh
                    a::NpcQuestIntent& intent,std::string& e){
     uintptr_t region=0,ap=0,method=0;int32_t type=0;
     if(!field(m,object,0,ap,e)||!field(m,object,0x178,region,e)||!field(m,region,0x834,intent.destination_region,e))return false;
-    if(ap==state.image+0x16c0770){intent.family=a::QuestDestinationFamily::DirectMonster;
+    if(ap==state.image+0x16c6b10){intent.family=a::QuestDestinationFamily::DirectMonster;
         if(!direct_destination(object,intent.destination_key,e))return false;intent.kills=1;
-    }else if(ap==state.image+0x1742980){intent.family=a::QuestDestinationFamily::NPC;intent.kills=0;
+    }else if(ap==state.image+0x1748d20){intent.family=a::QuestDestinationFamily::NPC;intent.kills=0;
         if(!npc_destination(object,intent.destination_key,e))return false;
-    }else if(ap==state.image+0x1745ce0){intent.family=a::QuestDestinationFamily::Zone;
+    }else if(ap==state.image+0x174c080){intent.family=a::QuestDestinationFamily::Zone;
         if(!field(m,object,0x24c,type,e)||type!=1)return fail(e,e.empty()?"Quest destination Zone is not a Monster pool":e);
         if(!npc_quest_target_runtime::bind_destination(intent.destination_region,object,intent.destination_key,e))return false;
         intent.kills=intent.before.monsters_to_kill?intent.before.monsters_to_kill:8;
@@ -98,8 +98,8 @@ bool target_intent(Memory& m,const a::Binding& binding,const std::string& snapsh
     const auto seh=default_action(object,intent.action);if(seh)return fail(e,"Quest original default action SEH="+std::to_string(seh));
     if(!field(m,ap,0x2d0,method,e))return false;
     if(intent.family==a::QuestDestinationFamily::Zone){
-        if(method!=state.image+0xe3f5c0||!field(m,object,0x560,intent.monster_type,e))return fail(e,e.empty()?"Quest Zone GetMonsterType differs":e);
-    }else {if(method!=state.image+0xdf1670)return fail(e,"Quest destination GetMonsterType differs");intent.monster_type=0;}
+        if(method!=state.image+0xe4b0b0||!field(m,object,0x560,intent.monster_type,e))return fail(e,e.empty()?"Quest Zone GetMonsterType differs":e);
+    }else {if(method!=state.image+0xdfcf80)return fail(e,"Quest destination GetMonsterType differs");intent.monster_type=0;}
     return true;
 }
 bool owner(Memory& m,const a::Binding& binding,const std::string& snapshot,const std::string& key,int32_t region,
@@ -133,24 +133,24 @@ bool ui_binding(Memory& m,uintptr_t display,uintptr_t quest,const action_runtime
     if(!action_runtime::live_npc_window(m,state.image,local,window,receipt,e))return false;
     uintptr_t list=0,ap=0,npc=0,proxy=0,weak=0,display_actual=0,selected_quest=0,data=0;
     int32_t count=0,capacity=0;uint8_t selected=0,selecting=0;uintptr_t cursor=0,behaviour=0,listener=0;
-    if(!field(m,state.image,0x13df400,display_actual,e)||display_actual!=display||!field(m,display,0,ap,e)||ap!=state.image+0x1701f80||
+    if(!field(m,state.image,0x13eb400,display_actual,e)||display_actual!=display||!field(m,display,0,ap,e)||ap!=state.image+0x1708320||
        !field(m,display,0x1b0,selected_quest,e)||selected_quest!=quest||!field(m,display,0x1b8,proxy,e)||!field(m,proxy,0,weak,e)||weak!=quest+0x18||
-       !field(m,window.window,0x530,list,e)||!field(m,list,0,ap,e)||ap!=state.image+0x16e02b0||
+       !field(m,window.window,0x530,list,e)||!field(m,list,0,ap,e)||ap!=state.image+0x16e6650||
        !field(m,list,0x360,npc,e)||npc!=local.object||!field(m,list,0x368,proxy,e)||!field(m,proxy,0,weak,e)||weak!=local.object+0x20||
-       !field(m,list,0x350,selector,e)||!field(m,selector,0,ap,e)||ap!=state.image+0x17088a0||
+       !field(m,list,0x350,selector,e)||!field(m,selector,0,ap,e)||ap!=state.image+0x170ec40||
        !field(m,selector,0x320,npc,e)||npc!=list||!field(m,selector,0x3e0,selected_quest,e)||selected_quest!=quest||
        !field(m,selector,0x3e8,proxy,e)||!field(m,proxy,0,weak,e)||weak!=quest+0x18||
        !field(m,selector,0x3f8,selected,e)||selected!=1||!field(m,selector,0x3fa,selecting,e)||selecting!=1||
        !field(m,list,0x340,data,e)||!field(m,list,0x348,count,e)||!field(m,list,0x34c,capacity,e)||count<1||count>4096||capacity<count||capacity>100000||!data||
-       !field(m,state.image,0x13df9d0,cursor,e)||!field(m,cursor,0,ap,e)||ap!=state.image+0x1786dd0||
-       !field(m,cursor,0x190,behaviour,e)||!field(m,behaviour,0,ap,e)||ap!=state.image+0x17418b0||
+       !field(m,state.image,0x13eb9d0,cursor,e)||!field(m,cursor,0,ap,e)||ap!=state.image+0x178d170||
+       !field(m,cursor,0x190,behaviour,e)||!field(m,behaviour,0,ap,e)||ap!=state.image+0x1747c50||
        !field(m,behaviour,0x148,listener,e)||listener!=selector+0x318)
         return fail(e,e.empty()?"Quest edit original Display/List/Selector/active Cursor binding differs":e);
     size_t matches=0;for(int32_t i=0;i<count;++i){uintptr_t row=0;if(!field(m,data,size_t(i)*8,row,e))return false;matches+=row==selector;}
     return matches==1||fail(e,"Quest selected row membership is not unique");
 }
 void capture(uintptr_t caller,void* display,void* destination_pointer)try{
-    if(caller!=state.image+0x5ce471||!net::session_wire::connected()){
+    if(caller!=state.image+0x5d4bc1||!net::session_wire::connected()){
         if(original)original(display,destination_pointer);else {fault=true;reject("Quest display original unavailable");}return;
     }
     std::string e;a::Binding binding;const auto snapshot=net::current_snapshot_id();Memory m;
@@ -172,7 +172,7 @@ void capture(uintptr_t caller,void* display,void* destination_pointer)try{
     std::optional<a::Context> context;if(!capture_context(snapshot,binding,context,e)){reject(e);return;}
     if(context&&!a::ordered_quest_destination(intent)){reject("Ordered Quest destination lacks implemented complete effect scope");return;}
     pending=Pending{binding,snapshot,key,ui_token,intent,context};++captures;
-    if(!ui_token.empty()){auto& job=jobs.at(ui_token);job["captured"]=true;job["caller_rva"]="0x5ce471";}
+    if(!ui_token.empty()){auto& job=jobs.at(ui_token);job["captured"]=true;job["caller_rva"]="0x5d4bc1";}
 }catch(const std::exception& x){fault=true;reject(std::string("Quest capture boundary: ")+x.what());}
  catch(...){fault=true;reject("Quest capture non-standard exception");}
 void entry(void* display,void* destination_pointer){capture(uintptr_t(_ReturnAddress()),display,destination_pointer);}
@@ -252,9 +252,9 @@ bool enable(std::string& e){
     const auto failure=[&](const char* step,MH_STATUS value){cause=std::string("Quest display ")+step+" status="+std::to_string(value);
         const auto& upstream=mt2mp::hooks::framework::process_backend().error();if(!upstream.empty())cause+=" cause="+upstream;
         return fail(e,cause);};
-    auto result=MH_CreateHook(reinterpret_cast<void*>(state.image+0x4db150),reinterpret_cast<void*>(&entry),reinterpret_cast<void**>(&original));
+    auto result=MH_CreateHook(reinterpret_cast<void*>(state.image+0x4e1010),reinterpret_cast<void*>(&entry),reinterpret_cast<void**>(&original));
     if(result!=MH_OK||!original)return failure("CreateHook",result);
-    result=MH_EnableHook(reinterpret_cast<void*>(state.image+0x4db150));if(result!=MH_OK)return failure("EnableHook",result);
+    result=MH_EnableHook(reinterpret_cast<void*>(state.image+0x4e1010));if(result!=MH_OK)return failure("EnableHook",result);
     if(!codes(m,true,e)||!rating_enable(e))return false;ready=true;return true;
 }
 bool pending_ui(){return pending.has_value()||!ui_token.empty();}

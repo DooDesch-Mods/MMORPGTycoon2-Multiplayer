@@ -20,11 +20,11 @@ inline bool fail(std::string& e,const char* cause){e=cause;return false;}
 template<class Memory>
 bool read(Memory& memory,uintptr_t image,uintptr_t building,Native& out,std::string& e){
     out={};uintptr_t ap=0,array_ap=0;
-    if(!building||building>UINTPTR_MAX-0xc94||image>UINTPTR_MAX-0x1749370)return fail(e,"Building uptime address invalid");
+    if(!building||building>UINTPTR_MAX-0xc94||image>UINTPTR_MAX-0x174f710)return fail(e,"Building uptime address invalid");
     if(!memory.copy(building+0xc60,&ap,sizeof ap,e)||!memory.copy(building+0xc78,&array_ap,sizeof array_ap,e)||
        !memory.copy(building+0xc80,&out.data,sizeof out.data,e)||!memory.copy(building+0xc88,&out.count,sizeof out.count,e)||
        !memory.copy(building+0xc8c,&out.capacity,sizeof out.capacity,e)||!memory.copy(building+0xc90,&out.retention,sizeof out.retention,e))return false;
-    if(ap!=image+0x17138d0||array_ap!=image+0x1749370||out.retention!=10||out.count<0||out.count>10||
+    if(ap!=image+0x1719c70||array_ap!=image+0x174f710||out.retention!=10||out.count<0||out.count>10||
        out.capacity<out.count||out.capacity>100000||(out.capacity&&!out.data)||out.data>UINTPTR_MAX-size_t(out.capacity)*sizeof(int32_t))
         return fail(e,"Building uptime class/history span/retention differs");
     out.values.resize(size_t(out.count));

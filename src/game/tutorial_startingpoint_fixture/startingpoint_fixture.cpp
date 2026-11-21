@@ -103,18 +103,18 @@ bool pin(const Request& request,Pin& p,std::string& e,bool client=false,const st
         if(context.role!=(client?action_session::Role::Client:action_session::Role::Host)||binding.native_epoch!=p.world.world_epoch||binding.native_generation!=p.world.generation)
             return fail(e,client?"startingpoint fixture actual Client session binding differs from native Origin":"startingpoint fixture actual Host session binding differs from native Origin");
     }
-    if(!hud_time_runtime::verify_window_show_hook(p.image+0x81ec20,e))return false;
+    if(!hud_time_runtime::verify_window_show_hook(p.image+0x827210,e))return false;
     for(const auto& entry:entries){
-        if(entry.rva==0x6c7b70){if(!developer_staff::action_runtime::verify_entry(p.image+entry.rva,e))return false;continue;}
-        if(entry.rva==0x25fb10){if(!tutorial_replication::verify_commit_entry(p.image+entry.rva,e))return false;continue;}
+        if(entry.rva==0x6cef90){if(!developer_staff::action_runtime::verify_entry(p.image+entry.rva,e))return false;continue;}
+        if(entry.rva==0x262c10){if(!tutorial_replication::verify_commit_entry(p.image+entry.rva,e))return false;continue;}
         std::vector<unsigned char> actual(entry.size);
         if(!memory.copy(p.image+entry.rva,actual.data(),actual.size(),e))return false;
         if(mt2mp::sha256(actual)!=entry.sha256)return fail(e,"startingpoint fixture entry differs RVA="+std::to_string(entry.rva));}
     const auto state=uintptr_t(p.world.state);
     if(!at(state,0x180,p.lounge,e)||!at(p.lounge,0xa8,p.project,e))return false;
     int32_t count=0;uintptr_t global_player=0;
-    if(!at(uintptr_t(p.world.mode),0x150,p.player,e)||!at(p.image,0x13df9f0,global_player,e)||
-       !at(p.player,0x1d0,p.inventory,e)||!type(p.inventory,p.image+0x16df0f0,e)||
+    if(!at(uintptr_t(p.world.mode),0x150,p.player,e)||!at(p.image,0x13eb9f0,global_player,e)||
+       !at(p.player,0x1d0,p.inventory,e)||!type(p.inventory,p.image+0x16e5490,e)||
        !at(p.inventory,8,p.slots,e)||!at(p.inventory,0x10,count,e))return false;
     if(p.player!=global_player||count!=200)return fail(e,"startingpoint fixture current Player/inventory owner or slot count differs");
     if(!memory.copy(p.slots,p.items.data(),sizeof(p.items),e))return false;
@@ -164,7 +164,7 @@ struct BorrowedString {const char* data;uint64_t length;unsigned char storage[16
 static_assert(sizeof(BorrowedString)==32);
 DWORD find_button(uintptr_t image,uintptr_t window,uintptr_t& button){
     const BorrowedString name{"commit",6,{}};
-    __try{button=uintptr_t(reinterpret_cast<void*(*)(void*,const void*)>(image+0x81d860)(reinterpret_cast<void*>(window),&name));return 0;}
+    __try{button=uintptr_t(reinterpret_cast<void*(*)(void*,const void*)>(image+0x825e50)(reinterpret_cast<void*>(window),&name));return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 bool development_window(Pin& p,std::string& e){
@@ -176,7 +176,7 @@ bool development_window(Pin& p,std::string& e){
         if(!at(data,size_t(i)*8,window,e)||!window||!seen.insert(window).second)return fail(e,e.empty()?"startingpoint fixture Mode window ownership duplicated":e);
         if(!text(window,0x1b0,id,e))return false;
         if(id=="development"){if(p.window)return fail(e,"startingpoint fixture duplicate owned DevelopmentWindow");p.window=window;}}
-    if(!p.window||!type(p.window,p.image+0x1722e60,e))return fail(e,e.empty()?"startingpoint fixture owned DevelopmentWindow absent":e);
+    if(!p.window||!type(p.window,p.image+0x1729200,e))return fail(e,e.empty()?"startingpoint fixture owned DevelopmentWindow absent":e);
     uintptr_t logic=0;if(!at(p.window,0x318,logic,e))return false;
     if(logic)return fail(e,"startingpoint fixture DevelopmentWindow has custom logic");
     return true;
@@ -187,17 +187,17 @@ bool commit_button(Pin& p,std::string& e){
     if(visible!=1)return fail(e,"startingpoint fixture requires visible DevelopmentWindow");
     const auto exception=find_button(p.image,p.window,p.button);
     if(exception)return fail(e,"startingpoint fixture FindPane exception="+std::to_string(exception));
-    if(!p.button||!type(p.button,p.image+0x16e3ec0,e))return fail(e,e.empty()?"startingpoint fixture original Commit button absent":e);
+    if(!p.button||!type(p.button,p.image+0x16ea260,e))return fail(e,e.empty()?"startingpoint fixture original Commit button absent":e);
     uintptr_t owner=0;uint8_t disabled=0,toggle=0;std::string command;
     if(!at(p.button,0x280,owner,e)||!at(p.button,0x46d,disabled,e)||!at(p.button,0x46c,toggle,e)||!text(p.button,0x388,command,e))return false;
     if(owner!=p.window||disabled||toggle||command!="MessageTo Window CommitTech")
         return fail(e,"startingpoint fixture Commit button owner/enabled/command differs");
     return true;
 }
-DWORD complete(uintptr_t image,uintptr_t lounge){__try{reinterpret_cast<void(*)(void*)>(image+0x25ec50)(reinterpret_cast<void*>(lounge));return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
-DWORD activate(uintptr_t image,uintptr_t button){__try{reinterpret_cast<void(*)(void*)>(image+0x674780)(reinterpret_cast<void*>(button));return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
-DWORD show(uintptr_t image,uintptr_t window){__try{reinterpret_cast<void(*)(void*,bool,bool)>(image+0x81ec20)(reinterpret_cast<void*>(window),true,false);return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
-DWORD complete_state(uintptr_t image,uintptr_t lounge,bool& result){__try{result=reinterpret_cast<bool(*)(void*)>(image+0x25ed50)(reinterpret_cast<void*>(lounge));return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
+DWORD complete(uintptr_t image,uintptr_t lounge){__try{reinterpret_cast<void(*)(void*)>(image+0x261d50)(reinterpret_cast<void*>(lounge));return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
+DWORD activate(uintptr_t image,uintptr_t button){__try{reinterpret_cast<void(*)(void*)>(image+0x67b950)(reinterpret_cast<void*>(button));return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
+DWORD show(uintptr_t image,uintptr_t window){__try{reinterpret_cast<void(*)(void*,bool,bool)>(image+0x827210)(reinterpret_cast<void*>(window),true,false);return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
+DWORD complete_state(uintptr_t image,uintptr_t lounge,bool& result){__try{result=reinterpret_cast<bool(*)(void*)>(image+0x261e50)(reinterpret_cast<void*>(lounge));return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
 struct Busy {Busy(){busy=true;}~Busy(){busy=false;}};
 bool before_research(const Pin& p,std::string& e){
     if(p.tech_key=="startingpoint")return before_begin(p.development,p.project,e);

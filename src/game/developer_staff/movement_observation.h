@@ -33,8 +33,8 @@ inline bool observe_movement(const Read& read,const Capture& capture,const Censu
         const auto building=[&](uintptr_t receiver,uint64_t& uid,nlohmann::json& binding){
             binding={{"present",receiver!=0}};if(!receiver)return true;
             if(!selection){uintptr_t ap=0;
-                if(!at(capture.image,0x13df630,selection,error)||!at(selection,0,ap,error))return false;
-                if(ap!=capture.image+0x17205d0)return fail("Developer movement SelectionManager class differs");}
+                if(!at(capture.image,0x13eb630,selection,error)||!at(selection,0,ap,error))return false;
+                if(ap!=capture.image+0x1726970)return fail("Developer movement SelectionManager class differs");}
             remove_diagnostics::LocalTarget target;
             if(!remove_diagnostics::resolve_local_target(selection,receiver,target,error))return false;
             const auto& origin=capture.pin.origin;
